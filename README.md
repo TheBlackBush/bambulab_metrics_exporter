@@ -1,8 +1,8 @@
 # bambulab-metrics-exporter
 
-[![Docker Publish](https://github.com/BuSHari/bambulab_metrics_exporter/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/BuSHari/bambulab_metrics_exporter/actions/workflows/docker-publish.yml)
-[![GitHub Release](https://img.shields.io/github/v/release/BuSHari/bambulab_metrics_exporter?sort=semver)](https://github.com/BuSHari/bambulab_metrics_exporter/releases)
-[![GHCR Package](https://img.shields.io/badge/ghcr-bambulab__metrics__exporter-blue)](https://github.com/BuSHari/bambulab_metrics_exporter/pkgs/container/bambulab_metrics_exporter)
+[![Docker Publish](https://github.com/TheBlackBush/bambulab_metrics_exporter/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/TheBlackBush/bambulab_metrics_exporter/actions/workflows/docker-publish.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/TheBlackBush/bambulab_metrics_exporter?sort=semver)](https://github.com/TheBlackBush/bambulab_metrics_exporter/releases)
+[![GHCR Package](https://img.shields.io/badge/ghcr-bambulab__metrics__exporter-blue)](https://github.com/TheBlackBush/bambulab_metrics_exporter/pkgs/container/bambulab_metrics_exporter)
 
 Production-oriented Prometheus exporter for Bambu Lab printers (homelab/self-hosted friendly).
 

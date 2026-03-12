@@ -1,19 +1,19 @@
 <?xml version="1.0"?>
 <Container version="2">
   <Name>bambulab-metrics-exporter</Name>
-  <Repository>ghcr.io/bushari/bambulab_metrics_exporter:latest</Repository>
+  <Repository>ghcr.io/theblackbush/bambulab_metrics_exporter:latest</Repository>
   <Registry>https://ghcr.io</Registry>
   <Network>bridge</Network>
   <MyIP/>
   <Shell>sh</Shell>
   <Privileged>false</Privileged>
-  <Support>https://github.com/BuSHari/bambulab_metrics_exporter</Support>
-  <Project>https://github.com/BuSHari/bambulab_metrics_exporter</Project>
+  <Support>https://github.com/TheBlackBush/bambulab_metrics_exporter</Support>
+  <Project>https://github.com/TheBlackBush/bambulab_metrics_exporter</Project>
   <Overview>Prometheus exporter for Bambu Lab printers (local/cloud MQTT) exposing /metrics, /health, /ready.&#10;&#10;How it works:&#10;1) Startup preflight checks required env vars and connectivity.&#10;2) local_mqtt: connects directly to printer IP with bblp + access code.&#10;3) cloud_mqtt: uses user/token; if missing/invalid and email is set, startup can trigger re-auth flow.&#10;4) Metrics are polled and exported for Prometheus/Grafana.&#10;&#10;Manual vs automatic:&#10;- Manual once: set transport + serial + secret key (+ cloud/local credentials).&#10;- Automatic on startup: validation, reconnect attempts, optional cloud re-auth path, runtime env sync.&#10;- To generate a strong secret key (Linux): openssl rand -base64 48</Overview>
   <Category>Tools: Monitoring</Category>
   <WebUI>http://[IP]:[PORT:9109]/metrics</WebUI>
-  <TemplateURL>https://raw.githubusercontent.com/BuSHari/bambulab_metrics_exporter/master/unraid-bambulab-metrics-exporter.xml</TemplateURL>
-  <Icon>https://raw.githubusercontent.com/BuSHari/bambulab_metrics_exporter/master/docs/icon.png</Icon>
+  <TemplateURL>https://raw.githubusercontent.com/TheBlackBush/bambulab_metrics_exporter/master/unraid-bambulab-metrics-exporter.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/TheBlackBush/bambulab_metrics_exporter/master/docs/icon.png</Icon>
 
   <Config Name="Web UI Port" Target="9109" Default="9109" Mode="tcp" Description="Exporter HTTP port" Type="Port" Display="always" Required="true" Mask="false">9109</Config>
 
