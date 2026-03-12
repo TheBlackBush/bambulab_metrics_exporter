@@ -1,3 +1,5 @@
+import os
+
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -76,14 +78,15 @@ class Settings(BaseSettings):
                 raise ValueError(f"Missing required env vars for local_mqtt: {', '.join(missing)}")
 
         if self.bambulab_transport == "cloud_mqtt":
-            missing = [
-                key
-                for key, raw in {
-                    "BAMBULAB_SERIAL": self.bambulab_serial,
-                    "BAMBULAB_CLOUD_USER_ID": self.bambulab_cloud_user_id,
-                    "BAMBULAB_CLOUD_ACCESS_TOKEN": self.bambulab_cloud_access_token,
-                }.items()
-                if not raw
-            ]
-            if missing:
-                raise ValueError(f"Missing required env vars for cloud_mqtt: {', '.join(missing)}")
+            if not self.bambulab_serial:
+                raise ValueError("Missing required env vars for cloud_mqtt: BAMBULAB_SERIAL")
+
+            has_token_pair = bool(self.bambulab_cloud_user_id and self.bambulab_cloud_access_token)
+            has_email_for_reauth = bool(os.getenv("BAMBULAB_CLOUD_EMAIL"))
+
+            if not has_token_pair and not has_email_for_reauth:
+                raise ValueError(
+                    "Missing cloud auth inputs: provide either "
+                    "(BAMBULAB_CLOUD_USER_ID + BAMBULAB_CLOUD_ACCESS_TOKEN) "
+                    "or BAMBULAB_CLOUD_EMAIL for startup re-auth flow"
+                )
