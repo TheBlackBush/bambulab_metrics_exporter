@@ -119,6 +119,40 @@ def send_code(
     )
 
 
+def _extract_user_id(data: dict[str, object], access_token: str) -> str:
+    candidates: list[object] = [
+        data.get("uid"),
+        data.get("userId"),
+        data.get("user_id"),
+        (data.get("user") or {}).get("uid") if isinstance(data.get("user"), dict) else None,
+        (data.get("user") or {}).get("id") if isinstance(data.get("user"), dict) else None,
+    ]
+    for candidate in candidates:
+        if isinstance(candidate, (str, int)) and str(candidate):
+            return str(candidate)
+
+    # best effort: extract from JWT payload if present
+    parts = access_token.split(".")
+    if len(parts) >= 2:
+        import base64
+
+        payload = parts[1]
+        padding = "=" * (-len(payload) % 4)
+        try:
+            raw = base64.urlsafe_b64decode(payload + padding).decode("utf-8")
+            import json as _json
+
+            claims = _json.loads(raw)
+            for key in ("uid", "userId", "sub"):
+                value = claims.get(key)
+                if isinstance(value, (str, int)) and str(value):
+                    return str(value)
+        except Exception:
+            pass
+
+    raise CloudAuthError("Missing user id in login response")
+
+
 def login_with_code(
     email: str,
     code: str,
@@ -138,11 +172,12 @@ def login_with_code(
         raise CloudAuthError(str(data["error"]))
 
     try:
+        access_token = str(data["accessToken"])
         return LoginResult(
-            access_token=str(data["accessToken"]),
+            access_token=access_token,
             refresh_token=str(data.get("refreshToken", "")),
             expires_in=int(data.get("expiresIn", 0)),
-            user_id=str(data["uid"]),
+            user_id=_extract_user_id(data, access_token),
         )
     except KeyError as exc:
         raise CloudAuthError(f"Missing expected response key: {exc}") from exc
