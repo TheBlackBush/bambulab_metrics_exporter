@@ -44,6 +44,11 @@ class ExporterMetrics:
         self.online_ext = Gauge("bambulab_online_ext", "External online flag", label_names, registry=self.registry)
         self.ams_status = Gauge("bambulab_ams_status", "AMS status numeric code", label_names, registry=self.registry)
         self.ams_rfid_status = Gauge("bambulab_ams_rfid_status", "AMS RFID status numeric code", label_names, registry=self.registry)
+        self.queue_total = Gauge("bambulab_queue_total", "Total queued jobs", label_names, registry=self.registry)
+        self.queue_est = Gauge("bambulab_queue_estimated_seconds", "Estimated queue time seconds", label_names, registry=self.registry)
+        self.queue_number = Gauge("bambulab_queue_number", "Queue number", label_names, registry=self.registry)
+        self.queue_status = Gauge("bambulab_queue_status", "Queue status numeric code", label_names, registry=self.registry)
+        self.queue_position = Gauge("bambulab_queue_position", "Current queue position", label_names, registry=self.registry)
         self.printer_error_code = Gauge("bambulab_printer_error_code", "Raw printer error code", label_names, registry=self.registry)
         self.gcode_state = Gauge("bambulab_printer_gcode_state", "Current gcode state encoded as one-hot labels", [*label_names, "state"], registry=self.registry)
         self.mc_print_stage_state = Gauge("bambulab_mc_print_stage_state", "Current machine print stage as one-hot labels", [*label_names, "stage"], registry=self.registry)
@@ -58,6 +63,18 @@ class ExporterMetrics:
             "bambulab_ams_slot_remaining_percent",
             "AMS slot remaining filament percent",
             [*label_names, "ams_id", "slot_id"],
+            registry=self.registry,
+        )
+        self.ams_unit_humidity = Gauge(
+            "bambulab_ams_unit_humidity",
+            "AMS unit humidity",
+            [*label_names, "ams_id"],
+            registry=self.registry,
+        )
+        self.ams_unit_temperature_celsius = Gauge(
+            "bambulab_ams_unit_temperature_celsius",
+            "AMS unit temperature",
+            [*label_names, "ams_id"],
             registry=self.registry,
         )
 
@@ -113,6 +130,11 @@ class ExporterMetrics:
         self._set_optional(self.online_ext, snapshot.online_ext)
         self._set_optional(self.ams_status, snapshot.ams_status)
         self._set_optional(self.ams_rfid_status, snapshot.ams_rfid_status)
+        self._set_optional(self.queue_total, snapshot.queue_total)
+        self._set_optional(self.queue_est, snapshot.queue_est)
+        self._set_optional(self.queue_number, snapshot.queue_number)
+        self._set_optional(self.queue_status, snapshot.queue_status)
+        self._set_optional(self.queue_position, snapshot.queue_position)
         self._set_optional(self.print_error_code_legacy, snapshot.print_error)
         self._set_optional(self.ap_err_code, snapshot.ap_err)
 
@@ -139,6 +161,18 @@ class ExporterMetrics:
         self._clear_ams(labels)
         for ams in snapshot.ams_units:
             ams_id = str(ams.get("id", "0"))
+            humidity = ams.get("humidity")
+            if isinstance(humidity, (int, float, str)):
+                try:
+                    self.ams_unit_humidity.labels(**labels, ams_id=ams_id).set(float(humidity))
+                except (TypeError, ValueError):
+                    pass
+            temp = ams.get("temp")
+            if isinstance(temp, (int, float, str)):
+                try:
+                    self.ams_unit_temperature_celsius.labels(**labels, ams_id=ams_id).set(float(temp))
+                except (TypeError, ValueError):
+                    pass
             trays = ams.get("tray") if isinstance(ams.get("tray"), list) else []
             active_id = str(ams.get("tray_now", "-1"))
             for tray in trays:
@@ -162,6 +196,8 @@ class ExporterMetrics:
     def _clear_ams(self, labels: dict[str, str]) -> None:
         self.ams_slot_active.clear()
         self.ams_slot_remaining_percent.clear()
+        self.ams_unit_humidity.clear()
+        self.ams_unit_temperature_celsius.clear()
 
     def mark_scrape(self, duration_seconds: float, success: bool, now_ts: float | None = None) -> None:
         labels = self._labels()

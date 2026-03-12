@@ -190,6 +190,35 @@ class PrinterSnapshot:
         value = _to_int(self.print_block.get("ams_rfid_status"))
         return float(value) if value is not None else None
 
+
+    @property
+    def queue_total(self) -> float | None:
+        return _to_float(self.print_block.get("queue_total"))
+
+    @property
+    def queue_est(self) -> float | None:
+        return _to_float(self.print_block.get("queue_est"))
+
+    @property
+    def queue_number(self) -> float | None:
+        return _to_float(self.print_block.get("queue_number"))
+
+    @property
+    def queue_status(self) -> float | None:
+        return _to_float(self.print_block.get("queue_sts"))
+
+    @property
+    def queue_position(self) -> float | None:
+        return _to_float(self.print_block.get("queue"))
+
+    @property
+    def ams_tray_now(self) -> str | None:
+        ams = self.print_block.get("ams")
+        if isinstance(ams, dict):
+            value = ams.get("tray_now")
+            if isinstance(value, str):
+                return value
+        return None
     @property
     def print_error_code(self) -> int | None:
         return _to_int(self.print_block.get("mc_print_error_code"))

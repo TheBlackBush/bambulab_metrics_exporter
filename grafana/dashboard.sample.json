@@ -7,36 +7,149 @@
     {
       "type": "stat",
       "title": "Printer Up",
-      "targets": [{ "expr": "bambulab_printer_up{printer_name=\"$printer\"}" }],
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 }
+      "targets": [
+        {
+          "expr": "bambulab_printer_up{printer_name=\"$printer\"}"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      }
     },
     {
       "type": "stat",
       "title": "Connected",
-      "targets": [{ "expr": "bambulab_printer_connected{printer_name=\"$printer\"}" }],
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 }
+      "targets": [
+        {
+          "expr": "bambulab_printer_connected{printer_name=\"$printer\"}"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      }
     },
     {
       "type": "gauge",
       "title": "Progress %",
-      "targets": [{ "expr": "bambulab_print_progress_percent{printer_name=\"$printer\"}" }],
-      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 4 }
+      "targets": [
+        {
+          "expr": "bambulab_print_progress_percent{printer_name=\"$printer\"}"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 4
+      }
     },
     {
       "type": "stat",
       "title": "Remaining (min)",
-      "targets": [{ "expr": "bambulab_print_remaining_seconds{printer_name=\"$printer\"} / 60" }],
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 4 }
+      "targets": [
+        {
+          "expr": "bambulab_print_remaining_seconds{printer_name=\"$printer\"} / 60"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 4
+      }
     },
     {
       "type": "timeseries",
       "title": "Temperatures",
       "targets": [
-        { "expr": "bambulab_nozzle_temperature_celsius{printer_name=\"$printer\"}", "legendFormat": "nozzle" },
-        { "expr": "bambulab_bed_temperature_celsius{printer_name=\"$printer\"}", "legendFormat": "bed" },
-        { "expr": "bambulab_chamber_temperature_celsius{printer_name=\"$printer\"}", "legendFormat": "chamber" }
+        {
+          "expr": "bambulab_nozzle_temperature_celsius{printer_name=\"$printer\"}",
+          "legendFormat": "nozzle"
+        },
+        {
+          "expr": "bambulab_bed_temperature_celsius{printer_name=\"$printer\"}",
+          "legendFormat": "bed"
+        },
+        {
+          "expr": "bambulab_chamber_temperature_celsius{printer_name=\"$printer\"}",
+          "legendFormat": "chamber"
+        }
       ],
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 }
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Fans %",
+      "targets": [
+        {
+          "expr": "bambulab_fan_big_1_speed_percent{printer_name=\"$printer\"}",
+          "legendFormat": "big1"
+        },
+        {
+          "expr": "bambulab_fan_big_2_speed_percent{printer_name=\"$printer\"}",
+          "legendFormat": "big2"
+        },
+        {
+          "expr": "bambulab_fan_cooling_speed_percent{printer_name=\"$printer\"}",
+          "legendFormat": "cooling"
+        },
+        {
+          "expr": "bambulab_fan_heatbreak_speed_percent{printer_name=\"$printer\"}",
+          "legendFormat": "heatbreak"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      }
+    },
+    {
+      "type": "stat",
+      "title": "WiFi Signal",
+      "targets": [
+        {
+          "expr": "bambulab_wifi_signal{printer_name=\"$printer\"}"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "AMS Humidity/Temp",
+      "targets": [
+        {
+          "expr": "bambulab_ams_unit_humidity{printer_name=\"$printer\"}",
+          "legendFormat": "humidity ams{{ams_id}}"
+        },
+        {
+          "expr": "bambulab_ams_unit_temperature_celsius{printer_name=\"$printer\"}",
+          "legendFormat": "temp ams{{ams_id}}"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      }
     }
   ],
   "templating": {

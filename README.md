@@ -148,6 +148,28 @@ scrape_configs:
 - `bambulab_ams_slot_active{ams_id,slot_id}`
 - `bambulab_ams_slot_remaining_percent{ams_id,slot_id}`
 
+- `bambulab_fan_big_1_speed_percent`
+- `bambulab_fan_big_2_speed_percent`
+- `bambulab_fan_cooling_speed_percent`
+- `bambulab_fan_heatbreak_speed_percent`
+- `bambulab_mc_stage`
+- `bambulab_mc_print_sub_stage`
+- `bambulab_print_real_action`
+- `bambulab_print_gcode_action`
+- `bambulab_mc_print_stage_state{stage="..."}`
+- `bambulab_wifi_signal`
+- `bambulab_online_ahb`
+- `bambulab_online_ext`
+- `bambulab_ams_status`
+- `bambulab_ams_rfid_status`
+- `bambulab_ams_unit_humidity{ams_id}`
+- `bambulab_ams_unit_temperature_celsius{ams_id}`
+- `bambulab_queue_total`
+- `bambulab_queue_estimated_seconds`
+- `bambulab_queue_number`
+- `bambulab_queue_status`
+- `bambulab_queue_position`
+
 Exporter self-metrics:
 
 - `bambulab_exporter_scrape_duration_seconds`
