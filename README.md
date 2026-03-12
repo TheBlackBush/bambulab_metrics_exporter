@@ -37,7 +37,8 @@ cp .env.example .env
 # edit .env values
 python -m venv .venv
 source .venv/bin/activate
-pip install -e .
+pip install -r requirements.txt
+# or: pip install -e .
 bambulab-exporter
 ```
 
@@ -162,7 +163,8 @@ All metrics include stable labels:
 ## Testing
 
 ```bash
-pip install -e .[dev]
+pip install -r requirements-dev.txt
+# or: pip install -e .[dev]
 pytest -q
 ```
 
