@@ -26,6 +26,8 @@
   <Config Name="Transport" Target="BAMBULAB_TRANSPORT" Default="cloud_mqtt" Mode="" Description="local_mqtt or cloud_mqtt" Type="Variable" Display="always" Required="true" Mask="false">cloud_mqtt</Config>
   <Config Name="Printer Serial" Target="BAMBULAB_SERIAL" Default="" Mode="" Description="Printer device serial (required)" Type="Variable" Display="always" Required="true" Mask="false"></Config>
 
+  <Config Name="Cloud Email" Target="BAMBULAB_CLOUD_EMAIL" Default="" Mode="" Description="Bambu account email (required for startup re-auth flow)" Type="Variable" Display="always" Required="false" Mask="false"></Config>
+  <Config Name="Cloud One-Time Code" Target="BAMBULAB_CLOUD_CODE" Default="" Mode="" Description="Optional email 2FA code for automatic re-auth on startup" Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
   <Config Name="Cloud User ID" Target="BAMBULAB_CLOUD_USER_ID" Default="" Mode="" Description="Cloud uid (required for cloud_mqtt)" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
   <Config Name="Cloud Access Token" Target="BAMBULAB_CLOUD_ACCESS_TOKEN" Default="" Mode="" Description="Cloud access token (required for cloud_mqtt)" Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
   <Config Name="Cloud Refresh Token" Target="BAMBULAB_CLOUD_REFRESH_TOKEN" Default="" Mode="" Description="Cloud refresh token (optional)" Type="Variable" Display="advanced" Required="false" Mask="true"></Config>

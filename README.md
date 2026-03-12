@@ -94,9 +94,11 @@ bambulab-exporter
 | `BAMBULAB_REQUEST_PUSHALL` | no | `true` | Request full snapshot every poll |
 | `BAMBULAB_CLOUD_MQTT_HOST` | cloud | `us.mqtt.bambulab.com` | Cloud MQTT broker host |
 | `BAMBULAB_CLOUD_MQTT_PORT` | cloud | `8883` | Cloud MQTT broker port |
+| `BAMBULAB_CLOUD_EMAIL` | recommended | - | Account email used by startup auto re-auth flow |
+| `BAMBULAB_CLOUD_CODE` | optional | empty | One-time code for auto re-auth (if token missing/expired) |
 | `BAMBULAB_CLOUD_USER_ID` | cloud | - | Bambu cloud uid (used as username `u_<uid>`) |
 | `BAMBULAB_CLOUD_ACCESS_TOKEN` | cloud | - | Bambu cloud access token |
-| `BAMBULAB_CLOUD_REFRESH_TOKEN` | no | empty | Optional stored refresh token (future use) |
+| `BAMBULAB_CLOUD_REFRESH_TOKEN` | no | empty | Optional stored refresh token |
 | `POLLING_INTERVAL_SECONDS` | no | `10` | Polling interval |
 | `REQUEST_TIMEOUT_SECONDS` | no | `8` | Per-cycle snapshot timeout |
 | `LISTEN_HOST` | no | `0.0.0.0` | HTTP bind host |
