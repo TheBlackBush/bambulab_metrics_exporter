@@ -4,6 +4,6 @@ scrape_configs:
     metrics_path: /metrics
     static_configs:
       - targets:
-          - bambulab-prometheus-exporter:9109
+          - bambulab-metrics-exporter:9109
         labels:
           instance: bambu-x1c

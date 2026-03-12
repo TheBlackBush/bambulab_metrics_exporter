@@ -1,7 +1,7 @@
 services:
-  bambulab-prometheus-exporter:
+  bambulab-metrics-exporter:
     build: .
-    container_name: bambulab-prometheus-exporter
+    container_name: bambulab-metrics-exporter
     restart: unless-stopped
     env_file:
       - .env

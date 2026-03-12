@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=False)
 
-    app_name: str = "bambulab-prometheus-exporter"
+    app_name: str = "bambulab-metrics-exporter"
     log_level: str = "INFO"
 
     bambulab_transport: str = "local_mqtt"

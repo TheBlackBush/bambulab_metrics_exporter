@@ -6,7 +6,7 @@ from bambulab_prometheus_exporter.metrics import ExporterMetrics
 
 
 def build_app(metrics: ExporterMetrics, collector: PollingCollector) -> FastAPI:
-    app = FastAPI(title="bambulab-prometheus-exporter", version="0.1.0")
+    app = FastAPI(title="bambulab-metrics-exporter", version="0.1.0")
 
     @app.get("/metrics")
     def metrics_handler() -> Response:

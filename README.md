@@ -1,4 +1,4 @@
-# bambulab-prometheus-exporter
+# bambulab-metrics-exporter
 
 Production-oriented Prometheus exporter for Bambu Lab printers (homelab/self-hosted friendly).
 
@@ -70,8 +70,8 @@ Then open:
 ## Docker
 
 ```bash
-docker build -t bambulab-prometheus-exporter:latest .
-docker run --rm -p 9109:9109 --env-file .env bambulab-prometheus-exporter:latest
+docker build -t bambulab-metrics-exporter:latest .
+docker run --rm -p 9109:9109 --env-file .env bambulab-metrics-exporter:latest
 ```
 
 or:
@@ -90,7 +90,7 @@ scrape_configs:
     scrape_interval: 15s
     metrics_path: /metrics
     static_configs:
-      - targets: ["bambulab-prometheus-exporter:9109"]
+      - targets: ["bambulab-metrics-exporter:9109"]
 ```
 
 ## Exported metrics (core)
