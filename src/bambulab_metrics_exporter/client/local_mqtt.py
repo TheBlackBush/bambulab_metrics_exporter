@@ -38,7 +38,13 @@ class LocalMqttBambuClient:
         self._client.on_message = self._on_message
 
     def connect(self) -> None:
-        logger.info("Connecting to printer mqtt", extra={"host": self._settings.bambulab_host})
+        logger.info(
+            "Connecting to printer mqtt: host=%s port=%s user=%s topic=%s",
+            self._settings.bambulab_host,
+            self._settings.bambulab_port,
+            self._settings.bambulab_username,
+            self._topic_report,
+        )
         self._client.connect(self._settings.bambulab_host, self._settings.bambulab_port, keepalive=20)
         self._client.loop_start()
 
@@ -80,7 +86,14 @@ class LocalMqttBambuClient:
         _properties: mqtt.Properties | None,
     ) -> None:
         if reason_code != 0:
-            logger.error("MQTT connect failed", extra={"reason": str(reason_code)})
+            logger.error(
+                "MQTT connect failed: reason=%s host=%s port=%s user=%s topic=%s",
+                str(reason_code),
+                self._settings.bambulab_host,
+                self._settings.bambulab_port,
+                self._settings.bambulab_username,
+                self._topic_report,
+            )
             return
         with self._lock:
             self._connected = True
@@ -97,7 +110,7 @@ class LocalMqttBambuClient:
     ) -> None:
         with self._lock:
             self._connected = False
-        logger.warning("MQTT disconnected", extra={"reason": str(reason_code)})
+        logger.warning("MQTT disconnected: reason=%s", str(reason_code))
 
     def _on_message(self, _client: mqtt.Client, _userdata: object, msg: mqtt.MQTTMessage) -> None:
         if msg.topic != self._topic_report:
