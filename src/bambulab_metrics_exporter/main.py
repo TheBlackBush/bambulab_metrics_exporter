@@ -4,12 +4,12 @@ import logging
 
 import uvicorn
 
-from bambulab_prometheus_exporter.api import build_app
-from bambulab_prometheus_exporter.client.factory import build_client
-from bambulab_prometheus_exporter.collector import PollingCollector
-from bambulab_prometheus_exporter.config import Settings
-from bambulab_prometheus_exporter.logging_utils import configure_logging
-from bambulab_prometheus_exporter.metrics import ExporterMetrics
+from bambulab_metrics_exporter.api import build_app
+from bambulab_metrics_exporter.client.factory import build_client
+from bambulab_metrics_exporter.collector import PollingCollector
+from bambulab_metrics_exporter.config import Settings
+from bambulab_metrics_exporter.logging_utils import configure_logging
+from bambulab_metrics_exporter.metrics import ExporterMetrics
 
 logger = logging.getLogger(__name__)
 

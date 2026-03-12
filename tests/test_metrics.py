@@ -1,5 +1,5 @@
-from bambulab_prometheus_exporter.metrics import ExporterMetrics
-from bambulab_prometheus_exporter.models import PrinterSnapshot
+from bambulab_metrics_exporter.metrics import ExporterMetrics
+from bambulab_metrics_exporter.models import PrinterSnapshot
 
 
 def test_metrics_update_smoke() -> None:

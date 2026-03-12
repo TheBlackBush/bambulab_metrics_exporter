@@ -27,7 +27,7 @@ dev = [
 ]
 
 [project.scripts]
-bambulab-exporter = "bambulab_prometheus_exporter.main:run"
+bambulab-exporter = "bambulab_metrics_exporter.main:run"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

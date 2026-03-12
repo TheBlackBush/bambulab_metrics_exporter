@@ -1,4 +1,4 @@
-from bambulab_prometheus_exporter.models import PrinterSnapshot
+from bambulab_metrics_exporter.models import PrinterSnapshot
 
 
 def test_snapshot_extracts_core_fields() -> None:

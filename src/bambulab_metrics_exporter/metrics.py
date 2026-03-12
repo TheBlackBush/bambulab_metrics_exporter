@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from prometheus_client import CollectorRegistry, Gauge
 
-from bambulab_prometheus_exporter.models import PrinterSnapshot
+from bambulab_metrics_exporter.models import PrinterSnapshot
 
 
 class ExporterMetrics:

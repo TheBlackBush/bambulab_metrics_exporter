@@ -1,6 +1,6 @@
 import pytest
 
-from bambulab_prometheus_exporter.config import Settings
+from bambulab_metrics_exporter.config import Settings
 
 
 def test_missing_required_local_mqtt_fields() -> None:

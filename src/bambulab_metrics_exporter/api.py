@@ -1,8 +1,8 @@
 from fastapi import FastAPI, HTTPException, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
-from bambulab_prometheus_exporter.collector import PollingCollector
-from bambulab_prometheus_exporter.metrics import ExporterMetrics
+from bambulab_metrics_exporter.collector import PollingCollector
+from bambulab_metrics_exporter.metrics import ExporterMetrics
 
 
 def build_app(metrics: ExporterMetrics, collector: PollingCollector) -> FastAPI:

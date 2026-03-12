@@ -10,8 +10,8 @@ from typing import Any
 
 import paho.mqtt.client as mqtt
 
-from bambulab_prometheus_exporter.config import Settings
-from bambulab_prometheus_exporter.models import PrinterSnapshot
+from bambulab_metrics_exporter.config import Settings
+from bambulab_metrics_exporter.models import PrinterSnapshot
 
 logger = logging.getLogger(__name__)
 

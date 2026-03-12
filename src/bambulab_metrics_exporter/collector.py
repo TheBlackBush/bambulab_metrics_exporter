@@ -4,9 +4,9 @@ import logging
 import threading
 import time
 
-from bambulab_prometheus_exporter.client.base import BambuClient
-from bambulab_prometheus_exporter.config import Settings
-from bambulab_prometheus_exporter.metrics import ExporterMetrics
+from bambulab_metrics_exporter.client.base import BambuClient
+from bambulab_metrics_exporter.config import Settings
+from bambulab_metrics_exporter.metrics import ExporterMetrics
 
 logger = logging.getLogger(__name__)
 

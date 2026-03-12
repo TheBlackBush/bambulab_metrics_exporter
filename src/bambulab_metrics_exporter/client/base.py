@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from bambulab_prometheus_exporter.models import PrinterSnapshot
+from bambulab_metrics_exporter.models import PrinterSnapshot
 
 
 class BambuClient(ABC):
