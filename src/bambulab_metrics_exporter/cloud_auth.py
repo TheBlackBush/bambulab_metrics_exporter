@@ -103,6 +103,61 @@ def _post_json_multi_base(
     )
 
 
+def _get_json(
+    api_base: str,
+    path: str,
+    timeout_seconds: int,
+    retries: int,
+    access_token: str,
+) -> dict[str, object]:
+    headers = dict(DEFAULT_HEADERS)
+    headers["Authorization"] = f"Bearer {access_token}"
+    req = request.Request(f"{api_base}{path}", headers=headers, method="GET")
+
+    attempt = 0
+    while True:
+        try:
+            with request.urlopen(req, timeout=timeout_seconds) as res:
+                body = res.read().decode("utf-8")
+                return json.loads(body) if body else {}
+        except error.HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="ignore")
+            should_retry = exc.code in {408, 409, 425, 429, 500, 502, 503, 504}
+            if attempt >= retries or not should_retry:
+                raise CloudAuthError(f"{api_base} -> HTTP {exc.code}: {body}") from exc
+        except error.URLError as exc:
+            if attempt >= retries:
+                raise CloudAuthError(f"{api_base} -> Network error: {exc}") from exc
+
+        attempt += 1
+        backoff = min(2**attempt, 8) + random.uniform(0, 0.5)
+        time.sleep(backoff)
+
+
+def _resolve_user_id_from_profile(
+    access_token: str,
+    timeout_seconds: int,
+    retries: int,
+    api_bases: list[str],
+) -> str | None:
+    for api_base in api_bases:
+        try:
+            data = _get_json(
+                api_base=api_base,
+                path="/v1/user-service/my/profile",
+                timeout_seconds=timeout_seconds,
+                retries=retries,
+                access_token=access_token,
+            )
+            for key in ("uid", "userId", "id"):
+                value = data.get(key)
+                if isinstance(value, (str, int)) and str(value):
+                    return str(value)
+        except CloudAuthError:
+            continue
+    return None
+
+
 def send_code(
     email: str,
     timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
@@ -119,7 +174,13 @@ def send_code(
     )
 
 
-def _extract_user_id(data: dict[str, object], access_token: str) -> str:
+def _extract_user_id(
+    data: dict[str, object],
+    access_token: str,
+    timeout_seconds: int,
+    retries: int,
+    api_bases: list[str],
+) -> str:
     candidates: list[object] = [
         data.get("uid"),
         data.get("userId"),
@@ -150,7 +211,16 @@ def _extract_user_id(data: dict[str, object], access_token: str) -> str:
         except Exception:
             pass
 
-    raise CloudAuthError("Missing user id in login response")
+    profile_uid = _resolve_user_id_from_profile(
+        access_token=access_token,
+        timeout_seconds=timeout_seconds,
+        retries=retries,
+        api_bases=api_bases,
+    )
+    if profile_uid:
+        return profile_uid
+
+    raise CloudAuthError("Missing user id in login/profile response")
 
 
 def login_with_code(
@@ -177,7 +247,13 @@ def login_with_code(
             access_token=access_token,
             refresh_token=str(data.get("refreshToken", "")),
             expires_in=int(data.get("expiresIn", 0)),
-            user_id=_extract_user_id(data, access_token),
+            user_id=_extract_user_id(
+                data,
+                access_token,
+                timeout_seconds=timeout_seconds,
+                retries=retries,
+                api_bases=bases,
+            ),
         )
     except KeyError as exc:
         raise CloudAuthError(f"Missing expected response key: {exc}") from exc
