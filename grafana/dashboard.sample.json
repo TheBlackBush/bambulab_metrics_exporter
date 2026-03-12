@@ -1,0 +1,53 @@
+{
+  "title": "Bambu Lab Printer Overview",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Printer Up",
+      "targets": [{ "expr": "bambulab_printer_up{printer_name=\"$printer\"}" }],
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 }
+    },
+    {
+      "type": "stat",
+      "title": "Connected",
+      "targets": [{ "expr": "bambulab_printer_connected{printer_name=\"$printer\"}" }],
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 }
+    },
+    {
+      "type": "gauge",
+      "title": "Progress %",
+      "targets": [{ "expr": "bambulab_print_progress_percent{printer_name=\"$printer\"}" }],
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 4 }
+    },
+    {
+      "type": "stat",
+      "title": "Remaining (min)",
+      "targets": [{ "expr": "bambulab_print_remaining_seconds{printer_name=\"$printer\"} / 60" }],
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 4 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Temperatures",
+      "targets": [
+        { "expr": "bambulab_nozzle_temperature_celsius{printer_name=\"$printer\"}", "legendFormat": "nozzle" },
+        { "expr": "bambulab_bed_temperature_celsius{printer_name=\"$printer\"}", "legendFormat": "bed" },
+        { "expr": "bambulab_chamber_temperature_celsius{printer_name=\"$printer\"}", "legendFormat": "chamber" }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 }
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "printer",
+        "type": "query",
+        "datasource": "Prometheus",
+        "query": "label_values(bambulab_printer_up, printer_name)",
+        "refresh": 1
+      }
+    ]
+  }
+}
