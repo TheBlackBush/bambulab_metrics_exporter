@@ -265,3 +265,19 @@ On container startup, exporter performs a connection preflight:
 
 
 Alert rules sample is available at: `deploy/prometheus.alerts.yml`
+
+Recording rules sample is available at: `deploy/prometheus.recording.yml`
+
+
+## Unraid Docker template
+
+A ready-to-import Unraid template is included:
+
+- `deploy/unraid/bambulab-metrics-exporter.xml`
+
+In Unraid:
+1. Docker -> Add Container -> Template: use XML file content (or host it and use Template URL).
+2. Fill `BAMBULAB_SECRET_KEY` and required transport fields.
+3. Start container and verify `/metrics`.
+
+> Note: Replace repository/template/icon URLs in XML with your actual GitHub/registry paths before publishing.

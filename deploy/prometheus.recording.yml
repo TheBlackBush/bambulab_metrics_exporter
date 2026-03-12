@@ -1,0 +1,21 @@
+groups:
+  - name: bambulab-recording
+    interval: 30s
+    rules:
+      - record: bambulab:printer_online:ratio5m
+        expr: avg_over_time(bambulab_printer_connected[5m])
+
+      - record: bambulab:exporter_scrape_success:ratio5m
+        expr: avg_over_time(bambulab_exporter_scrape_success[5m])
+
+      - record: bambulab:print_progress:latest
+        expr: last_over_time(bambulab_print_progress_percent[5m])
+
+      - record: bambulab:nozzle_temp:avg5m
+        expr: avg_over_time(bambulab_nozzle_temperature_celsius[5m])
+
+      - record: bambulab:bed_temp:avg5m
+        expr: avg_over_time(bambulab_bed_temperature_celsius[5m])
+
+      - record: bambulab:chamber_temp:avg5m
+        expr: avg_over_time(bambulab_chamber_temperature_celsius[5m])

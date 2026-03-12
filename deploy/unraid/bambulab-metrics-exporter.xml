@@ -1,0 +1,48 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>bambulab-metrics-exporter</Name>
+  <Repository>ghcr.io/idan-bush/bambulab-metrics-exporter:latest</Repository>
+  <Registry>https://ghcr.io</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/idan-bush/bambulab-prometheus-exporter</Support>
+  <Project>https://github.com/idan-bush/bambulab-prometheus-exporter</Project>
+  <Overview>Prometheus exporter for Bambu Lab printers (local/cloud MQTT) with /metrics, /health, /ready endpoints.</Overview>
+  <Category>Tools: Monitoring</Category>
+  <WebUI>http://[IP]:[PORT:9109]/metrics</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/idan-bush/bambulab-prometheus-exporter/main/deploy/unraid/bambulab-metrics-exporter.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/idan-bush/bambulab-prometheus-exporter/main/docs/icon.png</Icon>
+
+  <Config Name="Web UI Port" Target="9109" Default="9109" Mode="tcp" Description="Exporter HTTP port" Type="Port" Display="always" Required="true" Mask="false">9109</Config>
+
+  <Config Name="Config Dir" Target="/config/bambulab-metrics-exporter" Default="/mnt/user/appdata/bambulab-metrics-exporter" Mode="rw" Description="Persistent config and encrypted credentials" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/bambulab-metrics-exporter</Config>
+
+  <Config Name="Transport" Target="BAMBULAB_TRANSPORT" Default="cloud_mqtt" Mode="" Description="local_mqtt or cloud_mqtt" Type="Variable" Display="always" Required="true" Mask="false">cloud_mqtt</Config>
+  <Config Name="Printer Serial" Target="BAMBULAB_SERIAL" Default="" Mode="" Description="Printer device serial (required)" Type="Variable" Display="always" Required="true" Mask="false"></Config>
+
+  <Config Name="Cloud User ID" Target="BAMBULAB_CLOUD_USER_ID" Default="" Mode="" Description="Cloud uid (required for cloud_mqtt)" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="Cloud Access Token" Target="BAMBULAB_CLOUD_ACCESS_TOKEN" Default="" Mode="" Description="Cloud access token (required for cloud_mqtt)" Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
+  <Config Name="Cloud Refresh Token" Target="BAMBULAB_CLOUD_REFRESH_TOKEN" Default="" Mode="" Description="Cloud refresh token (optional)" Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
+  <Config Name="Cloud MQTT Host" Target="BAMBULAB_CLOUD_MQTT_HOST" Default="us.mqtt.bambulab.com" Mode="" Description="Cloud MQTT host" Type="Variable" Display="advanced" Required="false" Mask="false">us.mqtt.bambulab.com</Config>
+  <Config Name="Cloud MQTT Port" Target="BAMBULAB_CLOUD_MQTT_PORT" Default="8883" Mode="" Description="Cloud MQTT port" Type="Variable" Display="advanced" Required="false" Mask="false">8883</Config>
+
+  <Config Name="Local Host/IP" Target="BAMBULAB_HOST" Default="" Mode="" Description="Printer IP/hostname (required for local_mqtt)" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="Local Access Code" Target="BAMBULAB_ACCESS_CODE" Default="" Mode="" Description="Printer LAN access code (required for local_mqtt)" Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
+  <Config Name="Local MQTT Port" Target="BAMBULAB_PORT" Default="8883" Mode="" Description="Local MQTT TLS port" Type="Variable" Display="advanced" Required="false" Mask="false">8883</Config>
+  <Config Name="Local MQTT Username" Target="BAMBULAB_USERNAME" Default="bblp" Mode="" Description="Local MQTT username" Type="Variable" Display="advanced" Required="false" Mask="false">bblp</Config>
+
+  <Config Name="Secret Key" Target="BAMBULAB_SECRET_KEY" Default="" Mode="" Description="Strong key used to encrypt credentials file" Type="Variable" Display="always" Required="true" Mask="true"></Config>
+  <Config Name="Config Dir Env" Target="BAMBULAB_CONFIG_DIR" Default="/config/bambulab-metrics-exporter" Mode="" Description="Internal config path" Type="Variable" Display="advanced" Required="false" Mask="false">/config/bambulab-metrics-exporter</Config>
+  <Config Name="Credentials File" Target="BAMBULAB_CREDENTIALS_FILE" Default="credentials.enc.json" Mode="" Description="Encrypted credentials filename" Type="Variable" Display="advanced" Required="false" Mask="false">credentials.enc.json</Config>
+
+  <Config Name="Listen Host" Target="LISTEN_HOST" Default="0.0.0.0" Mode="" Description="HTTP bind host" Type="Variable" Display="advanced" Required="false" Mask="false">0.0.0.0</Config>
+  <Config Name="Listen Port" Target="LISTEN_PORT" Default="9109" Mode="" Description="HTTP bind port" Type="Variable" Display="advanced" Required="false" Mask="false">9109</Config>
+  <Config Name="Polling Interval" Target="POLLING_INTERVAL_SECONDS" Default="10" Mode="" Description="Polling interval in seconds" Type="Variable" Display="advanced" Required="false" Mask="false">10</Config>
+  <Config Name="Request Timeout" Target="REQUEST_TIMEOUT_SECONDS" Default="8" Mode="" Description="Request timeout in seconds" Type="Variable" Display="advanced" Required="false" Mask="false">8</Config>
+  <Config Name="Log Level" Target="LOG_LEVEL" Default="INFO" Mode="" Description="DEBUG/INFO/WARNING/ERROR" Type="Variable" Display="advanced" Required="false" Mask="false">INFO</Config>
+  <Config Name="Printer Name Label" Target="PRINTER_NAME" Default="bambu" Mode="" Description="Prometheus label value" Type="Variable" Display="advanced" Required="false" Mask="false">bambu</Config>
+  <Config Name="Site Label" Target="SITE" Default="" Mode="" Description="Prometheus site label" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="Location Label" Target="LOCATION" Default="" Mode="" Description="Prometheus location label" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+</Container>

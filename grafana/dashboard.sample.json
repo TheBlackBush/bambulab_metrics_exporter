@@ -150,6 +150,67 @@
         "x": 0,
         "y": 20
       }
+    },
+    {
+      "type": "stat",
+      "title": "Queue Position",
+      "targets": [
+        {
+          "expr": "bambulab_queue_position{printer_name=\"$printer\"}"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Queue Total",
+      "targets": [
+        {
+          "expr": "bambulab_queue_total{printer_name=\"$printer\"}"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Chamber Light",
+      "targets": [
+        {
+          "expr": "bambulab_chamber_light_on{printer_name=\"$printer\"}"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 4
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "XCam Feature Flags",
+      "targets": [
+        {
+          "expr": "bambulab_xcam_feature_enabled{printer_name=\"$printer\"}",
+          "legendFormat": "{{feature}}"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 20
+      }
     }
   ],
   "templating": {
