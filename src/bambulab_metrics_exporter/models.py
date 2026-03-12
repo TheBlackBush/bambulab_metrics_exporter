@@ -66,6 +66,24 @@ class PrinterSnapshot:
         return None
 
     @property
+    def layer_current(self) -> float | None:
+        value = self.print_block.get("layer_num")
+        return float(value) if isinstance(value, (int, float)) else None
+
+    @property
+    def layer_total(self) -> float | None:
+        value = self.print_block.get("total_layer_num")
+        return float(value) if isinstance(value, (int, float)) else None
+
+    @property
+    def layer_progress_percent(self) -> float | None:
+        current = self.layer_current
+        total = self.layer_total
+        if current is None or total is None or total <= 0:
+            return None
+        return (current / total) * 100.0
+
+    @property
     def fan_gear(self) -> float | None:
         value = self.print_block.get("big_fan1_speed")
         if isinstance(value, (int, float)):
