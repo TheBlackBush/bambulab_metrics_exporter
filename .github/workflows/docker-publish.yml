@@ -81,3 +81,29 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64,linux/arm64
+
+      - name: Update release notes with image info
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const release = context.payload.release;
+            const image = process.env.IMAGE_NAME;
+            const tag = process.env.RELEASE_TAG;
+            const block = [
+              '## Docker image',
+              '',
+              `- ${image}:${tag.replace(/^v/, '')}`,
+              `- ${image}:latest`,
+            ].join('\n');
+
+            const current = release.body || '';
+            const next = current.includes('## Docker image')
+              ? current.replace(/## Docker image[\s\S]*/m, block)
+              : `${current}\n\n${block}`.trim();
+
+            await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: release.id,
+              body: next,
+            });
