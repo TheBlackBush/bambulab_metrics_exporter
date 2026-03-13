@@ -1,12 +1,14 @@
 name: CI
 
 on:
+  pull_request:
+    branches: ["main"]
   push:
     branches: ["main"]
-  pull_request:
 
 jobs:
-  test:
+  pr-essential-tests:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -23,7 +25,31 @@ jobs:
           pip install -r requirements-dev.txt
           pip install -e .
 
-      - name: Lint, type-check, tests, coverage
+      - name: Essential checks (PR)
+        run: |
+          python -m compileall -q src tests
+          ruff check src tests
+          pytest -q tests/test_api.py tests/test_config.py tests/test_models.py tests/test_metrics.py
+
+  post-merge-full-tests:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+          pip install -e .
+
+      - name: Full checks (after merge to main)
         run: |
           mkdir -p tests/results
           python -m compileall -q src tests
@@ -36,3 +62,23 @@ jobs:
         with:
           name: test-results
           path: tests/results
+
+  post-merge-docker-build:
+    if: github.event_name == 'push'
+    needs: post-merge-full-tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: bambulab-metrics-exporter:ci-main
+          load: true
