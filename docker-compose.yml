@@ -13,38 +13,37 @@ services:
       - "9109:9109"
 
     environment:
-      # Required for regular cloud run
-      BAMBULAB_TRANSPORT: ${BAMBULAB_TRANSPORT:-cloud_mqtt}
-      BAMBULAB_SERIAL: ${BAMBULAB_SERIAL}
-      BAMBULAB_SECRET_KEY: ${BAMBULAB_SECRET_KEY}
-      BAMBULAB_CLOUD_EMAIL: ${BAMBULAB_CLOUD_EMAIL}
+      BAMBULAB_TRANSPORT: ${BAMBULAB_TRANSPORT:-cloud_mqtt} # cloud_mqtt or local_mqtt
+      BAMBULAB_SERIAL: ${BAMBULAB_SERIAL} # printer serial (required)
+      BAMBULAB_SECRET_KEY: ${BAMBULAB_SECRET_KEY} # encryption key (required)
+      BAMBULAB_CLOUD_EMAIL: ${BAMBULAB_CLOUD_EMAIL} # cloud account email (required for cloud auth flow)
 
       # Optional (uncomment if needed)
-      # LISTEN_HOST: ${LISTEN_HOST:-0.0.0.0}
-      # LISTEN_PORT: ${LISTEN_PORT:-9109}
-      # PUID: ${PUID:-99}
-      # PGID: ${PGID:-100}
-      # UMASK: ${UMASK:-002}
-      # PRINTER_NAME: ${PRINTER_NAME:-bambu}
-      # SITE: ${SITE:-}
-      # LOCATION: ${LOCATION:-}
-      # LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      # POLLING_INTERVAL_SECONDS: ${POLLING_INTERVAL_SECONDS:-10}
-      # REQUEST_TIMEOUT_SECONDS: ${REQUEST_TIMEOUT_SECONDS:-8}
-      # RECONNECT_INTERVAL_SECONDS: ${RECONNECT_INTERVAL_SECONDS:-5}
-      # BAMBULAB_CONFIG_DIR: ${BAMBULAB_CONFIG_DIR:-/config/bambulab-metrics-exporter}
-      # BAMBULAB_CREDENTIALS_FILE: ${BAMBULAB_CREDENTIALS_FILE:-credentials.enc.json}
-      # BAMBULAB_CLOUD_CODE: ${BAMBULAB_CLOUD_CODE:-}
-      # BAMBULAB_CLOUD_USER_ID: ${BAMBULAB_CLOUD_USER_ID:-}
-      # BAMBULAB_CLOUD_ACCESS_TOKEN: ${BAMBULAB_CLOUD_ACCESS_TOKEN:-}
-      # BAMBULAB_CLOUD_REFRESH_TOKEN: ${BAMBULAB_CLOUD_REFRESH_TOKEN:-}
-      # BAMBULAB_CLOUD_MQTT_HOST: ${BAMBULAB_CLOUD_MQTT_HOST:-us.mqtt.bambulab.com}
-      # BAMBULAB_CLOUD_MQTT_PORT: ${BAMBULAB_CLOUD_MQTT_PORT:-8883}
-      # BAMBULAB_HOST: ${BAMBULAB_HOST:-}
-      # BAMBULAB_PORT: ${BAMBULAB_PORT:-8883}
-      # BAMBULAB_USERNAME: ${BAMBULAB_USERNAME:-bblp}
-      # BAMBULAB_ACCESS_CODE: ${BAMBULAB_ACCESS_CODE:-}
-      # BAMBULAB_REQUEST_PUSHALL: ${BAMBULAB_REQUEST_PUSHALL:-true}
+      # LISTEN_HOST: ${LISTEN_HOST:-0.0.0.0} # HTTP bind host
+      # LISTEN_PORT: ${LISTEN_PORT:-9109} # HTTP port
+      # PUID: ${PUID:-99} # runtime user id
+      # PGID: ${PGID:-100} # runtime group id
+      # UMASK: ${UMASK:-002} # file mode mask
+      # PRINTER_NAME: ${PRINTER_NAME:-bambu} # metrics label
+      # SITE: ${SITE:-} # metrics label
+      # LOCATION: ${LOCATION:-} # metrics label
+      # LOG_LEVEL: ${LOG_LEVEL:-INFO} # log verbosity
+      # POLLING_INTERVAL_SECONDS: ${POLLING_INTERVAL_SECONDS:-10} # poll interval
+      # REQUEST_TIMEOUT_SECONDS: ${REQUEST_TIMEOUT_SECONDS:-8} # request timeout
+      # RECONNECT_INTERVAL_SECONDS: ${RECONNECT_INTERVAL_SECONDS:-5} # reconnect delay
+      # BAMBULAB_CONFIG_DIR: ${BAMBULAB_CONFIG_DIR:-/config/bambulab-metrics-exporter} # config path in container
+      # BAMBULAB_CREDENTIALS_FILE: ${BAMBULAB_CREDENTIALS_FILE:-credentials.enc.json} # encrypted credentials file name
+      # BAMBULAB_CLOUD_CODE: ${BAMBULAB_CLOUD_CODE:-} # one-time email code
+      # BAMBULAB_CLOUD_USER_ID: ${BAMBULAB_CLOUD_USER_ID:-} # cloud uid (usually auto-filled)
+      # BAMBULAB_CLOUD_ACCESS_TOKEN: ${BAMBULAB_CLOUD_ACCESS_TOKEN:-} # cloud access token (usually auto-filled)
+      # BAMBULAB_CLOUD_REFRESH_TOKEN: ${BAMBULAB_CLOUD_REFRESH_TOKEN:-} # cloud refresh token
+      # BAMBULAB_CLOUD_MQTT_HOST: ${BAMBULAB_CLOUD_MQTT_HOST:-us.mqtt.bambulab.com} # cloud broker host
+      # BAMBULAB_CLOUD_MQTT_PORT: ${BAMBULAB_CLOUD_MQTT_PORT:-8883} # cloud broker port
+      # BAMBULAB_HOST: ${BAMBULAB_HOST:-} # local printer IP/hostname
+      # BAMBULAB_PORT: ${BAMBULAB_PORT:-8883} # local MQTT port
+      # BAMBULAB_USERNAME: ${BAMBULAB_USERNAME:-bblp} # local MQTT username
+      # BAMBULAB_ACCESS_CODE: ${BAMBULAB_ACCESS_CODE:-} # local LAN access code
+      # BAMBULAB_REQUEST_PUSHALL: ${BAMBULAB_REQUEST_PUSHALL:-true} # request full snapshot each poll
 
     volumes:
       - ./config:/config/bambulab-metrics-exporter
