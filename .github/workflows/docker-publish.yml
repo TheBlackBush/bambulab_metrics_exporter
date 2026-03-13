@@ -1,12 +1,8 @@
 name: Docker Publish
 
 on:
-  workflow_dispatch:
-    inputs:
-      release_tag:
-        description: "Release tag (e.g. v0.1.2)"
-        required: true
-        type: string
+  release:
+    types: [published]
 
 permissions:
   contents: write
@@ -17,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/bambulab_metrics_exporter
-      RELEASE_TAG: ${{ inputs.release_tag }}
+      RELEASE_TAG: ${{ github.event.release.tag_name }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

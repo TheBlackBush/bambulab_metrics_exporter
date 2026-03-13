@@ -31,7 +31,7 @@ jobs:
           ruff check src tests
           pytest -q tests/test_api.py tests/test_config.py tests/test_models.py tests/test_metrics.py
 
-  post-merge-tests-and-docker-build:
+  post-merge-full-tests:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
@@ -62,15 +62,3 @@ jobs:
         with:
           name: test-results
           path: tests/results
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Docker image (no push)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          push: false
-          tags: bambulab-metrics-exporter:ci-main
-          load: true
