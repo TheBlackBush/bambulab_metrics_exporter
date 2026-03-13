@@ -25,13 +25,14 @@ jobs:
 
       - name: Lint, type-check, tests, coverage
         run: |
+          mkdir -p tests/results
           python -m compileall -q src tests
           ruff check src tests
           mypy src
           pytest -q
 
-      - name: Upload coverage XML
+      - name: Upload test result artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-xml
-          path: coverage.xml
+          name: test-results
+          path: tests/results

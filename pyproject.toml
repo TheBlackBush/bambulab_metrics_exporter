@@ -29,7 +29,10 @@ dev = {file = ["requirements-dev.txt"]}
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov=src/bambulab_metrics_exporter --cov-report=term-missing --cov-report=xml --cov-fail-under=90"
+addopts = "--cov=src/bambulab_metrics_exporter --cov-report=term-missing --cov-report=xml:tests/results/coverage.xml --cov-fail-under=90 --cache-dir=tests/results/.pytest_cache"
+
+[tool.coverage.run]
+data_file = "tests/results/.coverage"
 
 [tool.ruff]
 line-length = 100

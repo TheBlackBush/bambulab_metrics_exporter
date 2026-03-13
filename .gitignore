@@ -11,3 +11,7 @@ __pycache__/
 *.pyo
 *.pyd
 src/*.egg-info/
+
+# test artifacts
+tests/results/*
+!tests/results/.gitkeep
