@@ -314,7 +314,7 @@ Unraid support is integrated into the main runtime files:
 
 - `Dockerfile`
 - `entrypoint.sh`
-- `docker-compose.yml` / `docker-compose.test.yml`
+- `docker-compose.yml`
 - `unraid-bambulab-metrics-exporter.xml`
 
 The container starts with bootstrap privileges to align UID/GID, then drops to `PUID:PGID` using `gosu`.

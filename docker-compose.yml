@@ -6,7 +6,6 @@ services:
     container_name: bambulab-metrics-exporter
     restart: unless-stopped
 
-    # Optional: still load extra vars from .env
     env_file:
       - .env
 
@@ -14,84 +13,41 @@ services:
       - "9109:9109"
 
     environment:
-      # ------------------------------
-      # Runtime user mapping (important for Unraid/host permissions)
-      # ------------------------------
-      PUID: ${PUID:-99}
-      PGID: ${PGID:-100}
-      UMASK: ${UMASK:-002}
-
-      # ------------------------------
-      # Exporter HTTP
-      # ------------------------------
-      LISTEN_HOST: ${LISTEN_HOST:-0.0.0.0}
-      LISTEN_PORT: ${LISTEN_PORT:-9109}
-
-      # ------------------------------
-      # Core labels/logging
-      # ------------------------------
-      PRINTER_NAME: ${PRINTER_NAME:-bambu}
-      SITE: ${SITE:-}
-      LOCATION: ${LOCATION:-}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
-
-      # ------------------------------
-      # Polling behavior
-      # ------------------------------
-      POLLING_INTERVAL_SECONDS: ${POLLING_INTERVAL_SECONDS:-10}
-      REQUEST_TIMEOUT_SECONDS: ${REQUEST_TIMEOUT_SECONDS:-8}
-      RECONNECT_INTERVAL_SECONDS: ${RECONNECT_INTERVAL_SECONDS:-5}
-
-      # ------------------------------
-      # Transport selection
-      # ------------------------------
-      # cloud_mqtt (recommended) | local_mqtt
+      # Required for regular cloud run
       BAMBULAB_TRANSPORT: ${BAMBULAB_TRANSPORT:-cloud_mqtt}
-
-      # Required for both transport modes
       BAMBULAB_SERIAL: ${BAMBULAB_SERIAL}
-
-      # Encryption key for credentials file (required)
-      # Generate example: openssl rand -base64 48
       BAMBULAB_SECRET_KEY: ${BAMBULAB_SECRET_KEY}
+      BAMBULAB_CLOUD_EMAIL: ${BAMBULAB_CLOUD_EMAIL}
 
-      # Shared config/credentials location inside container
-      BAMBULAB_CONFIG_DIR: ${BAMBULAB_CONFIG_DIR:-/config/bambulab-metrics-exporter}
-      BAMBULAB_CREDENTIALS_FILE: ${BAMBULAB_CREDENTIALS_FILE:-credentials.enc.json}
-
-      # ------------------------------
-      # Cloud MQTT settings
-      # ------------------------------
-      # Recommended for startup auto re-auth flow:
-      BAMBULAB_CLOUD_EMAIL: ${BAMBULAB_CLOUD_EMAIL:-}
-      # Optional one-time code for automatic re-auth on startup
-      BAMBULAB_CLOUD_CODE: ${BAMBULAB_CLOUD_CODE:-}
-
-      # If already known, these avoid re-auth:
-      BAMBULAB_CLOUD_USER_ID: ${BAMBULAB_CLOUD_USER_ID:-}
-      BAMBULAB_CLOUD_ACCESS_TOKEN: ${BAMBULAB_CLOUD_ACCESS_TOKEN:-}
-      BAMBULAB_CLOUD_REFRESH_TOKEN: ${BAMBULAB_CLOUD_REFRESH_TOKEN:-}
-      BAMBULAB_CLOUD_MQTT_HOST: ${BAMBULAB_CLOUD_MQTT_HOST:-us.mqtt.bambulab.com}
-      BAMBULAB_CLOUD_MQTT_PORT: ${BAMBULAB_CLOUD_MQTT_PORT:-8883}
-
-      # ------------------------------
-      # Local MQTT settings (used only when BAMBULAB_TRANSPORT=local_mqtt)
-      # ------------------------------
-      BAMBULAB_HOST: ${BAMBULAB_HOST:-}
-      BAMBULAB_PORT: ${BAMBULAB_PORT:-8883}
-      BAMBULAB_USERNAME: ${BAMBULAB_USERNAME:-bblp}
-      BAMBULAB_ACCESS_CODE: ${BAMBULAB_ACCESS_CODE:-}
-      BAMBULAB_REQUEST_PUSHALL: ${BAMBULAB_REQUEST_PUSHALL:-true}
-
-      # ------------------------------
-      # Less-important optional tweaks (uncomment if needed)
-      # ------------------------------
-      # APP_NAME: bambulab-metrics-exporter
+      # Optional (uncomment if needed)
+      # LISTEN_HOST: ${LISTEN_HOST:-0.0.0.0}
+      # LISTEN_PORT: ${LISTEN_PORT:-9109}
+      # PUID: ${PUID:-99}
+      # PGID: ${PGID:-100}
+      # UMASK: ${UMASK:-002}
+      # PRINTER_NAME: ${PRINTER_NAME:-bambu}
+      # SITE: ${SITE:-}
+      # LOCATION: ${LOCATION:-}
+      # LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # POLLING_INTERVAL_SECONDS: ${POLLING_INTERVAL_SECONDS:-10}
+      # REQUEST_TIMEOUT_SECONDS: ${REQUEST_TIMEOUT_SECONDS:-8}
+      # RECONNECT_INTERVAL_SECONDS: ${RECONNECT_INTERVAL_SECONDS:-5}
+      # BAMBULAB_CONFIG_DIR: ${BAMBULAB_CONFIG_DIR:-/config/bambulab-metrics-exporter}
+      # BAMBULAB_CREDENTIALS_FILE: ${BAMBULAB_CREDENTIALS_FILE:-credentials.enc.json}
+      # BAMBULAB_CLOUD_CODE: ${BAMBULAB_CLOUD_CODE:-}
+      # BAMBULAB_CLOUD_USER_ID: ${BAMBULAB_CLOUD_USER_ID:-}
+      # BAMBULAB_CLOUD_ACCESS_TOKEN: ${BAMBULAB_CLOUD_ACCESS_TOKEN:-}
+      # BAMBULAB_CLOUD_REFRESH_TOKEN: ${BAMBULAB_CLOUD_REFRESH_TOKEN:-}
+      # BAMBULAB_CLOUD_MQTT_HOST: ${BAMBULAB_CLOUD_MQTT_HOST:-us.mqtt.bambulab.com}
+      # BAMBULAB_CLOUD_MQTT_PORT: ${BAMBULAB_CLOUD_MQTT_PORT:-8883}
+      # BAMBULAB_HOST: ${BAMBULAB_HOST:-}
+      # BAMBULAB_PORT: ${BAMBULAB_PORT:-8883}
+      # BAMBULAB_USERNAME: ${BAMBULAB_USERNAME:-bblp}
+      # BAMBULAB_ACCESS_CODE: ${BAMBULAB_ACCESS_CODE:-}
+      # BAMBULAB_REQUEST_PUSHALL: ${BAMBULAB_REQUEST_PUSHALL:-true}
 
     volumes:
-      # Persistent config + encrypted credentials
       - ./config:/config/bambulab-metrics-exporter
-      # Optional: allow runtime sync back to host .env
       - ./.env:/app/.env
 
     healthcheck:
