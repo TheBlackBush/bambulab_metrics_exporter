@@ -117,11 +117,11 @@ docker compose up -d --build
 
 ### Docker Compose (recommended)
 
-`docker-compose.yml` now includes a full environment map with inline explanations.
+`docker-compose.yml` is cloud-first and minimal by default.
 
-- Important/commonly edited fields are active by default.
-- Less-important knobs are documented in comments.
-- Works for regular Linux hosts and Unraid (`PUID/PGID/UMASK` supported).
+- Required cloud fields are active by default.
+- Optional fields stay commented with short inline hints.
+- Works for regular Linux hosts and Unraid (`PUID/PGID/UMASK` optional).
 
 Minimal required values before first run (cloud mode):
 

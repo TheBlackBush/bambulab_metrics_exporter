@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.2] - 2026-03-13
+
+### Changed
+- CI pipeline refined:
+  - PRs run essential checks only.
+  - Push/merge to `main` runs full tests and Docker build in the same pipeline job.
+- Fixed pytest cache option compatibility in CI.
+- README Docker Compose section updated to match current cloud-first minimal compose file.
+
+### Updated
+- `.gitignore` expanded with common OS/editor noise entries.
+
 ## [0.1.1] - 2026-03-13
 
 ### Changed
