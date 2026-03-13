@@ -23,7 +23,7 @@
   <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Group ID to run container as (Unraid: usually 100)" Type="Variable" Display="always" Required="true" Mask="false">100</Config>
   <Config Name="UMASK" Target="UMASK" Default="002" Mode="" Description="File creation mask" Type="Variable" Display="advanced" Required="false" Mask="false">002</Config>
 
-  <Config Name="Transport" Target="BAMBULAB_TRANSPORT" Default="cloud_mqtt" Mode="" Description="local_mqtt or cloud_mqtt" Type="Variable" Display="always" Required="true" Mask="false">cloud_mqtt</Config>
+  <Config Name="Transport" Target="BAMBULAB_TRANSPORT" Default="local_mqtt|cloud_mqtt" Mode="" Description="Select transport mode" Type="Variable" Display="always" Required="true" Mask="false">cloud_mqtt</Config>
   <Config Name="Printer Serial" Target="BAMBULAB_SERIAL" Default="" Mode="" Description="Printer device serial (required)" Type="Variable" Display="always" Required="true" Mask="false"></Config>
   <Config Name="Secret Key" Target="BAMBULAB_SECRET_KEY" Default="" Mode="" Description="Strong key for encrypted credentials. Generate example: openssl rand -base64 48" Type="Variable" Display="always" Required="true" Mask="true"></Config>
 
