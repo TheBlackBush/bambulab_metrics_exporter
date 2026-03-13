@@ -31,7 +31,7 @@ jobs:
           ruff check src tests
           pytest -q tests/test_api.py tests/test_config.py tests/test_models.py tests/test_metrics.py
 
-  post-merge-full-tests:
+  post-merge-tests-and-docker-build:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
@@ -62,14 +62,6 @@ jobs:
         with:
           name: test-results
           path: tests/results
-
-  post-merge-docker-build:
-    if: github.event_name == 'push'
-    needs: post-merge-full-tests
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
