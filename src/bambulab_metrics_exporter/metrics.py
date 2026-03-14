@@ -55,6 +55,12 @@ class ExporterMetrics:
         self.xcam_feature_enabled = Gauge("bambulab_xcam_feature_enabled", "XCam feature enabled flags", [*label_names, "feature"], registry=self.registry)
         self.gcode_state = Gauge("bambulab_printer_gcode_state", "Current gcode state encoded as one-hot labels", [*label_names, "state"], registry=self.registry)
         self.mc_print_stage_state = Gauge("bambulab_mc_print_stage_state", "Current machine print stage as one-hot labels", [*label_names, "stage"], registry=self.registry)
+        self.subtask_name_info = Gauge(
+            "bambulab_subtask_name_info",
+            "Current print subtask name as labeled info metric",
+            [*label_names, "subtask_name"],
+            registry=self.registry,
+        )
 
         self.ams_slot_active = Gauge(
             "bambulab_ams_slot_active",
@@ -189,6 +195,10 @@ class ExporterMetrics:
             stage_current = "UNKNOWN"
         for stage in known_print_stages:
             self.mc_print_stage_state.labels(**labels, stage=stage).set(1.0 if stage == stage_current else 0.0)
+
+        self.subtask_name_info.clear()
+        if snapshot.subtask_name:
+            self.subtask_name_info.labels(**labels, subtask_name=snapshot.subtask_name).set(1.0)
 
         self._clear_ams(labels)
         for ams in snapshot.ams_units:
