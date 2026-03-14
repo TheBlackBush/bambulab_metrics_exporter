@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.7] - 2026-03-14
+
+### Added
+- Added print subtask info metric: `bambulab_subtask_name_info` (label: `subtask_name`).
+
+### Fixed
+- Fixed WiFi signal parsing when MQTT reports values with `dBm` suffix (e.g. `-42dBm`) so `bambulab_wifi_signal` no longer appears empty.
+- Fixed work light metric mapping so `lights_report.mode=flashing` is treated as ON for `bambulab_work_light_on`.
+
 ## [0.1.6] - 2026-03-13
 
 ### Added
