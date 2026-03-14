@@ -37,9 +37,9 @@ class Settings(BaseSettings):
     listen_host: str = "0.0.0.0"
     listen_port: int = 9109
 
-    printer_name: str = "bambulab"
-    site: str = ""
-    location: str = ""
+    printer_name_label: str = ""
+    bambulab_printer_name: str = ""
+    # Site and location removed
 
     @field_validator("polling_interval_seconds")
     @classmethod

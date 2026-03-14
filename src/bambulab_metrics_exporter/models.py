@@ -50,6 +50,13 @@ class PrinterSnapshot:
         return str(value).upper()
 
     @property
+    def name(self) -> str | None:
+        # Some firmware reports printer name in mc_print_line or other fields,
+        # but the standard field is often dev_name or simply not in pushall.
+        # We'll check dev_name first.
+        return self.print_block.get("dev_name")
+
+    @property
     def progress_percent(self) -> float | None:
         return _to_float(self.print_block.get("mc_percent"))
 

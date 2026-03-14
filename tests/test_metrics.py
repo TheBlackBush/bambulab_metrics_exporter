@@ -3,7 +3,7 @@ from bambulab_metrics_exporter.models import PrinterSnapshot
 
 
 def test_metrics_update_smoke() -> None:
-    metrics = ExporterMetrics(printer_name="x1c", site="home", location="lab")
+    metrics = ExporterMetrics(printer_name="x1c", serial="SN123")
     snapshot = PrinterSnapshot(
         connected=True,
         raw={
@@ -21,5 +21,5 @@ def test_metrics_update_smoke() -> None:
     metrics.update_from_snapshot(snapshot)
     metrics.mark_scrape(0.4, True, now_ts=123.0)
 
-    value = metrics.printer_up.labels(printer_name="x1c", site="home", location="lab")._value.get()
+    value = metrics.printer_up.labels(printer_name="x1c", serial="SN123")._value.get()
     assert value == 1.0

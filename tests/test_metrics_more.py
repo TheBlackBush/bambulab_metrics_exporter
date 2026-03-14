@@ -3,7 +3,7 @@ from bambulab_metrics_exporter.models import PrinterSnapshot
 
 
 def test_metrics_full_update_with_ams_lights_xcam() -> None:
-    metrics = ExporterMetrics(printer_name="p1", site="s", location="l")
+    metrics = ExporterMetrics(printer_name="p1", serial="SN123")
     snapshot = PrinterSnapshot(
         connected=True,
         raw={
@@ -66,7 +66,7 @@ def test_metrics_full_update_with_ams_lights_xcam() -> None:
     metrics.update_from_snapshot(snapshot)
     metrics.mark_scrape(0.1, True, now_ts=111.0)
 
-    labels = dict(printer_name="p1", site="s", location="l")
+    labels = dict(printer_name="p1", serial="SN123")
     assert metrics.printer_up.labels(**labels)._value.get() == 1.0
     assert metrics.chamber_light_on.labels(**labels)._value.get() == 1.0
     assert metrics.work_light_on.labels(**labels)._value.get() == 0.0
@@ -74,7 +74,6 @@ def test_metrics_full_update_with_ams_lights_xcam() -> None:
     assert metrics.nozzle_diameter.labels(**labels)._value.get() == 0.4
     assert metrics.spd_lvl.labels(**labels)._value.get() == 3.0
     assert metrics.spd_mag.labels(**labels)._value.get() == 124.0
-    assert metrics.sn_info.labels(**labels, sn="SN123456")._value.get() == 1.0
     assert metrics.spd_lvl_state.labels(**labels, mode="SPORT")._value.get() == 1.0
     assert metrics.print_error_explicit.labels(**labels)._value.get() == 0.0
     assert (
@@ -86,12 +85,12 @@ def test_metrics_full_update_with_ams_lights_xcam() -> None:
 
 
 def test_metrics_work_light_flashing_treated_as_on() -> None:
-    metrics = ExporterMetrics(printer_name="p1", site="s", location="l")
+    metrics = ExporterMetrics(printer_name="p1", serial="SN123")
     snapshot = PrinterSnapshot(
         connected=True,
         raw={"print": {"lights_report": [{"node": "work_light", "mode": "flashing"}]}},
     )
 
     metrics.update_from_snapshot(snapshot)
-    labels = dict(printer_name="p1", site="s", location="l")
+    labels = dict(printer_name="p1", serial="SN123")
     assert metrics.work_light_on.labels(**labels)._value.get() == 1.0

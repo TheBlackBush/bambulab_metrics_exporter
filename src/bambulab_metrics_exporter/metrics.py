@@ -6,12 +6,11 @@ from bambulab_metrics_exporter.models import PrinterSnapshot
 
 
 class ExporterMetrics:
-    def __init__(self, printer_name: str, site: str, location: str) -> None:
+    def __init__(self, printer_name: str, serial: str) -> None:
         self.registry = CollectorRegistry(auto_describe=True)
         self._base_labels = {
             "printer_name": printer_name,
-            "site": site,
-            "location": location,
+            "serial": serial,
         }
 
         label_names = list(self._base_labels.keys())
@@ -65,12 +64,6 @@ class ExporterMetrics:
             "bambulab_subtask_name_info",
             "Current print subtask name as labeled info metric",
             [*label_names, "subtask_name"],
-            registry=self.registry,
-        )
-        self.sn_info = Gauge(
-            "bambulab_sn_info",
-            "Printer serial number from MQTT as labeled info metric",
-            [*label_names, "sn"],
             registry=self.registry,
         )
         self.fail_reason_info = Gauge(
@@ -227,10 +220,6 @@ class ExporterMetrics:
         self.subtask_name_info.clear()
         if snapshot.subtask_name:
             self.subtask_name_info.labels(**labels, subtask_name=snapshot.subtask_name).set(1.0)
-
-        self.sn_info.clear()
-        if snapshot.sn:
-            self.sn_info.labels(**labels, sn=snapshot.sn).set(1.0)
 
         self.fail_reason_info.clear()
         if snapshot.fail_reason:

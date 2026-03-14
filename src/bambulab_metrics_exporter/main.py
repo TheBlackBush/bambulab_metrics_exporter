@@ -74,14 +74,36 @@ def run() -> None:
     settings = Settings()
     configure_logging(settings.log_level)
     settings.require_transport_config()
+
+    # Initial probe to discover printer name if not set
+    client = build_client(settings)
+    discovered_name = ""
+    try:
+        client.connect()
+        snapshot = client.fetch_snapshot(settings.request_timeout_seconds)
+        if snapshot.raw and snapshot.name:
+            discovered_name = snapshot.name
+    except Exception:
+        logger.warning("Initial name discovery probe failed (non-fatal)")
+    finally:
+        client.disconnect()
+
+    if discovered_name:
+        os.environ["BAMBULAB_PRINTER_NAME"] = discovered_name
+        if not settings.printer_name_label:
+             # Refresh settings if we just got a name and no label was set
+             settings.bambulab_printer_name = discovered_name
+
     startup_validate(settings)
 
     _persist_runtime_env(Path(".env"))
 
+    # Final label resolution
+    final_printer_name = settings.printer_name_label or settings.bambulab_printer_name or "bambulab"
+
     metrics = ExporterMetrics(
-        printer_name=settings.printer_name,
-        site=settings.site,
-        location=settings.location,
+        printer_name=final_printer_name,
+        serial=settings.bambulab_serial,
     )
     client = build_client(settings)
     collector = PollingCollector(client=client, metrics=metrics, settings=settings)
