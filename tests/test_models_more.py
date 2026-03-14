@@ -69,3 +69,11 @@ def test_model_chamber_temp_fallback_and_defaults() -> None:
     )
     assert snap.chamber_temp == 31.0
     assert snap.subtask_name is None
+
+
+def test_model_wifi_signal_dbm_string() -> None:
+    snap = PrinterSnapshot(
+        connected=True,
+        raw={"print": {"wifi_signal": "-42dBm"}},
+    )
+    assert snap.wifi_signal == -42.0

@@ -160,7 +160,15 @@ class PrinterSnapshot:
 
     @property
     def wifi_signal(self) -> float | None:
-        return _to_float(self.print_block.get("wifi_signal"))
+        value = self.print_block.get("wifi_signal")
+        parsed = _to_float(value)
+        if parsed is not None:
+            return parsed
+        if isinstance(value, str):
+            text = value.strip().lower()
+            if text.endswith("dbm"):
+                return _to_float(text[:-3].strip())
+        return None
 
     @property
     def online_ahb(self) -> float | None:
