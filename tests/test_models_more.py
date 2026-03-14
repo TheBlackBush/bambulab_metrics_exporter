@@ -16,6 +16,7 @@ def test_model_parsing_extended_fields() -> None:
                 "print_real_action": "4",
                 "print_gcode_action": "5",
                 "mc_print_stage": "PRINTING",
+                "nozzle_diameter": "0.4",
                 "wifi_signal": "-62",
                 "online": {"ahb": True, "ext": False},
                 "ams_status": "1",
@@ -25,6 +26,9 @@ def test_model_parsing_extended_fields() -> None:
                 "queue_number": 4,
                 "queue_sts": "5",
                 "queue": "6",
+                "spd_lvl": 3,
+                "spd_mag": 124,
+                "sn": "SN123456",
                 "lights_report": [{"node": "chamber_light", "mode": "on"}],
                 "xcam": {
                     "allow_skip_parts": True,
@@ -49,6 +53,7 @@ def test_model_parsing_extended_fields() -> None:
     assert snap.print_real_action == 4.0
     assert snap.print_gcode_action == 5.0
     assert snap.mc_print_stage_name == "PRINTING"
+    assert snap.nozzle_diameter == 0.4
     assert snap.wifi_signal == -62.0
     assert snap.online_ahb == 1.0
     assert snap.online_ext == 0.0
@@ -59,6 +64,9 @@ def test_model_parsing_extended_fields() -> None:
     assert snap.queue_number == 4.0
     assert snap.queue_status == 5.0
     assert snap.queue_position == 6.0
+    assert snap.spd_lvl == 3.0
+    assert snap.spd_mag == 124.0
+    assert snap.sn == "SN123456"
     assert len(snap.lights_report) == 1
     assert snap.xcam_flags["allow_skip_parts"] == 1.0
 

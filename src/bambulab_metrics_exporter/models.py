@@ -67,6 +67,10 @@ class PrinterSnapshot:
         return _to_float(self.print_block.get("nozzle_target_temper"))
 
     @property
+    def nozzle_diameter(self) -> float | None:
+        return _to_float(self.print_block.get("nozzle_diameter"))
+
+    @property
     def bed_temp(self) -> float | None:
         return _to_float(self.print_block.get("bed_temper"))
 
@@ -224,6 +228,15 @@ class PrinterSnapshot:
         return _to_float(self.print_block.get("queue"))
 
     @property
+    def spd_lvl(self) -> float | None:
+        value = _to_int(self.print_block.get("spd_lvl"))
+        return float(value) if value is not None else None
+
+    @property
+    def spd_mag(self) -> float | None:
+        return _to_float(self.print_block.get("spd_mag"))
+
+    @property
     def ams_tray_now(self) -> str | None:
         ams = self.print_block.get("ams")
         if isinstance(ams, dict):
@@ -255,6 +268,13 @@ class PrinterSnapshot:
     @property
     def fail_reason(self) -> str | None:
         value = self.print_block.get("fail_reason")
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+        return None
+
+    @property
+    def sn(self) -> str | None:
+        value = self.print_block.get("sn")
         if isinstance(value, str) and value.strip():
             return value.strip()
         return None

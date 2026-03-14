@@ -24,6 +24,7 @@ class ExporterMetrics:
         self.print_layer_progress_percent = Gauge("bambulab_print_layer_progress_percent", "Layer-based progress percent", label_names, registry=self.registry)
         self.nozzle_temp = Gauge("bambulab_nozzle_temperature_celsius", "Nozzle temperature", label_names, registry=self.registry)
         self.nozzle_target_temp = Gauge("bambulab_nozzle_target_temperature_celsius", "Nozzle target temperature", label_names, registry=self.registry)
+        self.nozzle_diameter = Gauge("bambulab_nozzle_diameter", "Nozzle diameter from MQTT", label_names, registry=self.registry)
         self.bed_temp = Gauge("bambulab_bed_temperature_celsius", "Bed temperature", label_names, registry=self.registry)
         self.bed_target_temp = Gauge("bambulab_bed_target_temperature_celsius", "Bed target temperature", label_names, registry=self.registry)
         self.chamber_temp = Gauge("bambulab_chamber_temperature_celsius", "Chamber temperature", label_names, registry=self.registry)
@@ -51,16 +52,25 @@ class ExporterMetrics:
         self.queue_number = Gauge("bambulab_queue_number", "Queue number", label_names, registry=self.registry)
         self.queue_status = Gauge("bambulab_queue_status", "Queue status numeric code", label_names, registry=self.registry)
         self.queue_position = Gauge("bambulab_queue_position", "Current queue position", label_names, registry=self.registry)
+        self.spd_lvl = Gauge("bambulab_spd_lvl", "Printer speed level (1=Silent,2=Standard,3=Sport,4=Ludicrous)", label_names, registry=self.registry)
+        self.spd_mag = Gauge("bambulab_spd_mag", "Printer speed percentage relative to standard", label_names, registry=self.registry)
         self.printer_error_code = Gauge("bambulab_printer_error_code", "Raw printer error code", label_names, registry=self.registry)
         self.chamber_light_on = Gauge("bambulab_chamber_light_on", "Chamber light on/off", label_names, registry=self.registry)
         self.work_light_on = Gauge("bambulab_work_light_on", "Work light on/off", label_names, registry=self.registry)
         self.xcam_feature_enabled = Gauge("bambulab_xcam_feature_enabled", "XCam feature enabled flags", [*label_names, "feature"], registry=self.registry)
         self.gcode_state = Gauge("bambulab_printer_gcode_state", "Current gcode state encoded as one-hot labels", [*label_names, "state"], registry=self.registry)
         self.mc_print_stage_state = Gauge("bambulab_mc_print_stage_state", "Current machine print stage as one-hot labels", [*label_names, "stage"], registry=self.registry)
+        self.spd_lvl_state = Gauge("bambulab_spd_lvl_state", "Current speed level as one-hot labels", [*label_names, "mode"], registry=self.registry)
         self.subtask_name_info = Gauge(
             "bambulab_subtask_name_info",
             "Current print subtask name as labeled info metric",
             [*label_names, "subtask_name"],
+            registry=self.registry,
+        )
+        self.sn_info = Gauge(
+            "bambulab_sn_info",
+            "Printer serial number from MQTT as labeled info metric",
+            [*label_names, "sn"],
             registry=self.registry,
         )
         self.fail_reason_info = Gauge(
@@ -142,6 +152,7 @@ class ExporterMetrics:
         self._set_optional(self.print_layer_progress_percent, snapshot.layer_progress_percent)
         self._set_optional(self.nozzle_temp, snapshot.nozzle_temp)
         self._set_optional(self.nozzle_target_temp, snapshot.nozzle_target_temp)
+        self._set_optional(self.nozzle_diameter, snapshot.nozzle_diameter)
         self._set_optional(self.bed_temp, snapshot.bed_temp)
         self._set_optional(self.bed_target_temp, snapshot.bed_target_temp)
         self._set_optional(self.chamber_temp, snapshot.chamber_temp)
@@ -165,6 +176,8 @@ class ExporterMetrics:
         self._set_optional(self.queue_number, snapshot.queue_number)
         self._set_optional(self.queue_status, snapshot.queue_status)
         self._set_optional(self.queue_position, snapshot.queue_position)
+        self._set_optional(self.spd_lvl, snapshot.spd_lvl)
+        self._set_optional(self.spd_mag, snapshot.spd_mag)
         self._set_optional(self.print_error_code_legacy, snapshot.print_error)
         self._set_optional(self.print_error_explicit, snapshot.print_error)
         self._set_optional(self.ap_err_code, snapshot.ap_err)
@@ -206,9 +219,18 @@ class ExporterMetrics:
         for stage in known_print_stages:
             self.mc_print_stage_state.labels(**labels, stage=stage).set(1.0 if stage == stage_current else 0.0)
 
+        speed_modes = {1.0: "SILENT", 2.0: "STANDARD", 3.0: "SPORT", 4.0: "LUDICROUS"}
+        current_speed_mode = speed_modes.get(snapshot.spd_lvl, "UNKNOWN")
+        for mode in {"SILENT", "STANDARD", "SPORT", "LUDICROUS", "UNKNOWN"}:
+            self.spd_lvl_state.labels(**labels, mode=mode).set(1.0 if mode == current_speed_mode else 0.0)
+
         self.subtask_name_info.clear()
         if snapshot.subtask_name:
             self.subtask_name_info.labels(**labels, subtask_name=snapshot.subtask_name).set(1.0)
+
+        self.sn_info.clear()
+        if snapshot.sn:
+            self.sn_info.labels(**labels, sn=snapshot.sn).set(1.0)
 
         self.fail_reason_info.clear()
         if snapshot.fail_reason:

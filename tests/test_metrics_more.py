@@ -16,6 +16,7 @@ def test_metrics_full_update_with_ams_lights_xcam() -> None:
                 "total_layer_num": 200,
                 "nozzle_temper": 210,
                 "nozzle_target_temper": 220,
+                "nozzle_diameter": "0.4",
                 "bed_temper": 60,
                 "bed_target_temper": 65,
                 "chamber_temper": 34,
@@ -35,6 +36,9 @@ def test_metrics_full_update_with_ams_lights_xcam() -> None:
                 "print_error": 0,
                 "ap_err": 0,
                 "mc_print_error_code": "0",
+                "spd_lvl": 3,
+                "spd_mag": 124,
+                "sn": "SN123456",
                 "fail_reason": "filament runout",
                 "lights_report": [
                     {"node": "chamber_light", "mode": "on"},
@@ -67,6 +71,11 @@ def test_metrics_full_update_with_ams_lights_xcam() -> None:
     assert metrics.chamber_light_on.labels(**labels)._value.get() == 1.0
     assert metrics.work_light_on.labels(**labels)._value.get() == 0.0
     assert metrics.fan_gear.labels(**labels)._value.get() == 10.0
+    assert metrics.nozzle_diameter.labels(**labels)._value.get() == 0.4
+    assert metrics.spd_lvl.labels(**labels)._value.get() == 3.0
+    assert metrics.spd_mag.labels(**labels)._value.get() == 124.0
+    assert metrics.sn_info.labels(**labels, sn="SN123456")._value.get() == 1.0
+    assert metrics.spd_lvl_state.labels(**labels, mode="SPORT")._value.get() == 1.0
     assert metrics.print_error_explicit.labels(**labels)._value.get() == 0.0
     assert (
         metrics.fail_reason_info.labels(**labels, fail_reason="filament runout")._value.get() == 1.0
