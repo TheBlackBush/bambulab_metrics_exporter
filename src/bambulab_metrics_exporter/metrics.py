@@ -34,6 +34,7 @@ class ExporterMetrics:
         self.fan_heatbreak_speed = Gauge("bambulab_fan_heatbreak_speed_percent", "Heatbreak fan speed percent", label_names, registry=self.registry)
         self.printer_error = Gauge("bambulab_printer_error", "1 when printer reported an error code", label_names, registry=self.registry)
         self.print_error_code_legacy = Gauge("bambulab_print_error_code", "Raw print_error value", label_names, registry=self.registry)
+        self.print_error_raw = Gauge("bambulab_print_error_raw", "Raw print_error value (explicit metric)", label_names, registry=self.registry)
         self.ap_err_code = Gauge("bambulab_ap_error_code", "Raw ap_err value", label_names, registry=self.registry)
         self.mc_stage = Gauge("bambulab_mc_stage", "Machine stage numeric code", label_names, registry=self.registry)
         self.mc_print_sub_stage = Gauge("bambulab_mc_print_sub_stage", "Machine print sub-stage numeric code", label_names, registry=self.registry)
@@ -163,6 +164,7 @@ class ExporterMetrics:
         self._set_optional(self.queue_status, snapshot.queue_status)
         self._set_optional(self.queue_position, snapshot.queue_position)
         self._set_optional(self.print_error_code_legacy, snapshot.print_error)
+        self._set_optional(self.print_error_raw, snapshot.print_error)
         self._set_optional(self.ap_err_code, snapshot.ap_err)
 
         chamber_light = None
