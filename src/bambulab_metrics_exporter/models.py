@@ -116,6 +116,10 @@ class PrinterSnapshot:
         return value
 
     @property
+    def fan_gear_raw(self) -> float | None:
+        return _to_float(self.print_block.get("fan_gear"))
+
+    @property
     def fan_big_1_percent(self) -> float | None:
         return _to_float(self.print_block.get("big_fan1_speed"))
 

@@ -19,6 +19,7 @@ def test_metrics_full_update_with_ams_lights_xcam() -> None:
                 "bed_temper": 60,
                 "bed_target_temper": 65,
                 "chamber_temper": 34,
+                "fan_gear": 10,
                 "big_fan1_speed": "33",
                 "big_fan2_speed": "44",
                 "cooling_fan_speed": "55",
@@ -65,6 +66,7 @@ def test_metrics_full_update_with_ams_lights_xcam() -> None:
     assert metrics.printer_up.labels(**labels)._value.get() == 1.0
     assert metrics.chamber_light_on.labels(**labels)._value.get() == 1.0
     assert metrics.work_light_on.labels(**labels)._value.get() == 0.0
+    assert metrics.fan_gear_raw.labels(**labels)._value.get() == 10.0
     assert metrics.print_error_raw.labels(**labels)._value.get() == 0.0
     assert (
         metrics.fail_reason_info.labels(**labels, fail_reason="filament runout")._value.get() == 1.0

@@ -39,6 +39,7 @@ def test_model_parsing_extended_fields() -> None:
     )
 
     assert snap.fan_gear is not None
+    assert snap.fan_gear_raw == 10.0
     assert snap.fan_big_1_percent == 40.0
     assert snap.fan_big_2_percent == 55.0
     assert snap.fan_cooling_percent == 60.0
