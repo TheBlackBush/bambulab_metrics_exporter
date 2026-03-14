@@ -1,12 +1,9 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 from bambulab_metrics_exporter import main
-from bambulab_metrics_exporter.config import Settings
 from bambulab_metrics_exporter.models import PrinterSnapshot
 
 

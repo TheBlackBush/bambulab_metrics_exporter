@@ -1,8 +1,6 @@
-import os
 import logging
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-import pytest
 from bambulab_metrics_exporter import main, env_sync, models
 from bambulab_metrics_exporter.client.local_mqtt import LocalMqttBambuClient
 from bambulab_metrics_exporter.config import Settings
