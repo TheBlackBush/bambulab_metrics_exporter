@@ -178,6 +178,9 @@ scrape_configs:
 - `bambulab_print_real_action`
 - `bambulab_print_gcode_action`
 - `bambulab_mc_print_stage_state{stage="..."}`
+- `bambulab_subtask_name_info{subtask_name}`
+- `bambulab_fail_reason_info{fail_reason}`
+- `bambulab_sn_info{sn}`
 - `bambulab_wifi_signal`
 - `bambulab_online_ahb`
 - `bambulab_online_ext`
@@ -190,6 +193,12 @@ scrape_configs:
 - `bambulab_queue_number`
 - `bambulab_queue_status`
 - `bambulab_queue_position`
+- `bambulab_print_error`
+- `bambulab_fan_gear`
+- `bambulab_nozzle_diameter`
+- `bambulab_spd_lvl`
+- `bambulab_spd_mag`
+- `bambulab_spd_lvl_state{mode="SILENT|STANDARD|SPORT|LUDICROUS|UNKNOWN"}`
 
 - `bambulab_chamber_light_on`
 - `bambulab_work_light_on`
