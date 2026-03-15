@@ -575,3 +575,461 @@ class TestAmsStatusMetrics:
         m = self._m()
         assert not hasattr(m, "ams_status"), "Old 'ams_status' attribute should not exist"
         assert not hasattr(m, "ams_rfid_status"), "Old 'ams_rfid_status' attribute should not exist"
+
+
+# ---------------------------------------------------------------------------
+# AMS model/series metrics (v0.1.24)
+# ---------------------------------------------------------------------------
+
+class TestAmsUnitInfoMetric:
+    """Test bambulab_ams_unit_info metric emission."""
+
+    def _m(self) -> ExporterMetrics:
+        return ExporterMetrics(printer_name="test", serial="SN123")
+
+    def _labels(self) -> dict:
+        return {"printer_name": "test", "serial": "SN123"}
+
+    def test_ams_unit_info_with_serial_prefix(self) -> None:
+        m = self._m()
+        snap = PrinterSnapshot(
+            connected=True,
+            raw={"print": {"ams": {"ams": [{"id": "0", "sn": "006TESTSERIAL"}]}}},
+        )
+        m.update_from_snapshot(snap)
+        labels = self._labels()
+        v = m.ams_unit_info.labels(
+            **labels, ams_id="0", ams_model="ams_1", ams_series="gen_1", ams_serial="006TESTSERIAL"
+        )._value.get()
+        assert v == 1.0
+
+    def test_ams_unit_info_unknown_fallback(self) -> None:
+        m = self._m()
+        snap = PrinterSnapshot(
+            connected=True,
+            raw={"print": {"ams": {"ams": [{"id": "0"}]}}},
+        )
+        m.update_from_snapshot(snap)
+        labels = self._labels()
+        v = m.ams_unit_info.labels(
+            **labels, ams_id="0", ams_model="unknown", ams_series="unknown", ams_serial=""
+        )._value.get()
+        assert v == 1.0
+
+    def test_ams_unit_info_clears_on_update(self) -> None:
+        m = self._m()
+        snap1 = PrinterSnapshot(
+            connected=True,
+            raw={"print": {"ams": {"ams": [{"id": "0", "sn": "006TEST"}]}}},
+        )
+        snap2 = PrinterSnapshot(connected=True, raw={"print": {}})
+        m.update_from_snapshot(snap1)
+        assert len(m.ams_unit_info._metrics) == 1
+        m.update_from_snapshot(snap2)
+        assert len(m.ams_unit_info._metrics) == 0
+
+
+class TestAmsExistingMetricLabelsUnchanged:
+    """Confirm existing AMS metrics do NOT carry ams_model or ams_series labels.
+
+    Model/series info is only exposed via bambulab_ams_unit_info.
+    """
+
+    def _m(self) -> ExporterMetrics:
+        return ExporterMetrics(printer_name="test", serial="SN123")
+
+    def test_ams_humidity_labels_unchanged(self) -> None:
+        m = self._m()
+        snap = PrinterSnapshot(
+            connected=True,
+            raw={"print": {"ams": {"ams": [{"id": "0", "humidity_raw": "55", "sn": "19FABCDEF"}]}}},
+        )
+        m.update_from_snapshot(snap)
+        labels = {"printer_name": "test", "serial": "SN123"}
+        # Must work with only ams_id — no ams_model/ams_series
+        v = m.ams_unit_humidity.labels(**labels, ams_id="0")._value.get()
+        assert v == 55.0
+
+    def test_ams_humidity_index_labels_unchanged(self) -> None:
+        m = self._m()
+        snap = PrinterSnapshot(
+            connected=True,
+            raw={"print": {"ams": {"ams": [{"id": "0", "humidity": "3", "sn": "03CABCDEF"}]}}},
+        )
+        m.update_from_snapshot(snap)
+        labels = {"printer_name": "test", "serial": "SN123"}
+        v = m.ams_unit_humidity_index.labels(**labels, ams_id="0")._value.get()
+        assert v == 3.0
+
+    def test_ams_slot_active_labels_unchanged(self) -> None:
+        m = self._m()
+        snap = PrinterSnapshot(
+            connected=True,
+            raw={"print": {"ams": {"ams": [
+                {"id": "0", "tray_now": "1", "sn": "19CABCDEF", "tray": [{"id": "1", "tray_type": "PLA"}]}
+            ]}}},
+        )
+        m.update_from_snapshot(snap)
+        labels = {"printer_name": "test", "serial": "SN123"}
+        # Must work with only ams_id + slot_id — no ams_model/ams_series
+        v = m.ams_slot_active.labels(**labels, ams_id="0", slot_id="1")._value.get()
+        assert v == 1.0
+
+
+class TestAmsGen2DryingTelemetry:
+    """Test Gen2 drying telemetry metrics from ams_info bits."""
+
+    def _m(self) -> ExporterMetrics:
+        return ExporterMetrics(printer_name="test", serial="SN123")
+
+    def _ams_info(
+        self, ams_type: int = 3, dry_heater: int = 2, fan1: int = 1, fan2: int = 2, sub: int = 5
+    ) -> int:
+        return ams_type | (dry_heater << 4) | (fan1 << 18) | (fan2 << 20) | (sub << 22)
+
+    def test_heater_state_emitted(self) -> None:
+        m = self._m()
+        info = self._ams_info(ams_type=3, dry_heater=2)
+        snap = PrinterSnapshot(
+            connected=True,
+            raw={"print": {"ams": {"ams": [{"id": "0", "ams_info": info}]}}},
+        )
+        m.update_from_snapshot(snap)
+        labels = {"printer_name": "test", "serial": "SN123"}
+        v = m.ams_heater_state_info.labels(
+            **labels, ams_id="0", ams_model="ams_2_pro", ams_series="gen_2", state="2"
+        )._value.get()
+        assert v == 1.0
+
+    def test_dry_fan_status_emitted(self) -> None:
+        m = self._m()
+        info = self._ams_info(ams_type=4, fan1=3, fan2=1)
+        snap = PrinterSnapshot(
+            connected=True,
+            raw={"print": {"ams": {"ams": [{"id": "0", "ams_info": info}]}}},
+        )
+        m.update_from_snapshot(snap)
+        labels = {"printer_name": "test", "serial": "SN123"}
+        v1 = m.ams_dry_fan_status.labels(
+            **labels, ams_id="0", ams_model="ams_ht", ams_series="gen_2", fan_id="fan1"
+        )._value.get()
+        v2 = m.ams_dry_fan_status.labels(
+            **labels, ams_id="0", ams_model="ams_ht", ams_series="gen_2", fan_id="fan2"
+        )._value.get()
+        assert v1 == 3.0
+        assert v2 == 1.0
+
+    def test_dry_sub_status_emitted(self) -> None:
+        m = self._m()
+        info = self._ams_info(ams_type=3, sub=7)
+        snap = PrinterSnapshot(
+            connected=True,
+            raw={"print": {"ams": {"ams": [{"id": "0", "ams_info": info}]}}},
+        )
+        m.update_from_snapshot(snap)
+        labels = {"printer_name": "test", "serial": "SN123"}
+        v = m.ams_dry_sub_status_info.labels(
+            **labels, ams_id="0", ams_model="ams_2_pro", ams_series="gen_2", state="7"
+        )._value.get()
+        assert v == 1.0
+
+    def test_drying_metrics_not_emitted_without_ams_info(self) -> None:
+        m = self._m()
+        snap = PrinterSnapshot(
+            connected=True,
+            raw={"print": {"ams": {"ams": [{"id": "0", "sn": "006ABCDEF"}]}}},
+        )
+        m.update_from_snapshot(snap)
+        # No ams_info -> no drying telemetry metrics
+        assert len(m.ams_heater_state_info._metrics) == 0
+        assert len(m.ams_dry_fan_status._metrics) == 0
+        assert len(m.ams_dry_sub_status_info._metrics) == 0
+
+    def test_drying_metrics_clear_on_next_update(self) -> None:
+        m = self._m()
+        info = self._ams_info(ams_type=3, dry_heater=1)
+        snap1 = PrinterSnapshot(
+            connected=True,
+            raw={"print": {"ams": {"ams": [{"id": "0", "ams_info": info}]}}},
+        )
+        snap2 = PrinterSnapshot(
+            connected=True,
+            raw={"print": {"ams": {"ams": [{"id": "0", "sn": "006ABCDEF"}]}}},
+        )
+        m.update_from_snapshot(snap1)
+        assert len(m.ams_heater_state_info._metrics) == 1
+        m.update_from_snapshot(snap2)
+        assert len(m.ams_heater_state_info._metrics) == 0
+
+
+# ---------------------------------------------------------------------------
+# Additional metric emission assertions: info metrics and fan/heater/sub-status
+# (v0.1.24 supplement)
+# ---------------------------------------------------------------------------
+
+class TestAmsUnitInfoMetricAdditional:
+    """Additional assertions for bambulab_ams_unit_info emission."""
+
+    def _m(self) -> ExporterMetrics:
+        return ExporterMetrics(printer_name="test", serial="SN123")
+
+    def _labels(self) -> dict:
+        return {"printer_name": "test", "serial": "SN123"}
+
+    def test_ams_unit_info_ams_info_override_gen2(self) -> None:
+        """ams_info with type=3 (ams_2_pro, gen_2) emits correct unit info labels."""
+        m = self._m()
+        snap = PrinterSnapshot(
+            connected=True,
+            raw={"print": {"ams": {"ams": [{"id": "0", "sn": "006TESTSERIAL", "ams_info": 3}]}}},
+        )
+        m.update_from_snapshot(snap)
+        labels = self._labels()
+        v = m.ams_unit_info.labels(
+            **labels, ams_id="0", ams_model="ams_2_pro", ams_series="gen_2", ams_serial="006TESTSERIAL"
+        )._value.get()
+        assert v == 1.0
+
+    def test_ams_unit_info_two_units(self) -> None:
+        """Two AMS units both get their own info metric entry."""
+        m = self._m()
+        snap = PrinterSnapshot(
+            connected=True,
+            raw={"print": {"ams": {"ams": [
+                {"id": "0", "sn": "006UNIT0"},
+                {"id": "1", "sn": "19FUNIT1"},
+            ]}}},
+        )
+        m.update_from_snapshot(snap)
+        labels = self._labels()
+        assert len(m.ams_unit_info._metrics) == 2
+        v0 = m.ams_unit_info.labels(
+            **labels, ams_id="0", ams_model="ams_1", ams_series="gen_1", ams_serial="006UNIT0"
+        )._value.get()
+        v1 = m.ams_unit_info.labels(
+            **labels, ams_id="1", ams_model="ams_ht", ams_series="gen_2", ams_serial="19FUNIT1"
+        )._value.get()
+        assert v0 == 1.0
+        assert v1 == 1.0
+
+    def test_ams_unit_info_no_serial_field(self) -> None:
+        """Unit with no sn field uses empty string for ams_serial label."""
+        m = self._m()
+        snap = PrinterSnapshot(
+            connected=True,
+            raw={"print": {"ams": {"ams": [{"id": "0"}]}}},
+        )
+        m.update_from_snapshot(snap)
+        labels = self._labels()
+        v = m.ams_unit_info.labels(
+            **labels, ams_id="0", ams_model="unknown", ams_series="unknown", ams_serial=""
+        )._value.get()
+        assert v == 1.0
+
+    def test_ams_unit_info_lite_serial(self) -> None:
+        """03C prefix maps to ams_lite, gen_1."""
+        m = self._m()
+        snap = PrinterSnapshot(
+            connected=True,
+            raw={"print": {"ams": {"ams": [{"id": "0", "sn": "03CLITEUNIT"}]}}},
+        )
+        m.update_from_snapshot(snap)
+        labels = self._labels()
+        v = m.ams_unit_info.labels(
+            **labels, ams_id="0", ams_model="ams_lite", ams_series="gen_1", ams_serial="03CLITEUNIT"
+        )._value.get()
+        assert v == 1.0
+
+
+class TestAmsGen2DryingTelemetryAdditional:
+    """Additional metric emission assertions for Gen2 drying telemetry."""
+
+    def _m(self) -> ExporterMetrics:
+        return ExporterMetrics(printer_name="test", serial="SN123")
+
+    def _ams_info(
+        self, ams_type: int = 3, dry_heater: int = 0, fan1: int = 0, fan2: int = 0, sub: int = 0
+    ) -> int:
+        return ams_type | (dry_heater << 4) | (fan1 << 18) | (fan2 << 20) | (sub << 22)
+
+    def test_heater_state_zero_is_emitted(self) -> None:
+        """dry_heater_state=0 still gets emitted (it's a valid state)."""
+        m = self._m()
+        info = self._ams_info(ams_type=3, dry_heater=0)
+        snap = PrinterSnapshot(
+            connected=True,
+            raw={"print": {"ams": {"ams": [{"id": "0", "ams_info": info}]}}},
+        )
+        m.update_from_snapshot(snap)
+        labels = {"printer_name": "test", "serial": "SN123"}
+        v = m.ams_heater_state_info.labels(
+            **labels, ams_id="0", ams_model="ams_2_pro", ams_series="gen_2", state="0"
+        )._value.get()
+        assert v == 1.0
+
+    def test_fan_status_zero_is_emitted(self) -> None:
+        """fan1=0, fan2=0 still emitted as 0.0 values."""
+        m = self._m()
+        info = self._ams_info(ams_type=3, fan1=0, fan2=0)
+        snap = PrinterSnapshot(
+            connected=True,
+            raw={"print": {"ams": {"ams": [{"id": "0", "ams_info": info}]}}},
+        )
+        m.update_from_snapshot(snap)
+        labels = {"printer_name": "test", "serial": "SN123"}
+        v1 = m.ams_dry_fan_status.labels(
+            **labels, ams_id="0", ams_model="ams_2_pro", ams_series="gen_2", fan_id="fan1"
+        )._value.get()
+        v2 = m.ams_dry_fan_status.labels(
+            **labels, ams_id="0", ams_model="ams_2_pro", ams_series="gen_2", fan_id="fan2"
+        )._value.get()
+        assert v1 == 0.0
+        assert v2 == 0.0
+
+    def test_ams_info_zero_does_not_emit_drying_metrics(self) -> None:
+        """ams_info=0 is treated as absent (ams_info_raw > 0 guard), no drying metrics."""
+        m = self._m()
+        snap = PrinterSnapshot(
+            connected=True,
+            raw={"print": {"ams": {"ams": [{"id": "0", "ams_info": 0}]}}},
+        )
+        m.update_from_snapshot(snap)
+        assert len(m.ams_heater_state_info._metrics) == 0
+        assert len(m.ams_dry_fan_status._metrics) == 0
+        assert len(m.ams_dry_sub_status_info._metrics) == 0
+
+    def test_ams_info_string_does_not_emit_drying_metrics(self) -> None:
+        """Non-int ams_info should not emit drying metrics."""
+        m = self._m()
+        snap = PrinterSnapshot(
+            connected=True,
+            raw={"print": {"ams": {"ams": [{"id": "0", "ams_info": "0x33"}]}}},
+        )
+        m.update_from_snapshot(snap)
+        assert len(m.ams_heater_state_info._metrics) == 0
+
+    def test_two_ams_units_both_emit_drying_metrics(self) -> None:
+        """Both AMS units with ams_info should emit their own drying metrics."""
+        m = self._m()
+        info0 = self._ams_info(ams_type=3, dry_heater=1)
+        info1 = self._ams_info(ams_type=4, dry_heater=2)
+        snap = PrinterSnapshot(
+            connected=True,
+            raw={"print": {"ams": {"ams": [
+                {"id": "0", "ams_info": info0},
+                {"id": "1", "ams_info": info1},
+            ]}}},
+        )
+        m.update_from_snapshot(snap)
+        labels = {"printer_name": "test", "serial": "SN123"}
+        v0 = m.ams_heater_state_info.labels(
+            **labels, ams_id="0", ams_model="ams_2_pro", ams_series="gen_2", state="1"
+        )._value.get()
+        v1 = m.ams_heater_state_info.labels(
+            **labels, ams_id="1", ams_model="ams_ht", ams_series="gen_2", state="2"
+        )._value.get()
+        assert v0 == 1.0
+        assert v1 == 1.0
+
+
+# ---------------------------------------------------------------------------
+# Label regression: existing AMS metrics must NOT have ams_model/ams_series
+# (v0.1.24 supplement – comprehensive regression suite)
+# ---------------------------------------------------------------------------
+
+class TestAmsExistingMetricLabelRegressionComprehensive:
+    """Comprehensive regression: no existing AMS metric has gained ams_model/ams_series labels."""
+
+    def _m(self) -> ExporterMetrics:
+        return ExporterMetrics(printer_name="test", serial="SN123")
+
+    def _snap_with_ams(self) -> PrinterSnapshot:
+        return PrinterSnapshot(
+            connected=True,
+            raw={
+                "print": {
+                    "ams": {
+                        "ams": [
+                            {
+                                "id": "0",
+                                "sn": "19FABCDEF",
+                                "humidity": "3",
+                                "humidity_raw": "55",
+                                "temp": "23",
+                                "tray_now": "1",  # active tray within this unit
+                                "tray": [
+                                    {"id": "0", "remain": "80", "tray_type": "PLA", "tray_color": "FFFFFFFF"},
+                                    {"id": "1", "remain": "60", "tray_type": "PETG", "tray_color": "000000FF"},
+                                ],
+                            }
+                        ],
+                    }
+                }
+            },
+        )
+
+    def _base_labels(self) -> dict:
+        return {"printer_name": "test", "serial": "SN123"}
+
+    def test_ams_unit_humidity_only_needs_ams_id(self) -> None:
+        m = self._m()
+        m.update_from_snapshot(self._snap_with_ams())
+        labels = self._base_labels()
+        v = m.ams_unit_humidity.labels(**labels, ams_id="0")._value.get()
+        assert v == 55.0
+
+    def test_ams_unit_humidity_index_only_needs_ams_id(self) -> None:
+        m = self._m()
+        m.update_from_snapshot(self._snap_with_ams())
+        labels = self._base_labels()
+        v = m.ams_unit_humidity_index.labels(**labels, ams_id="0")._value.get()
+        assert v == 3.0
+
+    def test_ams_unit_temperature_only_needs_ams_id(self) -> None:
+        m = self._m()
+        m.update_from_snapshot(self._snap_with_ams())
+        labels = self._base_labels()
+        v = m.ams_unit_temperature_celsius.labels(**labels, ams_id="0")._value.get()
+        assert v == 23.0
+
+    def test_ams_slot_active_only_needs_ams_id_and_slot_id(self) -> None:
+        m = self._m()
+        m.update_from_snapshot(self._snap_with_ams())
+        labels = self._base_labels()
+        v = m.ams_slot_active.labels(**labels, ams_id="0", slot_id="1")._value.get()
+        assert v == 1.0
+
+    def test_ams_slot_remaining_only_needs_ams_id_and_slot_id(self) -> None:
+        m = self._m()
+        m.update_from_snapshot(self._snap_with_ams())
+        labels = self._base_labels()
+        v = m.ams_slot_remaining_percent.labels(**labels, ams_id="0", slot_id="0")._value.get()
+        assert v == 80.0
+
+    def test_ams_slot_tray_type_only_needs_ams_id_slot_id_tray_type(self) -> None:
+        m = self._m()
+        m.update_from_snapshot(self._snap_with_ams())
+        labels = self._base_labels()
+        v = m.ams_slot_tray_type.labels(**labels, ams_id="0", slot_id="0", tray_type="PLA")._value.get()
+        assert v == 1.0
+
+    def test_ams_slot_tray_color_only_needs_ams_id_slot_id_tray_color(self) -> None:
+        m = self._m()
+        m.update_from_snapshot(self._snap_with_ams())
+        labels = self._base_labels()
+        v = m.ams_slot_tray_color.labels(**labels, ams_id="0", slot_id="0", tray_color="FFFFFFFF")._value.get()
+        assert v == 1.0
+
+    def test_ams_status_id_only_base_labels(self) -> None:
+        m = self._m()
+        m.update_from_snapshot(_snap({"ams_status": 1}))
+        labels = self._base_labels()
+        v = m.ams_status_id.labels(**labels)._value.get()
+        assert v == 1.0
+
+    def test_ams_rfid_status_id_only_base_labels(self) -> None:
+        m = self._m()
+        m.update_from_snapshot(_snap({"ams_rfid_status": 3}))
+        labels = self._base_labels()
+        v = m.ams_rfid_status_id.labels(**labels)._value.get()
+        assert v == 3.0
