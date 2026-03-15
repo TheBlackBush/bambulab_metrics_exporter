@@ -4,7 +4,7 @@ import math
 
 from prometheus_client import CollectorRegistry, Gauge
 
-from bambulab_metrics_exporter.models import PrinterSnapshot
+from bambulab_metrics_exporter.models import PrinterSnapshot, parse_ams_info
 
 
 class ExporterMetrics:
@@ -91,6 +91,14 @@ class ExporterMetrics:
             registry=self.registry,
         )
 
+        # AMS unit info metric (new in v0.1.24)
+        self.ams_unit_info = Gauge(
+            "bambulab_ams_unit_info",
+            "AMS unit info with model and series labels",
+            [*label_names, "ams_id", "ams_model", "ams_series", "ams_serial"],
+            registry=self.registry,
+        )
+
         self.ams_slot_active = Gauge(
             "bambulab_ams_slot_active",
             "AMS slot active flag",
@@ -131,6 +139,26 @@ class ExporterMetrics:
             "bambulab_ams_unit_temperature_celsius",
             "AMS unit temperature",
             [*label_names, "ams_id"],
+            registry=self.registry,
+        )
+
+        # Gen2 drying telemetry metrics (new in v0.1.24)
+        self.ams_heater_state_info = Gauge(
+            "bambulab_ams_heater_state_info",
+            "AMS heater/dry state as labeled info metric (Gen2)",
+            [*label_names, "ams_id", "ams_model", "ams_series", "state"],
+            registry=self.registry,
+        )
+        self.ams_dry_fan_status = Gauge(
+            "bambulab_ams_dry_fan_status",
+            "AMS drying fan status (Gen2)",
+            [*label_names, "ams_id", "ams_model", "ams_series", "fan_id"],
+            registry=self.registry,
+        )
+        self.ams_dry_sub_status_info = Gauge(
+            "bambulab_ams_dry_sub_status_info",
+            "AMS drying sub-status as labeled info metric (Gen2)",
+            [*label_names, "ams_id", "ams_model", "ams_series", "state"],
             registry=self.registry,
         )
 
@@ -302,8 +330,16 @@ class ExporterMetrics:
             self.print_stage_info.labels(**labels, stage=snapshot.stg_cur_name).set(1.0)
 
         self._clear_ams(labels)
-        for ams in snapshot.ams_units:
+        for ams in snapshot.ams_units_with_model:
             ams_id = str(ams.get("id", "0"))
+            ams_model = str(ams.get("ams_model", "unknown"))
+            ams_series = str(ams.get("ams_series", "unknown"))
+            ams_serial = str(ams.get("sn", "")).strip()
+
+            # AMS unit info metric
+            self.ams_unit_info.labels(
+                **labels, ams_id=ams_id, ams_model=ams_model, ams_series=ams_series, ams_serial=ams_serial
+            ).set(1.0)
 
             # Strict MQTT mapping:
             # - humidity_index metric follows MQTT "humidity" (index 1..5)
@@ -327,6 +363,27 @@ class ExporterMetrics:
                     self.ams_unit_temperature_celsius.labels(**labels, ams_id=ams_id).set(float(temp))
                 except (TypeError, ValueError):
                     pass
+
+            # Gen2 drying telemetry from ams_info bits
+            ams_info_raw = ams.get("ams_info")
+            if isinstance(ams_info_raw, int) and ams_info_raw > 0:
+                parsed = parse_ams_info(ams_info_raw)
+                dry_heater_state = parsed["dry_heater_state"]
+                self.ams_heater_state_info.labels(
+                    **labels, ams_id=ams_id, ams_model=ams_model, ams_series=ams_series,
+                    state=str(dry_heater_state)
+                ).set(1.0)
+                self.ams_dry_fan_status.labels(
+                    **labels, ams_id=ams_id, ams_model=ams_model, ams_series=ams_series, fan_id="fan1"
+                ).set(float(parsed["dry_fan1"]))
+                self.ams_dry_fan_status.labels(
+                    **labels, ams_id=ams_id, ams_model=ams_model, ams_series=ams_series, fan_id="fan2"
+                ).set(float(parsed["dry_fan2"]))
+                self.ams_dry_sub_status_info.labels(
+                    **labels, ams_id=ams_id, ams_model=ams_model, ams_series=ams_series,
+                    state=str(parsed["dry_sub_status"])
+                ).set(1.0)
+
             raw_trays = ams.get("tray")
             trays = [t for t in raw_trays if isinstance(t, dict)] if isinstance(raw_trays, list) else []
             active_id = str(ams.get("tray_now", "-1"))
@@ -383,6 +440,7 @@ class ExporterMetrics:
         return None
 
     def _clear_ams(self, labels: dict[str, str]) -> None:
+        self.ams_unit_info.clear()
         self.ams_slot_active.clear()
         self.ams_slot_remaining_percent.clear()
         self.ams_slot_tray_type.clear()
@@ -390,6 +448,9 @@ class ExporterMetrics:
         self.ams_unit_humidity.clear()
         self.ams_unit_humidity_index.clear()
         self.ams_unit_temperature_celsius.clear()
+        self.ams_heater_state_info.clear()
+        self.ams_dry_fan_status.clear()
+        self.ams_dry_sub_status_info.clear()
 
     def mark_scrape(self, duration_seconds: float, success: bool, now_ts: float | None = None) -> None:
         labels = self._labels()

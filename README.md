@@ -220,6 +220,7 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 - `bambulab_printer_error`
 - `bambulab_printer_error_code`
 - `bambulab_printer_gcode_state{state="..."}` (one-hot)
+- `bambulab_ams_unit_info{ams_id,ams_model,ams_series,ams_serial}` — AMS unit identity info metric (always 1); carries model/series/serial labels
 - `bambulab_ams_slot_active{ams_id,slot_id}`
 - `bambulab_ams_slot_remaining_percent{ams_id,slot_id}`
 - `bambulab_ams_slot_tray_type_info{ams_id,slot_id,tray_type}`
@@ -247,6 +248,9 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 - `bambulab_ams_unit_humidity{ams_id}`
 - `bambulab_ams_unit_humidity_index{ams_id}`
 - `bambulab_ams_unit_temperature_celsius{ams_id}`
+- `bambulab_ams_heater_state_info{ams_id,ams_model,ams_series,state}` — Gen2 heater/dry state (from `ams_info` bits 4-7; emitted only when `ams_info` present)
+- `bambulab_ams_dry_fan_status{ams_id,ams_model,ams_series,fan_id}` — Gen2 drying fan speed (bits 18-21; `fan_id=fan1|fan2`)
+- `bambulab_ams_dry_sub_status_info{ams_id,ams_model,ams_series,state}` — Gen2 drying sub-status (bits 22-25)
 - `bambulab_queue_total`
 - `bambulab_queue_estimated_seconds`
 - `bambulab_queue_number`
