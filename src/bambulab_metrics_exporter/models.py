@@ -41,12 +41,15 @@ _HW_PROJECT_TO_PRINTER: dict[tuple[str, str], str] = {
 
 # SN-prefix → model (priority 3 – only clearly confirmed prefixes)
 _SN_PREFIX_TO_PRINTER: dict[str, str] = {
-    "00W": "X1C",
+    "00W": "X1",
     "00M": "X1C",
     "01S": "P1S",
     "01P": "P1P",
     "030": "A1MINI",
     "036": "A1",
+    "22E": "P2S",
+    "093": "H2S",
+    "094": "H2D",
 }
 
 # legacy device.type → model (priority 4)

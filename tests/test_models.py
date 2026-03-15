@@ -378,6 +378,11 @@ def test_printer_type_sn_prefix_x1c() -> None:
     assert snap.printer_type == "X1C"
 
 
+def test_printer_type_sn_prefix_x1() -> None:
+    snap = PrinterSnapshot(connected=True, raw={"print": {"sn": "00W123456789"}})
+    assert snap.printer_type == "X1"
+
+
 def test_printer_type_sn_prefix_p1s() -> None:
     snap = PrinterSnapshot(connected=True, raw={"print": {"sn": "01S0FABCDE123"}})
     assert snap.printer_type == "P1S"
@@ -386,6 +391,21 @@ def test_printer_type_sn_prefix_p1s() -> None:
 def test_printer_type_sn_prefix_a1mini() -> None:
     snap = PrinterSnapshot(connected=True, raw={"print": {"sn": "030XYZABC"}})
     assert snap.printer_type == "A1MINI"
+
+
+def test_printer_type_sn_prefix_p2s() -> None:
+    snap = PrinterSnapshot(connected=True, raw={"print": {"sn": "22EABCDE123"}})
+    assert snap.printer_type == "P2S"
+
+
+def test_printer_type_sn_prefix_h2s() -> None:
+    snap = PrinterSnapshot(connected=True, raw={"print": {"sn": "093ABCDE123"}})
+    assert snap.printer_type == "H2S"
+
+
+def test_printer_type_sn_prefix_h2d() -> None:
+    snap = PrinterSnapshot(connected=True, raw={"print": {"sn": "094ABCDE123"}})
+    assert snap.printer_type == "H2D"
 
 
 def test_printer_type_hw_project_a1mini() -> None:
