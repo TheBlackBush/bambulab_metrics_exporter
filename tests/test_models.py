@@ -639,3 +639,225 @@ class TestAmsUnitsWithModel:
         assert enriched[0]["humidity"] == 3
         assert enriched[0]["ams_model"] == "ams_ht"
         assert enriched[0]["ams_series"] == "gen_2"
+
+
+# ---------------------------------------------------------------------------
+# Additional edge cases: serial prefix mapping (v0.1.24 supplement)
+# ---------------------------------------------------------------------------
+
+class TestAmsSerialPrefixEdgeCases:
+    """Additional edge cases for serial-prefix mapping."""
+
+    def test_single_char_serial_returns_unknown(self) -> None:
+        # Serial shorter than any prefix should not match anything
+        assert resolve_ams_model({"sn": "0"}) == "unknown"
+
+    def test_two_char_serial_returns_unknown(self) -> None:
+        assert resolve_ams_model({"sn": "00"}) == "unknown"
+
+    def test_serial_exactly_3_chars_matching(self) -> None:
+        # Exact prefix length (e.g. "006") should match
+        assert resolve_ams_model({"sn": "006"}) == "ams_1"
+
+    def test_serial_exactly_3_chars_non_matching(self) -> None:
+        # "007" is not a known prefix
+        assert resolve_ams_model({"sn": "007"}) == "unknown"
+
+    def test_whitespace_only_serial_returns_unknown(self) -> None:
+        assert resolve_ams_model({"sn": "   "}) == "unknown"
+
+    def test_serial_with_leading_whitespace_still_matches(self) -> None:
+        # strip() is applied, so leading spaces should not prevent matching
+        assert resolve_ams_model({"sn": "  006ABCDEF"}) == "ams_1"
+
+    def test_serial_none_value_returns_unknown(self) -> None:
+        assert resolve_ams_model({"sn": None}) == "unknown"
+
+    def test_serial_integer_value_returns_unknown(self) -> None:
+        # sn must be a string; int type is skipped
+        assert resolve_ams_model({"sn": 6}) == "unknown"
+
+    def test_serial_list_value_returns_unknown(self) -> None:
+        assert resolve_ams_model({"sn": ["006ABCDEF"]}) == "unknown"
+
+    def test_prefix_match_is_prefix_not_substring(self) -> None:
+        # A serial that contains the prefix but NOT at the start should not match
+        # e.g. "XXX006ABCDEF" — prefix "006" is not at start
+        assert resolve_ams_model({"sn": "XXX006ABCDEF"}) == "unknown"
+
+    def test_all_lowercase_prefix_matches(self) -> None:
+        # Already tested mixed case, but fully lowercase sn
+        assert resolve_ams_model({"sn": "006abcdef"}) == "ams_1"
+        assert resolve_ams_model({"sn": "19cabcdef"}) == "ams_2_pro"
+        assert resolve_ams_model({"sn": "19fabcdef"}) == "ams_ht"
+
+    def test_all_uppercase_prefix_matches(self) -> None:
+        assert resolve_ams_model({"sn": "03CABCDEF"}) == "ams_lite"
+        assert resolve_ams_model({"sn": "19FABCDEF"}) == "ams_ht"
+
+
+# ---------------------------------------------------------------------------
+# Additional edge cases: ams_info precedence over serial (v0.1.24 supplement)
+# ---------------------------------------------------------------------------
+
+class TestAmsInfoPrecedenceEdgeCases:
+    """Additional edge cases: ams_info over serial, invalid ams_info types."""
+
+    def test_ams_info_string_is_not_used(self) -> None:
+        # ams_info must be an int; string should fall through to serial
+        result = resolve_ams_model({"sn": "006ABCDEF", "ams_info": "3"})
+        assert result == "ams_1"  # from serial prefix
+
+    def test_ams_info_float_is_not_used(self) -> None:
+        # float is not an int
+        result = resolve_ams_model({"sn": "006ABCDEF", "ams_info": 3.0})
+        assert result == "ams_1"  # from serial prefix
+
+    def test_ams_info_none_is_not_used(self) -> None:
+        result = resolve_ams_model({"sn": "006ABCDEF", "ams_info": None})
+        assert result == "ams_1"
+
+    def test_ams_info_zero_falls_through_to_serial(self) -> None:
+        result = resolve_ams_model({"sn": "03CABCDEF", "ams_info": 0})
+        assert result == "ams_lite"  # serial prefix takes over
+
+    def test_ams_info_zero_no_serial_returns_unknown(self) -> None:
+        result = resolve_ams_model({"ams_info": 0})
+        assert result == "unknown"
+
+    def test_ams_info_negative_falls_through_to_serial(self) -> None:
+        # Negative values: isinstance(x, int) is True for negative ints
+        # but ams_info_raw > 0 guard blocks them
+        result = resolve_ams_model({"sn": "006ABCDEF", "ams_info": -1})
+        assert result == "ams_1"
+
+    def test_ams_info_unknown_type_no_serial_returns_unknown(self) -> None:
+        # ams_type=15 is not in AMS_TYPE_TO_MODEL, no serial -> unknown
+        result = resolve_ams_model({"ams_info": 0xF})
+        assert result == "unknown"
+
+    def test_ams_info_unknown_type_with_serial_falls_through(self) -> None:
+        # ams_type=15 unknown, but serial matches -> serial result
+        result = resolve_ams_model({"sn": "19CABCDEF", "ams_info": 0xF})
+        assert result == "ams_2_pro"
+
+    def test_ams_info_bits_above_type_do_not_affect_type(self) -> None:
+        # Set many high bits; type bits 0-3 = 4 -> ams_ht
+        val = 0xFFFFFF0 | 4  # type=4, lots of upper bits set
+        result = resolve_ams_model({"ams_info": val})
+        assert result == "ams_ht"
+
+
+# ---------------------------------------------------------------------------
+# Additional edge cases: parse_ams_info bit parsing (v0.1.24 supplement)
+# ---------------------------------------------------------------------------
+
+class TestParseAmsInfoEdgeCases:
+    """Additional edge cases for parse_ams_info drying telemetry bit parsing."""
+
+    def test_max_ams_type(self) -> None:
+        # bits 0-3 all set = 15
+        parsed = parse_ams_info(0xF)
+        assert parsed["ams_type"] == 15
+
+    def test_max_dry_heater_state(self) -> None:
+        # bits 4-7 all set = 15
+        parsed = parse_ams_info(0xF0)
+        assert parsed["dry_heater_state"] == 15
+
+    def test_max_dry_fan1(self) -> None:
+        # bits 18-19 both set = 3
+        parsed = parse_ams_info(3 << 18)
+        assert parsed["dry_fan1"] == 3
+
+    def test_max_dry_fan2(self) -> None:
+        # bits 20-21 both set = 3
+        parsed = parse_ams_info(3 << 20)
+        assert parsed["dry_fan2"] == 3
+
+    def test_max_dry_sub_status(self) -> None:
+        # bits 22-25 all set = 15
+        parsed = parse_ams_info(0xF << 22)
+        assert parsed["dry_sub_status"] == 15
+
+    def test_all_fields_max(self) -> None:
+        # All fields at max values simultaneously
+        val = 0xF | (0xF << 4) | (3 << 18) | (3 << 20) | (0xF << 22)
+        parsed = parse_ams_info(val)
+        assert parsed["ams_type"] == 15
+        assert parsed["dry_heater_state"] == 15
+        assert parsed["dry_fan1"] == 3
+        assert parsed["dry_fan2"] == 3
+        assert parsed["dry_sub_status"] == 15
+
+    def test_bits_8_to_17_are_ignored(self) -> None:
+        # Bits 8-17 are not mapped; setting them should not affect known fields
+        val = 0b11_1111_1111 << 8  # bits 8-17 all set
+        parsed = parse_ams_info(val)
+        assert parsed["ams_type"] == 0
+        assert parsed["dry_heater_state"] == 0
+        assert parsed["dry_fan1"] == 0
+        assert parsed["dry_fan2"] == 0
+        assert parsed["dry_sub_status"] == 0
+
+    def test_large_value_does_not_overflow_fields(self) -> None:
+        # Very large value; each field should still extract only its bits
+        parsed = parse_ams_info(0xFFFFFFFF)
+        assert parsed["ams_type"] == 15          # bits 0-3
+        assert parsed["dry_heater_state"] == 15   # bits 4-7
+        assert parsed["dry_fan1"] == 3            # bits 18-19
+        assert parsed["dry_fan2"] == 3            # bits 20-21
+        assert parsed["dry_sub_status"] == 15     # bits 22-25
+
+    def test_fan1_and_fan2_independent(self) -> None:
+        # fan1=2, fan2=1 simultaneously
+        val = (2 << 18) | (1 << 20)
+        parsed = parse_ams_info(val)
+        assert parsed["dry_fan1"] == 2
+        assert parsed["dry_fan2"] == 1
+
+    def test_heater_state_isolated_from_type(self) -> None:
+        # ams_type=0, dry_heater=5
+        val = 5 << 4
+        parsed = parse_ams_info(val)
+        assert parsed["ams_type"] == 0
+        assert parsed["dry_heater_state"] == 5
+
+    def test_sub_status_zero_when_not_set(self) -> None:
+        # Only ams_type and dry_heater set; sub_status should be 0
+        val = 3 | (2 << 4)
+        parsed = parse_ams_info(val)
+        assert parsed["dry_sub_status"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Additional edge cases: unknown fallback paths (v0.1.24 supplement)
+# ---------------------------------------------------------------------------
+
+class TestAmsUnknownFallbacks:
+    """Explicit tests for all fallback/unknown paths."""
+
+    def test_completely_empty_unit_resolves_unknown(self) -> None:
+        assert resolve_ams_model({}) == "unknown"
+        assert resolve_ams_series("unknown") == "unknown"
+
+    def test_unit_with_only_id_resolves_unknown(self) -> None:
+        assert resolve_ams_model({"id": "0"}) == "unknown"
+
+    def test_unit_with_only_temp_resolves_unknown(self) -> None:
+        assert resolve_ams_model({"temp": 23.5}) == "unknown"
+
+    def test_unit_with_only_humidity_resolves_unknown(self) -> None:
+        assert resolve_ams_model({"humidity": 3}) == "unknown"
+
+    def test_series_for_nonexistent_model_is_unknown(self) -> None:
+        assert resolve_ams_series("ams_99") == "unknown"
+        assert resolve_ams_series("") == "unknown"
+        assert resolve_ams_series("gen_1") == "unknown"  # series name ≠ model name
+
+    def test_resolve_ams_series_from_unknown_model(self) -> None:
+        # Chained: model resolves unknown, then series also unknown
+        model = resolve_ams_model({"sn": "ZZZUNKNOWN"})
+        series = resolve_ams_series(model)
+        assert model == "unknown"
+        assert series == "unknown"
