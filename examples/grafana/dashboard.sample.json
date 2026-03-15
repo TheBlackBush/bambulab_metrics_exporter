@@ -399,46 +399,6 @@
         "x": 0,
         "y": 44
       }
-    },
-    {
-      "type": "timeseries",
-      "title": "Home Flag States",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "targets": [
-        {
-          "expr": "bambulab_home_flag_state{printer_name=~\"${printer:regex}\"}",
-          "legendFormat": "{{flag}} {{printer_name}}"
-        }
-      ],
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 44
-      }
-    },
-    {
-      "type": "timeseries",
-      "title": "Stat Flag States",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "targets": [
-        {
-          "expr": "bambulab_stat_flag_state{printer_name=~\"${printer:regex}\"}",
-          "legendFormat": "{{flag}} {{printer_name}}"
-        }
-      ],
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 44
-      }
     }
   ]
 }

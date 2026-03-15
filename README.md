@@ -24,6 +24,7 @@ Production-oriented Prometheus exporter for Bambu Lab printers (homelab/self-hos
 - Supports both LAN MQTT (`local_mqtt`) and Cloud MQTT (`cloud_mqtt`).
 - Uses `device/<serial>/report` and `device/<serial>/request` topics.
 - Requests full snapshots with `pushall` and maps stable telemetry fields to Prometheus metrics.
+- Printer model detection uses a table-driven resolver pipeline (`product_name` → `hw_ver+project_name` → `SN prefix` → legacy fallbacks), including newer SN prefixes such as `22E` (P2S), `093` (H2S), and `094` (H2D).
 
 For exporter scope, local MQTT is preferred by default, but cloud MQTT is also supported.
 
@@ -206,12 +207,6 @@ labels:
 bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 ```
 
-- Full decoded home/stat flags for diagnostics:
-
-```promql
-bambulab_home_flag_state{printer_name="$printer"}
-bambulab_stat_flag_state{printer_name="$printer"}
-```
 
 ## Exported metrics (core)
 
@@ -222,7 +217,6 @@ bambulab_stat_flag_state{printer_name="$printer"}
 - `bambulab_nozzle_temperature_celsius`
 - `bambulab_bed_temperature_celsius`
 - `bambulab_chamber_temperature_celsius`
-- `bambulab_fan_speed_percent`
 - `bambulab_printer_error`
 - `bambulab_printer_error_code`
 - `bambulab_printer_gcode_state{state="..."}` (one-hot)
@@ -246,8 +240,10 @@ bambulab_stat_flag_state{printer_name="$printer"}
 - `bambulab_wifi_signal`
 - `bambulab_online_ahb`
 - `bambulab_online_ext`
-- `bambulab_ams_status`
-- `bambulab_ams_rfid_status`
+- `bambulab_ams_status_id` — AMS status numeric code (renamed from `bambulab_ams_status`)
+- `bambulab_ams_status_name{status}` — AMS status as info metric (`idle|filament_change|rfid_identifying|assist|calibration|self_check|debug|unknown_device|unknown_<code>`)
+- `bambulab_ams_rfid_status_id` — AMS RFID status numeric code (renamed from `bambulab_ams_rfid_status`)
+- `bambulab_ams_rfid_status_name{status}` — AMS RFID status as info metric (`idle|reading|writing|identifying|close|unknown_rfid|unknown_<code>`)
 - `bambulab_ams_unit_humidity{ams_id}`
 - `bambulab_ams_unit_humidity_index{ams_id}`
 - `bambulab_ams_unit_temperature_celsius{ams_id}`
@@ -257,14 +253,11 @@ bambulab_stat_flag_state{printer_name="$printer"}
 - `bambulab_queue_status`
 - `bambulab_queue_position`
 - `bambulab_print_error`
-- `bambulab_fan_gear`
 - `bambulab_nozzle_diameter`
 - `bambulab_spd_lvl`
 - `bambulab_spd_mag`
 - `bambulab_spd_lvl_state{mode="SILENT|STANDARD|SPORT|LUDICROUS|UNKNOWN"}`
 - `bambulab_sdcard_status_info{status}` (`present|abnormal|absent`)
-- `bambulab_home_flag_state{flag}`
-- `bambulab_stat_flag_state{flag}`
 - `bambulab_door_open`
 - `bambulab_wired_network`
 - `bambulab_camera_recording`

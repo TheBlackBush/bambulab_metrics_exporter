@@ -2,24 +2,40 @@
 
 All notable changes to this project are documented in this file.
 
-## [0.1.21] - 2026-03-15
-
-> Note: This version is the latest application version in the repository history after recent changes.
-> Publish tag/release when ready.
+## [0.1.22] - 2026-03-15
 
 ### Added
-- Decoded flag-state metrics:
+- AMS status name info metric: `bambulab_ams_status_name{status="..."}` = 1 (label key: `status`).
+- AMS RFID status name info metric: `bambulab_ams_rfid_status_name{status="..."}` = 1 (label key: `status`).
+- AMS status mappings: `idle`, `filament_change`, `rfid_identifying`, `assist`, `calibration`, `self_check`, `debug`, `unknown_device`.
+- AMS RFID status mappings: `idle`, `reading`, `writing`, `identifying`, `close`, `unknown_rfid`.
+- Unknown AMS/RFID status codes now emit deterministic `unknown_<code>` labels.
+- Extended printer model resolver with SN-prefix coverage for: `00W`, `00M`, `01S`, `01P`, `030`, `036`, `22E`, `093`, `094`.
+
+### Changed
+- `bambulab_ams_status` renamed to `bambulab_ams_status_id`.
+- `bambulab_ams_rfid_status` renamed to `bambulab_ams_rfid_status_id`.
+- STG_CUR_NAMES readability updates (including ids 1/11/15/31 and broader stage naming cleanup).
+- Printer model resolver is now table-driven: `product_name -> hw_ver+project_name -> SN-prefix -> device.type -> model_id`.
+- Removed corresponding Grafana panels and README references for removed debug/noisy metrics.
+
+### Removed
+- Debug flag-state metrics:
   - `bambulab_home_flag_state{flag}`
   - `bambulab_stat_flag_state{flag}`
+- Fan metrics not semantically reliable for current `fan_gear` payload behavior:
+  - `bambulab_fan_speed_percent`
+  - `bambulab_fan_gear`
+
+## [0.1.21] - 2026-03-15
+
+### Added
 - Dedicated high-value flag metrics:
   - `bambulab_wired_network`
   - `bambulab_camera_recording`
   - `bambulab_ams_auto_switch`
   - `bambulab_filament_tangle_detected`
   - `bambulab_filament_tangle_detect_supported`
-- Grafana panels:
-  - `Home Flag States`
-  - `Stat Flag States`
 - Alert + recording additions:
   - `BambuSdCardAbnormal`
   - `bambulab:sdcard_abnormal:latest`
