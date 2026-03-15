@@ -197,6 +197,19 @@ labels:
   severity: warning
 ```
 
+- SD card abnormal status:
+
+```promql
+bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
+```
+
+- Full decoded home/stat flags for diagnostics:
+
+```promql
+bambulab_home_flag_state{printer_name="$printer"}
+bambulab_stat_flag_state{printer_name="$printer"}
+```
+
 ## Exported metrics (core)
 
 - `bambulab_printer_up`

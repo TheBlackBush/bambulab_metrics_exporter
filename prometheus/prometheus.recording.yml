@@ -25,3 +25,6 @@ groups:
 
       - record: bambulab:door_open:latest
         expr: last_over_time(bambulab_door_open[5m])
+
+      - record: bambulab:sdcard_abnormal:latest
+        expr: last_over_time(bambulab_sdcard_status_info{status="abnormal"}[5m])

@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.19] - 2026-03-15
+
+### Added
+- Added Grafana panels for decoded bitmask metrics:
+  - `Home Flag States`
+  - `Stat Flag States`
+- Added `BambuSdCardAbnormal` alert rule.
+- Added `bambulab:sdcard_abnormal:latest` recording rule.
+
+### Updated
+- Expanded README with PromQL examples for decoded flag metrics and SD abnormal checks.
+
 ## [0.1.18] - 2026-03-15
 
 ### Added
