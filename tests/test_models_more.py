@@ -94,3 +94,48 @@ def test_model_fail_reason_string() -> None:
         raw={"print": {"fail_reason": "filament runout"}},
     )
     assert snap.fail_reason == "filament runout"
+
+
+def test_model_name_discovery_paths() -> None:
+    # Mapping from legacy device.type
+    snap_p1s = PrinterSnapshot(connected=True, raw={"print": {"device": {"type": 3}}})
+    assert snap_p1s.model_name == "P1S"
+
+    # Fallback to model_id
+    snap_fallback = PrinterSnapshot(connected=True, raw={"print": {"model_id": "X1C"}})
+    assert snap_fallback.model_name == "X1C"
+
+    # Unknown type
+    snap_unknown = PrinterSnapshot(connected=True, raw={"print": {"device": {"type": 99}}})
+    assert snap_unknown.model_name is None
+
+
+def test_printer_type_detection_from_module_metadata() -> None:
+    by_product = PrinterSnapshot(
+        connected=True,
+        raw={"module": [{"name": "ota", "product_name": "Bambu Lab H2D"}]},
+    )
+    assert by_product.printer_type == "H2D"
+
+    by_hw_project = PrinterSnapshot(
+        connected=True,
+        raw={"module": [{"name": "esp32", "hw_ver": "AP04", "project_name": "C12"}]},
+    )
+    assert by_hw_project.printer_type == "P1S"
+
+
+def test_model_edge_cases_from_legacy_coverage_file() -> None:
+    snap_no_nozzle = PrinterSnapshot(connected=True, raw={"print": {"vt_tray": None}})
+    assert snap_no_nozzle.nozzle_temp is None
+
+    snap_fan_high = PrinterSnapshot(connected=True, raw={"print": {"fan_gear": 50}})
+    assert snap_fan_high.fan_gear == 50.0
+
+    snap_ams_tray = PrinterSnapshot(connected=True, raw={"print": {"ams": {"tray_now": "1"}}})
+    assert snap_ams_tray.ams_tray_now == "1"
+
+    snap_ams_name = PrinterSnapshot(connected=True, raw={"print": {"ams": {"ams": [{"id": "0", "name": "AMS1"}]}}})
+    assert snap_ams_name.ams_units[0]["name"] == "AMS1"
+
+    snap_no_sub = PrinterSnapshot(connected=True, raw={"print": {"subtask_name": 123}})
+    assert snap_no_sub.subtask_name is None
