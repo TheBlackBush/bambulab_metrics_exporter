@@ -143,6 +143,66 @@ scrape_configs:
       - targets: ["bambulab-metrics-exporter:9109"]
 ```
 
+## Operator PromQL examples
+
+### AMS metrics (new in v0.1.13-v0.1.14)
+
+- Current AMS K values by slot:
+
+```promql
+bambulab_ams_slot_k_value{printer_name="$printer"}
+```
+
+- Average humidity index per AMS unit over 15 minutes:
+
+```promql
+avg_over_time(bambulab_ams_unit_humidity_index{printer_name="$printer"}[15m])
+```
+
+- Lowest remaining filament percentage per printer (all AMS slots):
+
+```promql
+min by (printer_name) (bambulab_ams_slot_remaining_percent)
+```
+
+- Slots below 15% remaining filament:
+
+```promql
+bambulab_ams_slot_remaining_percent{printer_name="$printer"} < 15
+```
+
+### Alert tuning examples
+
+- Door open while printing, less sensitive (require 2 minutes open):
+
+```promql
+bambulab_door_open{printer_name="$printer"} == 1
+and on(printer_name, serial)
+bambulab_printer_gcode_state{printer_name="$printer", state="RUNNING"} == 1
+```
+
+Suggested alert rule tuning:
+
+```yaml
+for: 2m
+labels:
+  severity: warning
+```
+
+- Stale exporter threshold tuned for slower polling environments:
+
+```promql
+time() - bambulab_exporter_last_success_unixtime{printer_name="$printer"} > 300
+```
+
+Suggested alert rule tuning:
+
+```yaml
+for: 2m
+labels:
+  severity: warning
+```
+
 ## Exported metrics (core)
 
 - `bambulab_printer_up`
@@ -303,9 +363,13 @@ On container startup, exporter performs a connection preflight:
   - On success, new credentials are saved encrypted to config dir and synced to `.env`, so next startup won't require re-entry.
 
 
-Alert rules sample is available at: `prometheus/prometheus.alerts.yml`
+Prometheus scrape config sample: `prometheus/prometheus.scrape.yml`
 
-Recording rules sample is available at: `prometheus/prometheus.recording.yml`
+Alert rules sample: `prometheus/prometheus.alerts.yml`
+
+Recording rules sample: `prometheus/prometheus.recording.yml`
+
+Grafana sample dashboard: `grafana/dashboard.sample.json`
 
 
 ## Unraid Docker template

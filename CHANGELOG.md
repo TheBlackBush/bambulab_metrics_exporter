@@ -2,6 +2,34 @@
 
 All notable changes to this project are documented in this file.
 
+## Release notes (cumulative): v0.1.12 -> v0.1.14
+
+### New metrics added
+- `bambulab_usage_hours_total`
+- `bambulab_sdcard_status_info{status}`
+- `bambulab_door_open`
+- `bambulab_filament_loaded`
+- `bambulab_timelapse_enabled`
+- `bambulab_stg_cur`
+- `bambulab_print_stage_info{stage}`
+- `bambulab_ams_slot_k_value{ams_id,slot_id}`
+- `bambulab_ams_unit_humidity_index{ams_id}`
+
+### Alerts, recording rules, and dashboard updates
+- Added alert rules for:
+  - door-open-while-printing (`BambuDoorOpenWhilePrinting`)
+  - stale exporter success timestamp (`BambuExporterStale`)
+- Added recording rules:
+  - `bambulab:stage_id:latest`
+  - `bambulab:door_open:latest`
+- Grafana sample dashboard updated with panels for AMS slot K value and AMS humidity index.
+
+### Backward compatibility notes
+- Existing metric names were kept unchanged; additions are non-breaking.
+- AMS remain parsing is more tolerant (`remain` accepts numeric strings), improving data continuity.
+- AMS tray type parsing now falls back to `ctype` when `tray_type` is absent.
+- Humidity index parsing accepts multiple firmware key variants (`humidity_index`, `humidity_level`, `humidityIndex`, `humidityLevel`).
+
 ## [0.1.14] - 2026-03-15
 
 ### Added
