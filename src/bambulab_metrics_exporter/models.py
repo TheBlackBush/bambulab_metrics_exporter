@@ -2,6 +2,21 @@ from dataclasses import dataclass
 from typing import Any
 
 
+DOOR_OPEN_MASK = 0x00800000
+X1_HOMEFLAG_MODELS = {"X1", "X1C"}
+PRODUCT_NAME_TO_PRINTER: dict[str, str] = {
+    "bambu lab a1": "A1",
+    "bambu lab a1 mini": "A1MINI",
+    "bambu lab p1p": "P1P",
+    "bambu lab p1s": "P1S",
+    "bambu lab p2s": "P2S",
+    "bambu lab h2c": "H2C",
+    "bambu lab h2d": "H2D",
+    "bambu lab h2d pro": "H2DPRO",
+    "bambu lab h2s": "H2S",
+}
+
+
 STG_CUR_NAMES: dict[int, str] = {
     0: "printing",
     1: "bed_leveling",
@@ -76,6 +91,26 @@ def _to_int(value: Any) -> int | None:
     return None
 
 
+def _to_hex_int(value: Any) -> int | None:
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            return int(text, 16)
+        except ValueError:
+            return None
+    return None
+
+
+def _normalize_product_name(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+    return " ".join(value.strip().lower().split())
+
+
 @dataclass(slots=True)
 class PrinterSnapshot:
     connected: bool
@@ -99,21 +134,73 @@ class PrinterSnapshot:
         return self.print_block.get("dev_name")
 
     @property
-    def model_name(self) -> str | None:
+    def modules(self) -> list[dict[str, Any]]:
+        candidates: list[Any] = []
+        candidates.append(self.raw.get("module"))
+        info = self.raw.get("info")
+        if isinstance(info, dict):
+            candidates.append(info.get("module"))
+        candidates.append(self.print_block.get("module"))
+
+        for candidate in candidates:
+            if isinstance(candidate, list):
+                return [x for x in candidate if isinstance(x, dict)]
+        return []
+
+    @property
+    def printer_type(self) -> str | None:
+        modules = self.modules
+        for mod in modules:
+            mapped = PRODUCT_NAME_TO_PRINTER.get(_normalize_product_name(mod.get("product_name")))
+            if mapped:
+                return mapped
+
+        ap_module = next(
+            (
+                m
+                for m in modules
+                if isinstance(m.get("hw_ver"), str) and m.get("hw_ver", "").startswith("AP0")
+            ),
+            None,
+        )
+        if isinstance(ap_module, dict):
+            hw_ver = str(ap_module.get("hw_ver", "")).strip().upper()
+            project_name = str(ap_module.get("project_name", "")).strip().upper()
+            if hw_ver == "AP02":
+                return "X1E"
+            if project_name == "N1":
+                return "A1MINI"
+            if hw_ver == "AP04":
+                if project_name == "C11":
+                    return "P1P"
+                if project_name == "C12":
+                    return "P1S"
+            if hw_ver == "AP05":
+                if project_name == "N2S":
+                    return "A1"
+                if project_name == "":
+                    return "X1C"
+
         dtype = _to_int(self.print_block.get("device", {}).get("type"))
-        if dtype is None:
-             # Fallback to model_id if available
-             return self.print_block.get("model_id")
-        
         mapping = {
             0: "X1",
             1: "X1C",
             2: "P1P",
             3: "P1S",
             4: "A1",
-            5: "A1 Mini",
+            5: "A1MINI",
         }
-        return mapping.get(dtype)
+        if dtype in mapping:
+            return mapping[dtype]
+
+        model_id = self.print_block.get("model_id")
+        if isinstance(model_id, str) and model_id.strip():
+            return model_id.strip().upper().replace(" ", "")
+        return None
+
+    @property
+    def model_name(self) -> str | None:
+        return self.printer_type
 
     @property
     def progress_percent(self) -> float | None:
@@ -392,16 +479,35 @@ class PrinterSnapshot:
 
     @property
     def door_open(self) -> float | None:
-        """1.0 if door is open, 0.0 if closed. From home_flag bit or direct field."""
+        """1.0 if door is open, 0.0 if closed.
+
+        Source selection mirrors ha-bambulab behavior:
+        - Direct `door_open` value if present
+        - X1/X1C prefer `home_flag` bitmask
+        - Other models prefer `stat` hex bitmask
+        - Fallback to whichever bitmask source is available
+        """
         val = self.print_block.get("door_open")
         if isinstance(val, bool):
             return 1.0 if val else 0.0
         if isinstance(val, (int, float)):
             return 1.0 if val else 0.0
-        hf = _to_int(self.print_block.get("home_flag"))
-        if hf is not None:
-            # bit 1 (0x2) = door open in ha-bambulab
-            return 1.0 if (hf & 0x2) else 0.0
+
+        home_flag = _to_int(self.print_block.get("home_flag"))
+        stat_flag = _to_hex_int(self.print_block.get("stat"))
+        ptype = self.printer_type
+
+        if ptype in X1_HOMEFLAG_MODELS:
+            if home_flag is not None:
+                return 1.0 if (home_flag & DOOR_OPEN_MASK) else 0.0
+            if stat_flag is not None:
+                return 1.0 if (stat_flag & DOOR_OPEN_MASK) else 0.0
+            return None
+
+        if stat_flag is not None:
+            return 1.0 if (stat_flag & DOOR_OPEN_MASK) else 0.0
+        if home_flag is not None:
+            return 1.0 if (home_flag & DOOR_OPEN_MASK) else 0.0
         return None
 
     @property

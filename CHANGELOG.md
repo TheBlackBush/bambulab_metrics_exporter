@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.17] - 2026-03-15
+
+### Fixed
+- Corrected `bambulab_door_open` decoding across printer models:
+  - Uses door bitmask `0x00800000` (aligned with ha-bambulab constants).
+  - Adds `stat` hex parsing support for models that report door state via `stat`.
+  - Keeps direct `door_open` field precedence when explicitly present.
+  - Applies model-aware source selection (`X1/X1C` prefer `home_flag`, others prefer `stat`).
+
+### Added
+- Added full printer-type resolver from module metadata (`product_name`, `hw_ver`, `project_name`) with fallbacks.
+
+### Tests
+- Added/updated tests for door decoding from `home_flag` and `stat`, source precedence, and printer-type detection.
+
 ## [0.1.16] - 2026-03-15
 
 ### Removed

@@ -48,12 +48,32 @@ class TestDoorOpen:
 
     def test_door_open_from_home_flag(self) -> None:
         m = _metrics()
-        m.update_from_snapshot(_snap({"home_flag": 0x2}))  # bit 1 set
+        m.update_from_snapshot(_snap({"home_flag": 0x00800000}))
         assert _get(m, "door_open") == 1.0
 
     def test_door_closed_from_home_flag(self) -> None:
         m = _metrics()
         m.update_from_snapshot(_snap({"home_flag": 0x0}))
+        assert _get(m, "door_open") == 0.0
+
+    def test_door_open_from_stat_hex(self) -> None:
+        m = _metrics()
+        m.update_from_snapshot(_snap({"stat": "46A58008"}))
+        assert _get(m, "door_open") == 1.0
+
+    def test_door_closed_from_stat_hex(self) -> None:
+        m = _metrics()
+        m.update_from_snapshot(_snap({"stat": "46258008"}))
+        assert _get(m, "door_open") == 0.0
+
+    def test_door_open_model_preference_x1_home_flag_over_stat(self) -> None:
+        m = _metrics()
+        m.update_from_snapshot(_snap({"model_id": "X1C", "home_flag": 0x00800000, "stat": "46258008"}))
+        assert _get(m, "door_open") == 1.0
+
+    def test_door_open_model_preference_non_x1_stat_over_home_flag(self) -> None:
+        m = _metrics()
+        m.update_from_snapshot(_snap({"model_id": "H2D", "home_flag": 0x00800000, "stat": "46258008"}))
         assert _get(m, "door_open") == 0.0
 
     def test_door_open_none(self) -> None:

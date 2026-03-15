@@ -35,14 +35,30 @@ def test_models_more_edges_for_95_percent():
     assert snap_no_sub.subtask_name is None
 
 def test_model_name_discovery():
-    # Test mapping
+    # Test mapping from legacy device.type
     snap_p1s = models.PrinterSnapshot(connected=True, raw={"print": {"device": {"type": 3}}})
     assert snap_p1s.model_name == "P1S"
-    
+
     # Test fallback to model_id
     snap_fallback = models.PrinterSnapshot(connected=True, raw={"print": {"model_id": "X1C"}})
     assert snap_fallback.model_name == "X1C"
-    
+
     # Test unknown type
     snap_unknown = models.PrinterSnapshot(connected=True, raw={"print": {"device": {"type": 99}}})
     assert snap_unknown.model_name is None
+
+
+def test_printer_type_detection_from_product_name_modules():
+    snap = models.PrinterSnapshot(
+        connected=True,
+        raw={"module": [{"name": "ota", "product_name": "Bambu Lab H2D"}]},
+    )
+    assert snap.printer_type == "H2D"
+
+
+def test_printer_type_detection_from_hw_ver_project_name():
+    snap = models.PrinterSnapshot(
+        connected=True,
+        raw={"module": [{"name": "esp32", "hw_ver": "AP04", "project_name": "C12"}]},
+    )
+    assert snap.printer_type == "P1S"
