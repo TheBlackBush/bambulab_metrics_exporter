@@ -2,10 +2,10 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased]
+## [0.1.21] - 2026-03-15
 
-> Note: Latest published GitHub release is `v0.1.14`.
-> The changes below are currently merged on `main` but not yet published as a GitHub Release tag.
+> Note: This version is the latest application version in the repository history after recent changes.
+> Publish tag/release when ready.
 
 ### Added
 - Decoded flag-state metrics:
