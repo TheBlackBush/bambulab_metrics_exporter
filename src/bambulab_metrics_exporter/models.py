@@ -1,6 +1,29 @@
 from dataclasses import dataclass
 from typing import Any
 
+from bambulab_metrics_exporter.flags import (
+    HOME_FLAG_MASKS,
+    STAT_FLAG_MASKS,
+    decode_home_flags,
+    decode_stat_flags,
+    to_hex_int,
+    to_int,
+)
+
+
+X1_HOMEFLAG_MODELS = {"X1", "X1C"}
+PRODUCT_NAME_TO_PRINTER: dict[str, str] = {
+    "bambu lab a1": "A1",
+    "bambu lab a1 mini": "A1MINI",
+    "bambu lab p1p": "P1P",
+    "bambu lab p1s": "P1S",
+    "bambu lab p2s": "P2S",
+    "bambu lab h2c": "H2C",
+    "bambu lab h2d": "H2D",
+    "bambu lab h2d pro": "H2DPRO",
+    "bambu lab h2s": "H2S",
+}
+
 
 STG_CUR_NAMES: dict[int, str] = {
     0: "printing",
@@ -58,22 +81,15 @@ def _to_float(value: Any) -> float | None:
     return None
 
 
-def _to_int(value: Any) -> int | None:
-    if isinstance(value, bool):
-        return int(value)
-    if isinstance(value, int):
-        return value
-    if isinstance(value, float):
-        return int(value)
-    if isinstance(value, str):
-        text = value.strip()
-        if not text:
-            return None
-        try:
-            return int(text)
-        except ValueError:
-            return None
-    return None
+# Backward-compatible aliases for legacy tests/importers.
+_to_int = to_int
+_to_hex_int = to_hex_int
+
+
+def _normalize_product_name(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+    return " ".join(value.strip().lower().split())
 
 
 @dataclass(slots=True)
@@ -99,21 +115,73 @@ class PrinterSnapshot:
         return self.print_block.get("dev_name")
 
     @property
-    def model_name(self) -> str | None:
-        dtype = _to_int(self.print_block.get("device", {}).get("type"))
-        if dtype is None:
-             # Fallback to model_id if available
-             return self.print_block.get("model_id")
-        
+    def modules(self) -> list[dict[str, Any]]:
+        candidates: list[Any] = []
+        candidates.append(self.raw.get("module"))
+        info = self.raw.get("info")
+        if isinstance(info, dict):
+            candidates.append(info.get("module"))
+        candidates.append(self.print_block.get("module"))
+
+        for candidate in candidates:
+            if isinstance(candidate, list):
+                return [x for x in candidate if isinstance(x, dict)]
+        return []
+
+    @property
+    def printer_type(self) -> str | None:
+        modules = self.modules
+        for mod in modules:
+            mapped = PRODUCT_NAME_TO_PRINTER.get(_normalize_product_name(mod.get("product_name")))
+            if mapped:
+                return mapped
+
+        ap_module = next(
+            (
+                m
+                for m in modules
+                if isinstance(m.get("hw_ver"), str) and m.get("hw_ver", "").startswith("AP0")
+            ),
+            None,
+        )
+        if isinstance(ap_module, dict):
+            hw_ver = str(ap_module.get("hw_ver", "")).strip().upper()
+            project_name = str(ap_module.get("project_name", "")).strip().upper()
+            if hw_ver == "AP02":
+                return "X1E"
+            if project_name == "N1":
+                return "A1MINI"
+            if hw_ver == "AP04":
+                if project_name == "C11":
+                    return "P1P"
+                if project_name == "C12":
+                    return "P1S"
+            if hw_ver == "AP05":
+                if project_name == "N2S":
+                    return "A1"
+                if project_name == "":
+                    return "X1C"
+
+        dtype = to_int(self.print_block.get("device", {}).get("type"))
         mapping = {
             0: "X1",
             1: "X1C",
             2: "P1P",
             3: "P1S",
             4: "A1",
-            5: "A1 Mini",
+            5: "A1MINI",
         }
-        return mapping.get(dtype)
+        if dtype in mapping:
+            return mapping[dtype]
+
+        model_id = self.print_block.get("model_id")
+        if isinstance(model_id, str) and model_id.strip():
+            return model_id.strip().upper().replace(" ", "")
+        return None
+
+    @property
+    def model_name(self) -> str | None:
+        return self.printer_type
 
     @property
     def progress_percent(self) -> float | None:
@@ -207,22 +275,22 @@ class PrinterSnapshot:
 
     @property
     def mc_stage(self) -> float | None:
-        value = _to_int(self.print_block.get("mc_stage"))
+        value = to_int(self.print_block.get("mc_stage"))
         return float(value) if value is not None else None
 
     @property
     def mc_print_sub_stage(self) -> float | None:
-        value = _to_int(self.print_block.get("mc_print_sub_stage"))
+        value = to_int(self.print_block.get("mc_print_sub_stage"))
         return float(value) if value is not None else None
 
     @property
     def print_real_action(self) -> float | None:
-        value = _to_int(self.print_block.get("print_real_action"))
+        value = to_int(self.print_block.get("print_real_action"))
         return float(value) if value is not None else None
 
     @property
     def print_gcode_action(self) -> float | None:
-        value = _to_int(self.print_block.get("print_gcode_action"))
+        value = to_int(self.print_block.get("print_gcode_action"))
         return float(value) if value is not None else None
 
     @property
@@ -264,12 +332,12 @@ class PrinterSnapshot:
 
     @property
     def ams_status(self) -> float | None:
-        value = _to_int(self.print_block.get("ams_status"))
+        value = to_int(self.print_block.get("ams_status"))
         return float(value) if value is not None else None
 
     @property
     def ams_rfid_status(self) -> float | None:
-        value = _to_int(self.print_block.get("ams_rfid_status"))
+        value = to_int(self.print_block.get("ams_rfid_status"))
         return float(value) if value is not None else None
 
 
@@ -295,7 +363,7 @@ class PrinterSnapshot:
 
     @property
     def spd_lvl(self) -> float | None:
-        value = _to_int(self.print_block.get("spd_lvl"))
+        value = to_int(self.print_block.get("spd_lvl"))
         return float(value) if value is not None else None
 
     @property
@@ -312,16 +380,16 @@ class PrinterSnapshot:
         return None
     @property
     def print_error_code(self) -> int | None:
-        return _to_int(self.print_block.get("mc_print_error_code"))
+        return to_int(self.print_block.get("mc_print_error_code"))
 
     @property
     def print_error(self) -> float | None:
-        value = _to_int(self.print_block.get("print_error"))
+        value = to_int(self.print_block.get("print_error"))
         return float(value) if value is not None else None
 
     @property
     def ap_err(self) -> float | None:
-        value = _to_int(self.print_block.get("ap_err"))
+        value = to_int(self.print_block.get("ap_err"))
         return float(value) if value is not None else None
 
     @property
@@ -372,63 +440,69 @@ class PrinterSnapshot:
                 out[key] = 1.0 if val else 0.0
         return out
     @property
-    def usage_hours(self) -> float | None:
-        return _to_float(self.print_block.get("usage_hours"))
+    def home_flags(self) -> dict[str, bool | None]:
+        return decode_home_flags(self.print_block.get("home_flag"))
+
+    @property
+    def stat_flags(self) -> dict[str, bool | None]:
+        return decode_stat_flags(self.print_block.get("stat"))
 
     @property
     def sdcard_status(self) -> str | None:
-        """SD card status from home_flag or direct field."""
+        """SD card status from direct field or home_flag bits."""
         value = self.print_block.get("sdcard")
         if isinstance(value, bool):
             return "present" if value else "absent"
         if isinstance(value, str) and value.strip():
             return value.strip().lower()
-        # Also check home_flag bitmask bit for sdcard
-        hf = _to_int(self.print_block.get("home_flag"))
-        if hf is not None:
-            # bit 9 (0x200) = sdcard present in ha-bambulab
-            return "present" if (hf & 0x200) else "absent"
-        return None
+
+        hf = to_int(self.print_block.get("home_flag"))
+        if hf is None:
+            return None
+
+        present = (hf & HOME_FLAG_MASKS["sd_card_present"]) != 0
+        abnormal = (hf & HOME_FLAG_MASKS["sd_card_abnormal"]) != 0
+        if present and abnormal:
+            return "abnormal"
+        return "present" if present else "absent"
 
     @property
     def door_open(self) -> float | None:
-        """1.0 if door is open, 0.0 if closed. From home_flag bit or direct field."""
+        """1.0 if door is open, 0.0 if closed.
+
+        Source selection mirrors upstream behavior:
+        - Direct `door_open` value if present
+        - X1/X1C prefer `home_flag` bitmask
+        - Other models prefer `stat` hex bitmask
+        - Fallback to whichever bitmask source is available
+        """
         val = self.print_block.get("door_open")
         if isinstance(val, bool):
             return 1.0 if val else 0.0
         if isinstance(val, (int, float)):
             return 1.0 if val else 0.0
-        hf = _to_int(self.print_block.get("home_flag"))
-        if hf is not None:
-            # bit 1 (0x2) = door open in ha-bambulab
-            return 1.0 if (hf & 0x2) else 0.0
-        return None
 
-    @property
-    def filament_loaded(self) -> float | None:
-        """1.0 if filament is loaded (extruder has filament). From ctt or ams."""
-        val = _to_int(self.print_block.get("ctt"))
-        if val is not None:
-            return 1.0 if val else 0.0
-        # Also check ams.tray_now != 255 as proxy
-        return None
+        home_flag = to_int(self.print_block.get("home_flag"))
+        stat_flag = to_hex_int(self.print_block.get("stat"))
+        ptype = self.printer_type
 
-    @property
-    def timelapse_enabled(self) -> float | None:
-        """1.0 if timelapse recording is enabled."""
-        val = self.print_block.get("timelapse")
-        if isinstance(val, bool):
-            return 1.0 if val else 0.0
-        if isinstance(val, str):
-            return 1.0 if val.lower() in ("true", "1", "on", "enable") else 0.0
-        if isinstance(val, (int, float)):
-            return 1.0 if val else 0.0
+        if ptype in X1_HOMEFLAG_MODELS:
+            if home_flag is not None:
+                return 1.0 if (home_flag & HOME_FLAG_MASKS["door_open"]) else 0.0
+            if stat_flag is not None:
+                return 1.0 if (stat_flag & STAT_FLAG_MASKS["door_open"]) else 0.0
+            return None
+
+        if stat_flag is not None:
+            return 1.0 if (stat_flag & STAT_FLAG_MASKS["door_open"]) else 0.0
+        if home_flag is not None:
+            return 1.0 if (home_flag & HOME_FLAG_MASKS["door_open"]) else 0.0
         return None
 
     @property
     def stg_cur(self) -> int | None:
         """Current print stage ID."""
-        return _to_int(self.print_block.get("stg_cur"))
+        return to_int(self.print_block.get("stg_cur"))
 
     @property
     def stg_cur_name(self) -> str | None:

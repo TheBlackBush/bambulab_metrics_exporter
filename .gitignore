@@ -27,5 +27,6 @@ src/*.egg-info/
 tests/results/*
 !tests/results/.gitkeep
 
-# local release rules
-RELEASE_RULES.md
+
+# local analysis notes
+external-upstream-analysis.md

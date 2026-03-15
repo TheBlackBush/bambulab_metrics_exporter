@@ -105,12 +105,6 @@ class ExporterMetrics:
             [*label_names, "ams_id", "slot_id", "tray_color"],
             registry=self.registry,
         )
-        self.ams_slot_k_value = Gauge(
-            "bambulab_ams_slot_k_value",
-            "AMS slot pressure advance (k value)",
-            [*label_names, "ams_id", "slot_id"],
-            registry=self.registry,
-        )
         self.ams_unit_humidity = Gauge(
             "bambulab_ams_unit_humidity",
             "AMS unit humidity",
@@ -131,16 +125,30 @@ class ExporterMetrics:
         )
 
         # Phase 1: New metrics
-        self.usage_hours = Gauge("bambulab_usage_hours_total", "Total printer usage hours", label_names, registry=self.registry)
         self.sdcard_status_info = Gauge(
             "bambulab_sdcard_status_info",
             "SD card status as labeled info metric",
             [*label_names, "status"],
             registry=self.registry,
         )
+        self.home_flag_state = Gauge(
+            "bambulab_home_flag_state",
+            "Decoded home_flag bit states (1=true,0=false)",
+            [*label_names, "flag"],
+            registry=self.registry,
+        )
+        self.stat_flag_state = Gauge(
+            "bambulab_stat_flag_state",
+            "Decoded stat bit states (1=true,0=false)",
+            [*label_names, "flag"],
+            registry=self.registry,
+        )
         self.door_open = Gauge("bambulab_door_open", "1 if printer door is open", label_names, registry=self.registry)
-        self.filament_loaded = Gauge("bambulab_filament_loaded", "1 if filament is loaded in extruder", label_names, registry=self.registry)
-        self.timelapse_enabled = Gauge("bambulab_timelapse_enabled", "1 if timelapse recording is enabled", label_names, registry=self.registry)
+        self.wired_network = Gauge("bambulab_wired_network", "1 if wired network flag is set", label_names, registry=self.registry)
+        self.camera_recording = Gauge("bambulab_camera_recording", "1 if camera recording flag is set", label_names, registry=self.registry)
+        self.ams_auto_switch = Gauge("bambulab_ams_auto_switch", "1 if AMS auto switch flag is set", label_names, registry=self.registry)
+        self.filament_tangle_detected = Gauge("bambulab_filament_tangle_detected", "1 if filament tangle detected flag is set", label_names, registry=self.registry)
+        self.filament_tangle_detect_supported = Gauge("bambulab_filament_tangle_detect_supported", "1 if filament tangle detect supported flag is set", label_names, registry=self.registry)
 
         # Phase 3: Stage info
         self.stg_cur = Gauge("bambulab_stg_cur", "Current print stage numeric ID", label_names, registry=self.registry)
@@ -274,14 +282,26 @@ class ExporterMetrics:
             self.printer_model_info.labels(**labels, model=snapshot.model_name).set(1.0)
 
         # Phase 1 metrics
-        self._set_optional(self.usage_hours, snapshot.usage_hours)
         self._set_optional(self.door_open, snapshot.door_open)
-        self._set_optional(self.filament_loaded, snapshot.filament_loaded)
-        self._set_optional(self.timelapse_enabled, snapshot.timelapse_enabled)
+        self._set_optional(self.wired_network, self._flag_to_float(snapshot.home_flags.get("wired_network")))
+        self._set_optional(self.camera_recording, self._flag_to_float(snapshot.home_flags.get("camera_recording")))
+        self._set_optional(self.ams_auto_switch, self._flag_to_float(snapshot.home_flags.get("ams_auto_switch")))
+        self._set_optional(self.filament_tangle_detected, self._flag_to_float(snapshot.home_flags.get("filament_tangle_detected")))
+        self._set_optional(self.filament_tangle_detect_supported, self._flag_to_float(snapshot.home_flags.get("filament_tangle_detect_supported")))
 
         self.sdcard_status_info.clear()
         if snapshot.sdcard_status:
             self.sdcard_status_info.labels(**labels, status=snapshot.sdcard_status).set(1.0)
+
+        self.home_flag_state.clear()
+        for flag, flag_state in snapshot.home_flags.items():
+            if flag_state is not None:
+                self.home_flag_state.labels(**labels, flag=flag).set(1.0 if flag_state else 0.0)
+
+        self.stat_flag_state.clear()
+        for flag, flag_state in snapshot.stat_flags.items():
+            if flag_state is not None:
+                self.stat_flag_state.labels(**labels, flag=flag).set(1.0 if flag_state else 0.0)
 
         # Phase 3: Stage info
         self._set_optional(self.stg_cur, float(snapshot.stg_cur) if snapshot.stg_cur is not None else None)
@@ -292,14 +312,21 @@ class ExporterMetrics:
         self._clear_ams(labels)
         for ams in snapshot.ams_units:
             ams_id = str(ams.get("id", "0"))
-            humidity = ams.get("humidity")
-            if isinstance(humidity, (int, float, str)):
+
+            # Strict MQTT mapping:
+            # - humidity_index metric follows MQTT "humidity" (index 1..5)
+            # - humidity metric follows MQTT "humidity_raw" (raw % 1..100)
+            humidity_raw = ams.get("humidity_raw")
+            if isinstance(humidity_raw, (int, float, str)):
                 try:
-                    self.ams_unit_humidity.labels(**labels, ams_id=ams_id).set(float(humidity))
+                    humidity_raw_value = float(humidity_raw)
+                    if 1.0 <= humidity_raw_value <= 100.0:
+                        self.ams_unit_humidity.labels(**labels, ams_id=ams_id).set(humidity_raw_value)
                 except (TypeError, ValueError):
                     pass
+
             humidity_index = self._extract_ams_humidity_index(ams)
-            if humidity_index is not None:
+            if humidity_index is not None and 1.0 <= humidity_index <= 5.0:
                 self.ams_unit_humidity_index.labels(**labels, ams_id=ams_id).set(humidity_index)
 
             temp = ams.get("temp")
@@ -336,12 +363,12 @@ class ExporterMetrics:
                     **labels, ams_id=ams_id, slot_id=tray_id, tray_color=tray_color
                 ).set(1.0)
 
-                k_value = tray.get("k")
-                if isinstance(k_value, (int, float, str)):
-                    try:
-                        self.ams_slot_k_value.labels(**labels, ams_id=ams_id, slot_id=tray_id).set(float(k_value))
-                    except (TypeError, ValueError):
-                        pass
+
+    @staticmethod
+    def _flag_to_float(value: bool | None) -> float | None:
+        if value is None:
+            return None
+        return 1.0 if value else 0.0
 
     def _set_optional(self, gauge: Gauge, value: float | None) -> None:
         labels = self._labels()
@@ -352,16 +379,15 @@ class ExporterMetrics:
 
     @staticmethod
     def _extract_ams_humidity_index(ams: dict[str, object]) -> float | None:
-        for key in ("humidity_index", "humidity_level", "humidityIndex", "humidityLevel"):
-            raw_value = ams.get(key)
-            if not isinstance(raw_value, (int, float, str)):
-                continue
-            try:
-                parsed = float(raw_value)
-            except (TypeError, ValueError):
-                continue
-            if math.isfinite(parsed):
-                return parsed
+        raw_value = ams.get("humidity")
+        if not isinstance(raw_value, (int, float, str)):
+            return None
+        try:
+            parsed = float(raw_value)
+        except (TypeError, ValueError):
+            return None
+        if math.isfinite(parsed):
+            return parsed
         return None
 
     def _clear_ams(self, labels: dict[str, str]) -> None:
@@ -369,7 +395,6 @@ class ExporterMetrics:
         self.ams_slot_remaining_percent.clear()
         self.ams_slot_tray_type.clear()
         self.ams_slot_tray_color.clear()
-        self.ams_slot_k_value.clear()
         self.ams_unit_humidity.clear()
         self.ams_unit_humidity_index.clear()
         self.ams_unit_temperature_celsius.clear()

@@ -304,25 +304,6 @@
     },
     {
       "type": "stat",
-      "title": "Usage Hours",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "targets": [
-        {
-          "expr": "max(bambulab_usage_hours_total{printer_name=~\"${printer:regex}\"})"
-        }
-      ],
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 18,
-        "y": 0
-      }
-    },
-    {
-      "type": "stat",
       "title": "Door Open",
       "datasource": {
         "type": "prometheus",
@@ -338,44 +319,6 @@
         "w": 6,
         "x": 18,
         "y": 4
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Filament Loaded",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "targets": [
-        {
-          "expr": "max(bambulab_filament_loaded{printer_name=~\"${printer:regex}\"})"
-        }
-      ],
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 6,
-        "y": 8
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Timelapse Enabled",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "targets": [
-        {
-          "expr": "max(bambulab_timelapse_enabled{printer_name=~\"${printer:regex}\"})"
-        }
-      ],
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 12,
-        "y": 8
       }
     },
     {
@@ -419,26 +362,6 @@
     },
     {
       "type": "timeseries",
-      "title": "AMS Slot K Value",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "targets": [
-        {
-          "expr": "bambulab_ams_slot_k_value{printer_name=~\"${printer:regex}\"}",
-          "legendFormat": "ams{{ams_id}} slot{{slot_id}} {{printer_name}}"
-        }
-      ],
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 28
-      }
-    },
-    {
-      "type": "timeseries",
       "title": "Print Stage Info",
       "datasource": {
         "type": "prometheus",
@@ -474,6 +397,46 @@
         "h": 8,
         "w": 24,
         "x": 0,
+        "y": 44
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Home Flag States",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "expr": "bambulab_home_flag_state{printer_name=~\"${printer:regex}\"}",
+          "legendFormat": "{{flag}} {{printer_name}}"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 44
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Stat Flag States",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "expr": "bambulab_stat_flag_state{printer_name=~\"${printer:regex}\"}",
+          "legendFormat": "{{flag}} {{printer_name}}"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
         "y": 44
       }
     }
