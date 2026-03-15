@@ -24,6 +24,7 @@ Production-oriented Prometheus exporter for Bambu Lab printers (homelab/self-hos
 - Supports both LAN MQTT (`local_mqtt`) and Cloud MQTT (`cloud_mqtt`).
 - Uses `device/<serial>/report` and `device/<serial>/request` topics.
 - Requests full snapshots with `pushall` and maps stable telemetry fields to Prometheus metrics.
+- Printer model detection uses a table-driven resolver pipeline (`product_name` → `hw_ver+project_name` → `SN prefix` → legacy fallbacks), including newer SN prefixes such as `22E` (P2S), `093` (H2S), and `094` (H2D).
 
 For exporter scope, local MQTT is preferred by default, but cloud MQTT is also supported.
 

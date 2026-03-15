@@ -2,36 +2,30 @@
 
 All notable changes to this project are documented in this file.
 
-## [0.1.22] - 2026-03-15 (updated)
+## [0.1.22] - 2026-03-15
 
 ### Added
 - AMS status name info metric: `bambulab_ams_status_name{status="..."}` = 1 (label key: `status`).
 - AMS RFID status name info metric: `bambulab_ams_rfid_status_name{status="..."}` = 1 (label key: `status`).
-- AMS status mappings (from synman parseAMSStatus): idle, filament_change, rfid_identifying, assist, calibration, self_check, debug, unknown_device.
-- AMS RFID status mappings (from synman parseRFIDStatus): idle, reading, writing, identifying, close, unknown_rfid.
-- Unknown AMS/RFID status codes produce deterministic `unknown_<code>` label values.
-- Printer model resolver now table-driven with SN-prefix fallback (prefix→model for 00W/00M/01S/01P/030/036).
-- New product_name mappings: X1, X1C, X1E.
+- AMS status mappings: `idle`, `filament_change`, `rfid_identifying`, `assist`, `calibration`, `self_check`, `debug`, `unknown_device`.
+- AMS RFID status mappings: `idle`, `reading`, `writing`, `identifying`, `close`, `unknown_rfid`.
+- Unknown AMS/RFID status codes now emit deterministic `unknown_<code>` labels.
+- Extended printer model resolver with SN-prefix coverage for: `00W`, `00M`, `01S`, `01P`, `030`, `036`, `22E`, `093`, `094`.
 
 ### Changed
 - `bambulab_ams_status` renamed to `bambulab_ams_status_id`.
 - `bambulab_ams_rfid_status` renamed to `bambulab_ams_rfid_status_id`.
-- STG_CUR_NAMES updated: id=1 is now `auto_bed_leveling` (was `bed_leveling`), id=11 is now `identifying_build_plate_type`, id=15 is now `checking_extruder_temperature`, id=31 is now `bed_leveling_wip`.
-- Printer model resolver modernized: table-driven pipeline (product_name → hw_ver+project_name → SN-prefix → device.type → model_id).
-
-## [0.1.22] - 2026-03-15
+- STG_CUR_NAMES readability updates (including ids 1/11/15/31 and broader stage naming cleanup).
+- Printer model resolver is now table-driven: `product_name -> hw_ver+project_name -> SN-prefix -> device.type -> model_id`.
+- Removed corresponding Grafana panels and README references for removed debug/noisy metrics.
 
 ### Removed
-- Removed decoded flag-state metrics used only for debugging noise reduction:
+- Debug flag-state metrics:
   - `bambulab_home_flag_state{flag}`
   - `bambulab_stat_flag_state{flag}`
-- Removed fan metrics that were not semantically reliable for current `fan_gear` payload behavior:
+- Fan metrics not semantically reliable for current `fan_gear` payload behavior:
   - `bambulab_fan_speed_percent`
   - `bambulab_fan_gear`
-
-### Changed
-- Removed corresponding Grafana panels and README references for the removed metrics.
-- Kept remaining fan-specific metrics (`bambulab_fan_big_1_speed_percent`, `bambulab_fan_big_2_speed_percent`, `bambulab_fan_cooling_speed_percent`, `bambulab_fan_heatbreak_speed_percent`) unchanged.
 
 ## [0.1.21] - 2026-03-15
 
