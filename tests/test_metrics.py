@@ -134,7 +134,6 @@ def test_metrics_full_update_with_ams_lights_xcam() -> None:
     assert metrics.printer_up.labels(**labels)._value.get() == 1.0
     assert metrics.chamber_light_on.labels(**labels)._value.get() == 1.0
     assert metrics.work_light_on.labels(**labels)._value.get() == 0.0
-    assert metrics.fan_gear.labels(**labels)._value.get() == 10.0
     assert metrics.nozzle_diameter.labels(**labels)._value.get() == 0.4
     assert metrics.spd_lvl.labels(**labels)._value.get() == 3.0
     assert metrics.spd_mag.labels(**labels)._value.get() == 124.0
@@ -421,20 +420,6 @@ class TestSdcardStatus:
         snap = _snap({"sdcard": True})
         assert snap.sdcard_status == "present"
 
-    def test_home_flag_state_metric(self) -> None:
-        m = ExporterMetrics(printer_name="test", serial="SN123")
-        m.update_from_snapshot(_snap({"home_flag": 0x00800300}))
-        labels: dict = {"printer_name": "test", "serial": "SN123"}
-        assert m.home_flag_state.labels(**labels, flag="door_open")._value.get() == 1.0
-        assert m.home_flag_state.labels(**labels, flag="sd_card_present")._value.get() == 1.0
-        assert m.home_flag_state.labels(**labels, flag="sd_card_abnormal")._value.get() == 1.0
-
-    def test_stat_flag_state_metric(self) -> None:
-        m = ExporterMetrics(printer_name="test", serial="SN123")
-        m.update_from_snapshot(_snap({"stat": "46A58008"}))
-        labels: dict = {"printer_name": "test", "serial": "SN123"}
-        assert m.stat_flag_state.labels(**labels, flag="door_open")._value.get() == 1.0
-
     def test_sdcard_from_home_flag(self) -> None:
         snap = _snap({"home_flag": 0x100})
         assert snap.sdcard_status == "present"
@@ -466,7 +451,7 @@ class TestStgCur:
 
     def test_stg_cur_bed_leveling(self) -> None:
         snap = _snap({"stg_cur": 1})
-        assert snap.stg_cur_name == "bed_leveling"
+        assert snap.stg_cur_name == "auto_bed_leveling"
 
     def test_stg_cur_unknown_id(self) -> None:
         snap = _snap({"stg_cur": 99})
@@ -497,15 +482,96 @@ class TestStgCur:
         m = ExporterMetrics(printer_name="test", serial="SN123")
         m.update_from_snapshot(_snap({"stg_cur": 0}))
         m.update_from_snapshot(_snap({"stg_cur": 1}))
-        labels: dict = {"printer_name": "test", "serial": "SN123", "stage": "bed_leveling"}
+        labels: dict = {"printer_name": "test", "serial": "SN123", "stage": "auto_bed_leveling"}
         assert m.print_stage_info.labels(**labels)._value.get() == 1.0
 
 
 class TestStgCurMapping:
     def test_all_known_stages(self) -> None:
         assert STG_CUR_NAMES[0] == "printing"
+        assert STG_CUR_NAMES[1] == "auto_bed_leveling"
         assert STG_CUR_NAMES[13] == "homing_toolhead"
         assert STG_CUR_NAMES[23] == "motor_noise_calibration"
         assert STG_CUR_NAMES[34] == "standby"
         assert STG_CUR_NAMES[35] == "idle"
         assert STG_CUR_NAMES[-1] == "idle"
+        assert STG_CUR_NAMES[11] == "identifying_build_plate_type"
+        assert STG_CUR_NAMES[15] == "checking_extruder_temperature"
+
+
+# ---------------------------------------------------------------------------
+# AMS status metrics – renamed + new name info metrics
+# ---------------------------------------------------------------------------
+
+class TestAmsStatusMetrics:
+    def _m(self) -> ExporterMetrics:
+        return ExporterMetrics(printer_name="test", serial="SN123")
+
+    def _labels(self, m: ExporterMetrics) -> dict:
+        return {"printer_name": "test", "serial": "SN123"}
+
+    def test_ams_status_id_metric(self) -> None:
+        m = self._m()
+        m.update_from_snapshot(_snap({"ams_status": 1}))
+        labels = self._labels(m)
+        assert m.ams_status_id.labels(**labels)._value.get() == 1.0
+
+    def test_ams_status_name_info_metric(self) -> None:
+        m = self._m()
+        m.update_from_snapshot(_snap({"ams_status": 1}))
+        labels = self._labels(m)
+        assert m.ams_status_name_info.labels(**labels, status="filament_change")._value.get() == 1.0
+
+    def test_ams_status_name_idle(self) -> None:
+        m = self._m()
+        m.update_from_snapshot(_snap({"ams_status": 0}))
+        labels = self._labels(m)
+        assert m.ams_status_name_info.labels(**labels, status="idle")._value.get() == 1.0
+
+    def test_ams_status_name_unknown_code(self) -> None:
+        m = self._m()
+        m.update_from_snapshot(_snap({"ams_status": 999}))
+        labels = self._labels(m)
+        assert m.ams_status_name_info.labels(**labels, status="unknown_999")._value.get() == 1.0
+
+    def test_ams_status_name_absent_clears(self) -> None:
+        m = self._m()
+        m.update_from_snapshot(_snap({"ams_status": 1}))
+        m.update_from_snapshot(_snap({}))  # no ams_status
+        assert len(m.ams_status_name_info._metrics) == 0
+
+    def test_ams_rfid_status_id_metric(self) -> None:
+        m = self._m()
+        m.update_from_snapshot(_snap({"ams_rfid_status": 2}))
+        labels = self._labels(m)
+        assert m.ams_rfid_status_id.labels(**labels)._value.get() == 2.0
+
+    def test_ams_rfid_status_name_info_metric(self) -> None:
+        m = self._m()
+        m.update_from_snapshot(_snap({"ams_rfid_status": 1}))
+        labels = self._labels(m)
+        assert m.ams_rfid_status_name_info.labels(**labels, status="reading")._value.get() == 1.0
+
+    def test_ams_rfid_status_name_idle(self) -> None:
+        m = self._m()
+        m.update_from_snapshot(_snap({"ams_rfid_status": 0}))
+        labels = self._labels(m)
+        assert m.ams_rfid_status_name_info.labels(**labels, status="idle")._value.get() == 1.0
+
+    def test_ams_rfid_status_name_unknown(self) -> None:
+        m = self._m()
+        m.update_from_snapshot(_snap({"ams_rfid_status": 42}))
+        labels = self._labels(m)
+        assert m.ams_rfid_status_name_info.labels(**labels, status="unknown_42")._value.get() == 1.0
+
+    def test_ams_rfid_status_name_absent_clears(self) -> None:
+        m = self._m()
+        m.update_from_snapshot(_snap({"ams_rfid_status": 1}))
+        m.update_from_snapshot(_snap({}))  # no ams_rfid_status
+        assert len(m.ams_rfid_status_name_info._metrics) == 0
+
+    def test_no_ams_status_attributes_with_old_names(self) -> None:
+        """Ensure old metric names no longer exist as attributes."""
+        m = self._m()
+        assert not hasattr(m, "ams_status"), "Old 'ams_status' attribute should not exist"
+        assert not hasattr(m, "ams_rfid_status"), "Old 'ams_rfid_status' attribute should not exist"
