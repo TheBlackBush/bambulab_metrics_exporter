@@ -8,8 +8,7 @@ All notable changes to this project are documented in this file.
 > Publish tag/release when ready.
 
 ### Added
-- Decoded flag-state metrics:
-  - `bambulab_home_flag_state{flag}`
+- Decoded stat flag-state metric:
   - `bambulab_stat_flag_state{flag}`
 - Dedicated high-value flag metrics:
   - `bambulab_wired_network`
@@ -17,8 +16,7 @@ All notable changes to this project are documented in this file.
   - `bambulab_ams_auto_switch`
   - `bambulab_filament_tangle_detected`
   - `bambulab_filament_tangle_detect_supported`
-- Grafana panels:
-  - `Home Flag States`
+- Grafana panel:
   - `Stat Flag States`
 - Alert + recording additions:
   - `BambuSdCardAbnormal`

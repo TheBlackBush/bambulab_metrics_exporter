@@ -206,10 +206,9 @@ labels:
 bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 ```
 
-- Full decoded home/stat flags for diagnostics:
+- Decoded stat flags for diagnostics:
 
 ```promql
-bambulab_home_flag_state{printer_name="$printer"}
 bambulab_stat_flag_state{printer_name="$printer"}
 ```
 
@@ -263,7 +262,6 @@ bambulab_stat_flag_state{printer_name="$printer"}
 - `bambulab_spd_mag`
 - `bambulab_spd_lvl_state{mode="SILENT|STANDARD|SPORT|LUDICROUS|UNKNOWN"}`
 - `bambulab_sdcard_status_info{status}` (`present|abnormal|absent`)
-- `bambulab_home_flag_state{flag}`
 - `bambulab_stat_flag_state{flag}`
 - `bambulab_door_open`
 - `bambulab_wired_network`
