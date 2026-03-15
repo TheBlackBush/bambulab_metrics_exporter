@@ -4,7 +4,19 @@ All notable changes to this project are documented in this file.
 
 ## [0.1.22] - 2026-03-15
 
-> Note: This version includes the latest cleanup changes after `v0.1.21`. Publish tag/release when ready.
+### Removed
+- Removed decoded flag-state metrics used only for debugging noise reduction:
+  - `bambulab_home_flag_state{flag}`
+  - `bambulab_stat_flag_state{flag}`
+- Removed fan metrics that were not semantically reliable for current `fan_gear` payload behavior:
+  - `bambulab_fan_speed_percent`
+  - `bambulab_fan_gear`
+
+### Changed
+- Removed corresponding Grafana panels and README references for the removed metrics.
+- Kept remaining fan-specific metrics (`bambulab_fan_big_1_speed_percent`, `bambulab_fan_big_2_speed_percent`, `bambulab_fan_cooling_speed_percent`, `bambulab_fan_heatbreak_speed_percent`) unchanged.
+
+## [0.1.21] - 2026-03-15
 
 ### Added
 - Dedicated high-value flag metrics:
@@ -28,8 +40,6 @@ All notable changes to this project are documented in this file.
   - `bambulab_usage_hours_total`
   - `bambulab_filament_loaded`
   - `bambulab_timelapse_enabled`
-  - `bambulab_fan_speed_percent`
-  - `bambulab_fan_gear`
 - Removed `bambulab_ams_slot_k_value{ams_id,slot_id}` and related dashboard/docs references.
 
 ## [0.1.14] - 2026-03-15
