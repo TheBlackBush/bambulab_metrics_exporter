@@ -1,8 +1,15 @@
 from dataclasses import dataclass
 from typing import Any
 
+from bambulab_metrics_exporter.flags import (
+    DOOR_OPEN_MASK,
+    SD_CARD_ABNORMAL_MASK,
+    SD_CARD_PRESENT_MASK,
+    to_hex_int,
+    to_int,
+)
 
-DOOR_OPEN_MASK = 0x00800000
+
 X1_HOMEFLAG_MODELS = {"X1", "X1C"}
 PRODUCT_NAME_TO_PRINTER: dict[str, str] = {
     "bambu lab a1": "A1",
@@ -73,36 +80,9 @@ def _to_float(value: Any) -> float | None:
     return None
 
 
-def _to_int(value: Any) -> int | None:
-    if isinstance(value, bool):
-        return int(value)
-    if isinstance(value, int):
-        return value
-    if isinstance(value, float):
-        return int(value)
-    if isinstance(value, str):
-        text = value.strip()
-        if not text:
-            return None
-        try:
-            return int(text)
-        except ValueError:
-            return None
-    return None
-
-
-def _to_hex_int(value: Any) -> int | None:
-    if isinstance(value, int):
-        return value
-    if isinstance(value, str):
-        text = value.strip()
-        if not text:
-            return None
-        try:
-            return int(text, 16)
-        except ValueError:
-            return None
-    return None
+# Backward-compatible aliases for legacy tests/importers.
+_to_int = to_int
+_to_hex_int = to_hex_int
 
 
 def _normalize_product_name(value: Any) -> str:
@@ -181,7 +161,7 @@ class PrinterSnapshot:
                 if project_name == "":
                     return "X1C"
 
-        dtype = _to_int(self.print_block.get("device", {}).get("type"))
+        dtype = to_int(self.print_block.get("device", {}).get("type"))
         mapping = {
             0: "X1",
             1: "X1C",
@@ -294,22 +274,22 @@ class PrinterSnapshot:
 
     @property
     def mc_stage(self) -> float | None:
-        value = _to_int(self.print_block.get("mc_stage"))
+        value = to_int(self.print_block.get("mc_stage"))
         return float(value) if value is not None else None
 
     @property
     def mc_print_sub_stage(self) -> float | None:
-        value = _to_int(self.print_block.get("mc_print_sub_stage"))
+        value = to_int(self.print_block.get("mc_print_sub_stage"))
         return float(value) if value is not None else None
 
     @property
     def print_real_action(self) -> float | None:
-        value = _to_int(self.print_block.get("print_real_action"))
+        value = to_int(self.print_block.get("print_real_action"))
         return float(value) if value is not None else None
 
     @property
     def print_gcode_action(self) -> float | None:
-        value = _to_int(self.print_block.get("print_gcode_action"))
+        value = to_int(self.print_block.get("print_gcode_action"))
         return float(value) if value is not None else None
 
     @property
@@ -351,12 +331,12 @@ class PrinterSnapshot:
 
     @property
     def ams_status(self) -> float | None:
-        value = _to_int(self.print_block.get("ams_status"))
+        value = to_int(self.print_block.get("ams_status"))
         return float(value) if value is not None else None
 
     @property
     def ams_rfid_status(self) -> float | None:
-        value = _to_int(self.print_block.get("ams_rfid_status"))
+        value = to_int(self.print_block.get("ams_rfid_status"))
         return float(value) if value is not None else None
 
 
@@ -382,7 +362,7 @@ class PrinterSnapshot:
 
     @property
     def spd_lvl(self) -> float | None:
-        value = _to_int(self.print_block.get("spd_lvl"))
+        value = to_int(self.print_block.get("spd_lvl"))
         return float(value) if value is not None else None
 
     @property
@@ -399,16 +379,16 @@ class PrinterSnapshot:
         return None
     @property
     def print_error_code(self) -> int | None:
-        return _to_int(self.print_block.get("mc_print_error_code"))
+        return to_int(self.print_block.get("mc_print_error_code"))
 
     @property
     def print_error(self) -> float | None:
-        value = _to_int(self.print_block.get("print_error"))
+        value = to_int(self.print_block.get("print_error"))
         return float(value) if value is not None else None
 
     @property
     def ap_err(self) -> float | None:
-        value = _to_int(self.print_block.get("ap_err"))
+        value = to_int(self.print_block.get("ap_err"))
         return float(value) if value is not None else None
 
     @property
@@ -464,18 +444,22 @@ class PrinterSnapshot:
 
     @property
     def sdcard_status(self) -> str | None:
-        """SD card status from home_flag or direct field."""
+        """SD card status from direct field or home_flag bits."""
         value = self.print_block.get("sdcard")
         if isinstance(value, bool):
             return "present" if value else "absent"
         if isinstance(value, str) and value.strip():
             return value.strip().lower()
-        # Also check home_flag bitmask bit for sdcard
-        hf = _to_int(self.print_block.get("home_flag"))
-        if hf is not None:
-            # bit 9 (0x200) = SD card present per upstream flag mapping
-            return "present" if (hf & 0x200) else "absent"
-        return None
+
+        hf = to_int(self.print_block.get("home_flag"))
+        if hf is None:
+            return None
+
+        present = (hf & SD_CARD_PRESENT_MASK) != 0
+        abnormal = (hf & SD_CARD_ABNORMAL_MASK) != 0
+        if present and abnormal:
+            return "abnormal"
+        return "present" if present else "absent"
 
     @property
     def door_open(self) -> float | None:
@@ -493,8 +477,8 @@ class PrinterSnapshot:
         if isinstance(val, (int, float)):
             return 1.0 if val else 0.0
 
-        home_flag = _to_int(self.print_block.get("home_flag"))
-        stat_flag = _to_hex_int(self.print_block.get("stat"))
+        home_flag = to_int(self.print_block.get("home_flag"))
+        stat_flag = to_hex_int(self.print_block.get("stat"))
         ptype = self.printer_type
 
         if ptype in X1_HOMEFLAG_MODELS:
@@ -513,7 +497,7 @@ class PrinterSnapshot:
     @property
     def filament_loaded(self) -> float | None:
         """1.0 if filament is loaded (extruder has filament). From ctt or ams."""
-        val = _to_int(self.print_block.get("ctt"))
+        val = to_int(self.print_block.get("ctt"))
         if val is not None:
             return 1.0 if val else 0.0
         # Also check ams.tray_now != 255 as proxy
@@ -534,7 +518,7 @@ class PrinterSnapshot:
     @property
     def stg_cur(self) -> int | None:
         """Current print stage ID."""
-        return _to_int(self.print_block.get("stg_cur"))
+        return to_int(self.print_block.get("stg_cur"))
 
     @property
     def stg_cur_name(self) -> str | None:

@@ -127,8 +127,12 @@ class TestSdcardStatus:
         assert snap.sdcard_status == "present"
 
     def test_sdcard_from_home_flag(self) -> None:
-        snap = _snap({"home_flag": 0x200})
+        snap = _snap({"home_flag": 0x100})
         assert snap.sdcard_status == "present"
+
+    def test_sdcard_abnormal_home_flag(self) -> None:
+        snap = _snap({"home_flag": 0x300})
+        assert snap.sdcard_status == "abnormal"
 
     def test_sdcard_absent_home_flag(self) -> None:
         snap = _snap({"home_flag": 0x0})
