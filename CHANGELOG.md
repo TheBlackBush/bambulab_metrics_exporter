@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.24] - 2026-03-16
+
+### Added
+- **AMS model/series detection** per AMS unit with full precedence chain:
+  - `ams_info` bits 0-3 (`ams_type`) when valid and nonzero (highest priority)
+  - AMS serial prefix mapping: `006→ams_1`, `03C→ams_lite`, `19C→ams_2_pro`, `19F→ams_ht`
+  - `unknown` fallback
+- **AMS series mapping**: `ams_1`/`ams_lite`→`gen_1`, `ams_2_pro`/`ams_ht`→`gen_2`
+- **New info metric**: `bambulab_ams_unit_info{printer_name,serial,ams_id,ams_model,ams_series,ams_serial}=1`
+- Existing AMS-scoped metrics (`bambulab_ams_unit_humidity*`, `bambulab_ams_slot_*`) retain their original label sets unchanged — model/series is only available via `bambulab_ams_unit_info`
+- **Gen2 drying telemetry metrics** (emitted only when `ams_info` is present):
+  - `bambulab_ams_heater_state_info{...,ams_id,ams_model,ams_series,state}=1` — heater/dry state (bits 4-7)
+  - `bambulab_ams_dry_fan_status{...,ams_id,ams_model,ams_series,fan_id}` — fan1/fan2 state (bits 18-21)
+  - `bambulab_ams_dry_sub_status_info{...,ams_id,ams_model,ams_series,state}=1` — drying sub-status (bits 22-25)
+- New `parse_ams_info()` utility function for `ams_info` bitmask parsing
+- New `resolve_ams_model()` and `resolve_ams_series()` functions in models module
+- New `ams_units_with_model` property on `PrinterSnapshot` returning enriched AMS unit dicts
+
 ## [0.1.23] - 2026-03-15
 
 ### Fixed

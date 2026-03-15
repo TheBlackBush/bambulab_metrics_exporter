@@ -64,6 +64,82 @@ _DEVICE_TYPE_TO_PRINTER: dict[int, str] = {
 }
 
 
+# AMS serial prefix → model name
+AMS_SERIAL_PREFIX_TO_MODEL: dict[str, str] = {
+    "006": "ams_1",
+    "03C": "ams_lite",
+    "19C": "ams_2_pro",
+    "19F": "ams_ht",
+}
+
+# AMS model → series
+AMS_MODEL_TO_SERIES: dict[str, str] = {
+    "ams_1": "gen_1",
+    "ams_lite": "gen_1",
+    "ams_2_pro": "gen_2",
+    "ams_ht": "gen_2",
+}
+
+# ams_info bits 0-3 ams_type → model name (when valid / nonzero)
+AMS_TYPE_TO_MODEL: dict[int, str] = {
+    1: "ams_1",
+    2: "ams_lite",
+    3: "ams_2_pro",
+    4: "ams_ht",
+}
+
+
+def resolve_ams_model(ams_unit: dict[str, Any]) -> str:
+    """Resolve AMS model name for a single AMS unit dict.
+
+    Precedence:
+    1. ams_info bits 0-3 (ams_type) when valid (nonzero and known)
+    2. AMS serial prefix mapping
+    3. 'unknown' fallback
+    """
+    # 1. ams_info ams_type bits 0-3
+    ams_info_raw = ams_unit.get("ams_info")
+    if isinstance(ams_info_raw, int) and ams_info_raw > 0:
+        ams_type = ams_info_raw & 0xF  # bits 0-3
+        if ams_type in AMS_TYPE_TO_MODEL:
+            return AMS_TYPE_TO_MODEL[ams_type]
+
+    # 2. AMS serial prefix
+    ams_serial = ams_unit.get("sn")
+    if isinstance(ams_serial, str) and ams_serial.strip():
+        serial_upper = ams_serial.strip().upper()
+        for prefix, model in AMS_SERIAL_PREFIX_TO_MODEL.items():
+            if serial_upper.startswith(prefix.upper()):
+                return model
+
+    # 3. Fallback
+    return "unknown"
+
+
+def resolve_ams_series(ams_model: str) -> str:
+    """Resolve AMS generation/series from model name."""
+    return AMS_MODEL_TO_SERIES.get(ams_model, "unknown")
+
+
+def parse_ams_info(ams_info: int) -> dict[str, int]:
+    """Parse ams_info bitmask into structured fields.
+
+    Bit layout:
+      bits 0-3:   ams_type
+      bits 4-7:   dry/heater state
+      bits 18-19: dry fan1 state
+      bits 20-21: dry fan2 state
+      bits 22-25: dry sub-status
+    """
+    return {
+        "ams_type": ams_info & 0xF,
+        "dry_heater_state": (ams_info >> 4) & 0xF,
+        "dry_fan1": (ams_info >> 18) & 0x3,
+        "dry_fan2": (ams_info >> 20) & 0x3,
+        "dry_sub_status": (ams_info >> 22) & 0xF,
+    }
+
+
 # AMS status code → human-readable name (from synman parseAMSStatus)
 AMS_STATUS_NAMES: dict[int, str] = {
     0: "idle",
@@ -609,3 +685,15 @@ class PrinterSnapshot:
         if isinstance(units, list):
             return [x for x in units if isinstance(x, dict)]
         return []
+
+    @property
+    def ams_units_with_model(self) -> list[dict[str, Any]]:
+        """Return AMS units enriched with resolved ams_model and ams_series."""
+        result = []
+        for unit in self.ams_units:
+            enriched = dict(unit)
+            ams_model = resolve_ams_model(unit)
+            enriched["ams_model"] = ams_model
+            enriched["ams_series"] = resolve_ams_series(ams_model)
+            result.append(enriched)
+        return result
