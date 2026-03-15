@@ -132,7 +132,7 @@ If `BAMBULAB_CLOUD_USER_ID`/`BAMBULAB_CLOUD_ACCESS_TOKEN` are missing, startup r
 
 ## Prometheus integration
 
-Use `prometheus/prometheus.scrape.yml` snippet, or equivalent:
+Use `examples/prometheus/prometheus.scrape.yml` snippet, or equivalent:
 
 ```yaml
 scrape_configs:
@@ -373,13 +373,13 @@ On container startup, exporter performs a connection preflight:
   - On success, new credentials are saved encrypted to config dir and synced to `.env`, so next startup won't require re-entry.
 
 
-Prometheus scrape config sample: `prometheus/prometheus.scrape.yml`
+Prometheus scrape config sample: `examples/prometheus/prometheus.scrape.yml`
 
-Alert rules sample: `prometheus/prometheus.alerts.yml`
+Alert rules sample: `examples/prometheus/prometheus.alerts.yml`
 
-Recording rules sample: `prometheus/prometheus.recording.yml`
+Recording rules sample: `examples/prometheus/prometheus.recording.yml`
 
-Grafana sample dashboard: `grafana/dashboard.sample.json`
+Grafana sample dashboard: `examples/grafana/dashboard.sample.json`
 
 
 ## Unraid Docker template
