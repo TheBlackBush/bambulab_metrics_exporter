@@ -2,69 +2,36 @@
 
 All notable changes to this project are documented in this file.
 
-## Release notes (cumulative): v0.1.12 -> v0.1.14
-
-### New metrics added
-- `bambulab_usage_hours_total`
-- `bambulab_sdcard_status_info{status}`
-- `bambulab_door_open`
-- `bambulab_filament_loaded`
-- `bambulab_timelapse_enabled`
-- `bambulab_stg_cur`
-- `bambulab_print_stage_info{stage}`
-- `bambulab_ams_slot_k_value{ams_id,slot_id}`
-- `bambulab_ams_unit_humidity_index{ams_id}`
-
-### Alerts, recording rules, and dashboard updates
-- Added alert rules for:
-  - door-open-while-printing (`BambuDoorOpenWhilePrinting`)
-  - stale exporter success timestamp (`BambuExporterStale`)
-- Added recording rules:
-  - `bambulab:stage_id:latest`
-  - `bambulab:door_open:latest`
-- Grafana sample dashboard updated with panels for AMS slot K value and AMS humidity index.
-
-### Backward compatibility notes
-- Existing metric names were kept unchanged; additions are non-breaking.
-- AMS remain parsing is more tolerant (`remain` accepts numeric strings), improving data continuity.
-- AMS tray type parsing now falls back to `ctype` when `tray_type` is absent.
-- Humidity index parsing accepts multiple firmware key variants (`humidity_index`, `humidity_level`, `humidityIndex`, `humidityLevel`).
-
 ## [0.1.14] - 2026-03-15
 
 ### Added
-- AMS unit humidity index metric: `bambulab_ams_unit_humidity_index{ams_id}`.
-- Firmware/model-safe AMS parsing for humidity index variants: `humidity_index`, `humidity_level`, `humidityIndex`, `humidityLevel`.
-- Grafana sample panel for AMS humidity index.
-
-### Changed
-- README exported metrics list includes `bambulab_ams_unit_humidity_index{ams_id}`.
-- AMS metrics tests expanded for mixed/invalid humidity-index payload variants and per-AMS refresh behavior.
-
-## [0.1.13] - 2026-03-15
-
-### Added
-- AMS Phase-2 MVP metric: `bambulab_ams_slot_k_value{ams_id,slot_id}` from tray `k` values.
-- AMS parsing enhancement: `remain` now accepts numeric strings and `tray_type` falls back to `ctype` when needed.
-- Grafana sample dashboard panels for usage/stage/door/timelapse/filament and AMS slot remain + K-value.
-- Prometheus alerts for door-open-while-printing and stale exporter success timestamp.
-- Prometheus recording rules for latest stage ID and door state.
-
-### Changed
-- README metric inventory updated to include v0.1.12 metrics and AMS K-value metric.
-- AMS test coverage extended for K-value, string remain, and `ctype` fallback.
-
-## [0.1.12] - 2026-03-15
-
-### Added
 - `bambulab_usage_hours_total` metric for total printer usage hours.
-- `bambulab_sdcard_status_info` info metric for SD card status.
+- `bambulab_sdcard_status_info{status}` info metric for SD card status.
 - `bambulab_door_open` binary sensor (0/1) for door state.
 - `bambulab_filament_loaded` binary sensor (0/1) for extruder filament state.
 - `bambulab_timelapse_enabled` binary sensor (0/1) for timelapse recording.
 - `bambulab_stg_cur` numeric gauge for current print stage ID.
-- `bambulab_print_stage_info` info metric with human-readable stage name.
+- `bambulab_print_stage_info{stage}` info metric with human-readable stage name.
 - Stage ID mapping dictionary (0-35, 255) based on ha-bambulab analysis.
+- AMS slot K-value metric: `bambulab_ams_slot_k_value{ams_id,slot_id}`.
+- AMS unit humidity index metric: `bambulab_ams_unit_humidity_index{ams_id}`.
+
+### Changed
+- AMS parsing is more tolerant:
+  - `remain` accepts numeric strings.
+  - tray type falls back to `ctype` when `tray_type` is absent.
+  - humidity index accepts firmware/model variants in priority order:
+    `humidity_index`, `humidity_level`, `humidityIndex`, `humidityLevel`.
+- Grafana sample dashboard updated with v0.1.12+ panels including AMS slot K-value and AMS humidity index.
+- Prometheus alerts updated with `BambuDoorOpenWhilePrinting` and `BambuExporterStale`.
+- Prometheus recording rules updated with:
+  - `bambulab:stage_id:latest`
+  - `bambulab:door_open:latest`
+- README updated with metric inventory and practical PromQL operator examples.
+
+### Compatibility
+- Changes are additive and backward compatible.
+- New metrics emit only when valid data is present; missing/invalid payload fields are skipped.
 
 ## [0.1.10] - 2026-03-14
 

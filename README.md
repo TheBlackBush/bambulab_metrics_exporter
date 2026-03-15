@@ -145,7 +145,7 @@ scrape_configs:
 
 ## Operator PromQL examples
 
-### AMS metrics (new in v0.1.13-v0.1.14)
+### AMS metrics (new in v0.1.14)
 
 - Current AMS K values by slot:
 
