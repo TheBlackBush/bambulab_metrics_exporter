@@ -33,3 +33,16 @@ def test_models_more_edges_for_95_percent():
     # 274:     return None
     snap_no_sub = models.PrinterSnapshot(connected=True, raw={"print": {"subtask_name": 123}})
     assert snap_no_sub.subtask_name is None
+
+def test_model_name_discovery():
+    # Test mapping
+    snap_p1s = models.PrinterSnapshot(connected=True, raw={"print": {"device": {"type": 3}}})
+    assert snap_p1s.model_name == "P1S"
+    
+    # Test fallback to model_id
+    snap_fallback = models.PrinterSnapshot(connected=True, raw={"print": {"model_id": "X1C"}})
+    assert snap_fallback.model_name == "X1C"
+    
+    # Test unknown type
+    snap_unknown = models.PrinterSnapshot(connected=True, raw={"print": {"device": {"type": 99}}})
+    assert snap_unknown.model_name is None

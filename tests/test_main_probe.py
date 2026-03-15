@@ -4,25 +4,23 @@ import os
 from unittest.mock import MagicMock, patch
 
 from bambulab_metrics_exporter import main
-from bambulab_metrics_exporter.models import PrinterSnapshot
 
 
-def test_main_run_probe_discovers_name(monkeypatch) -> None:
-    """Test that probe discovers printer name and updates env"""
-    monkeypatch.setenv("BAMBULAB_HOST", "192.168.1.100")
+def test_main_run_metadata_discovery_from_cloud(monkeypatch) -> None:
+    """Test that metadata is discovered from cloud and updates env"""
+    monkeypatch.setenv("BAMBULAB_TRANSPORT", "cloud_mqtt")
     monkeypatch.setenv("BAMBULAB_SERIAL", "S123")
-    monkeypatch.setenv("BAMBULAB_ACCESS_CODE", "A123")
-    monkeypatch.setenv("BAMBULAB_USERNAME", "bblp")
+    monkeypatch.setenv("BAMBULAB_CLOUD_ACCESS_TOKEN", "fake-token")
     monkeypatch.delenv("PRINTER_NAME_LABEL", raising=False)
 
-    mock_client = MagicMock()
-    mock_snapshot = PrinterSnapshot(connected=True, raw={"print": {"dev_name": "MyPrinter"}})
-    mock_client.fetch_snapshot.return_value = mock_snapshot
-
+    mock_devices = [
+        {"dev_id": "S123", "name": "CloudName", "model": "P1S"}
+    ]
+    
     mock_collector = MagicMock()
     mock_app = MagicMock()
 
-    with patch("bambulab_metrics_exporter.main.build_client", return_value=mock_client):
+    with patch("bambulab_metrics_exporter.main.get_bind_devices", return_value=mock_devices):
         with patch("bambulab_metrics_exporter.main.PollingCollector", return_value=mock_collector):
             with patch("bambulab_metrics_exporter.main.build_app", return_value=mock_app):
                 with patch("bambulab_metrics_exporter.main.uvicorn.run"):
@@ -30,35 +28,25 @@ def test_main_run_probe_discovers_name(monkeypatch) -> None:
                         with patch("bambulab_metrics_exporter.main.startup_validate"):
                             main.run()
 
-    # Verify name was discovered and set
-    assert os.environ.get("BAMBULAB_PRINTER_NAME") == "MyPrinter"
-    mock_client.connect.assert_called()
-    mock_client.disconnect.assert_called()
+    assert os.environ.get("BAMBULAB_PRINTER_NAME") == "CloudName"
+    assert os.environ.get("BAMBULAB_PRINTER_MODEL") == "P1S"
 
 
-def test_main_run_probe_fails_gracefully(monkeypatch, caplog) -> None:
-    """Test that probe failure is non-fatal"""
-    monkeypatch.setenv("BAMBULAB_HOST", "192.168.1.100")
+def test_main_run_cloud_discovery_fails_gracefully(monkeypatch, caplog) -> None:
+    """Test that cloud metadata discovery failure is non-fatal"""
+    monkeypatch.setenv("BAMBULAB_TRANSPORT", "cloud_mqtt")
     monkeypatch.setenv("BAMBULAB_SERIAL", "S123")
-    monkeypatch.setenv("BAMBULAB_ACCESS_CODE", "A123")
-    monkeypatch.setenv("BAMBULAB_USERNAME", "bblp")
+    monkeypatch.setenv("BAMBULAB_CLOUD_ACCESS_TOKEN", "fake-token")
 
-    mock_client = MagicMock()
-    mock_client.fetch_snapshot.side_effect = Exception("probe failed")
-
-    mock_collector = MagicMock()
-    mock_app = MagicMock()
-
-    with patch("bambulab_metrics_exporter.main.build_client", return_value=mock_client):
-        with patch("bambulab_metrics_exporter.main.PollingCollector", return_value=mock_collector):
-            with patch("bambulab_metrics_exporter.main.build_app", return_value=mock_app):
+    with patch("bambulab_metrics_exporter.main.get_bind_devices", side_effect=Exception("API error")):
+        with patch("bambulab_metrics_exporter.main.PollingCollector"):
+            with patch("bambulab_metrics_exporter.main.build_app"):
                 with patch("bambulab_metrics_exporter.main.uvicorn.run"):
                     with patch("bambulab_metrics_exporter.main.sync_env_file"):
                         with patch("bambulab_metrics_exporter.main.startup_validate"):
                             main.run()
 
-    assert "Initial name discovery probe failed (non-fatal)" in caplog.text
-    mock_client.disconnect.assert_called()
+    assert "Metadata discovery from cloud failed (non-fatal)" in caplog.text
 
 
 def test_main_shutdown_handler(monkeypatch) -> None:
@@ -67,9 +55,6 @@ def test_main_shutdown_handler(monkeypatch) -> None:
     monkeypatch.setenv("BAMBULAB_SERIAL", "S123")
     monkeypatch.setenv("BAMBULAB_ACCESS_CODE", "A123")
     monkeypatch.setenv("BAMBULAB_USERNAME", "bblp")
-
-    mock_client = MagicMock()
-    mock_client.fetch_snapshot.return_value = PrinterSnapshot(connected=False, raw={})
 
     mock_collector = MagicMock()
     mock_app = MagicMock()
@@ -84,13 +69,12 @@ def test_main_shutdown_handler(monkeypatch) -> None:
 
     mock_app.on_event = capture_on_event
 
-    with patch("bambulab_metrics_exporter.main.build_client", return_value=mock_client):
-        with patch("bambulab_metrics_exporter.main.PollingCollector", return_value=mock_collector):
-            with patch("bambulab_metrics_exporter.main.build_app", return_value=mock_app):
-                with patch("bambulab_metrics_exporter.main.uvicorn.run"):
-                    with patch("bambulab_metrics_exporter.main.sync_env_file"):
-                        with patch("bambulab_metrics_exporter.main.startup_validate"):
-                            main.run()
+    with patch("bambulab_metrics_exporter.main.PollingCollector", return_value=mock_collector):
+        with patch("bambulab_metrics_exporter.main.build_app", return_value=mock_app):
+            with patch("bambulab_metrics_exporter.main.uvicorn.run"):
+                with patch("bambulab_metrics_exporter.main.sync_env_file"):
+                    with patch("bambulab_metrics_exporter.main.startup_validate"):
+                        main.run()
 
     # Verify shutdown handler was registered and call it
     assert len(shutdown_handlers) == 1

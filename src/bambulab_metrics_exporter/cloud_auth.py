@@ -305,6 +305,30 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def get_bind_devices(
+    access_token: str,
+    timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
+    retries: int = DEFAULT_RETRIES,
+    api_bases: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    bases = api_bases or DEFAULT_API_BASES
+    for api_base in bases:
+        try:
+            data = _get_json(
+                api_base=api_base,
+                path="/v1/iot-service/api/user/bind",
+                timeout_seconds=timeout_seconds,
+                retries=retries,
+                access_token=access_token,
+            )
+            devices = data.get("devices")
+            if isinstance(devices, list):
+                return [x for x in devices if isinstance(x, dict)]
+        except CloudAuthError:
+            continue
+    return []
+
+
 def main() -> int:
     args = _build_parser().parse_args()
 
@@ -330,6 +354,35 @@ def main() -> int:
         os.environ["BAMBULAB_TRANSPORT"] = "cloud_mqtt"
         if args.serial:
             os.environ["BAMBULAB_SERIAL"] = args.serial
+
+        # Attempt to auto-discover name and model from cloud bind list
+        devices = get_bind_devices(
+            result.access_token,
+            timeout_seconds=args.timeout,
+            retries=args.retries,
+            api_bases=api_bases,
+        )
+        target_serial = args.serial or os.environ.get("BAMBULAB_SERIAL", "")
+        device = None
+        if target_serial:
+            device = next((d for d in devices if d.get("dev_id") == target_serial), None)
+        elif devices:
+            device = devices[0]
+            print(f"No serial provided, auto-selected first printer: {device.get('dev_id')}")
+
+        if device:
+            ser = device.get("dev_id")
+            if ser:
+                os.environ["BAMBULAB_SERIAL"] = str(ser)
+            name = device.get("name")
+            model = device.get("model") or device.get("dev_product_name")
+            if name:
+                os.environ["BAMBULAB_PRINTER_NAME"] = str(name)
+                print(f"Discovered printer name: {name}")
+            if model:
+                os.environ["BAMBULAB_PRINTER_MODEL"] = str(model)
+                print(f"Discovered printer model: {model}")
+
         os.environ["BAMBULAB_CLOUD_USER_ID"] = result.user_id
         os.environ["BAMBULAB_CLOUD_ACCESS_TOKEN"] = result.access_token
         os.environ["BAMBULAB_CLOUD_REFRESH_TOKEN"] = result.refresh_token

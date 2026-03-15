@@ -57,6 +57,23 @@ class PrinterSnapshot:
         return self.print_block.get("dev_name")
 
     @property
+    def model_name(self) -> str | None:
+        dtype = _to_int(self.print_block.get("device", {}).get("type"))
+        if dtype is None:
+             # Fallback to model_id if available
+             return self.print_block.get("model_id")
+        
+        mapping = {
+            0: "X1",
+            1: "X1C",
+            2: "P1P",
+            3: "P1S",
+            4: "A1",
+            5: "A1 Mini",
+        }
+        return mapping.get(dtype)
+
+    @property
     def progress_percent(self) -> float | None:
         return _to_float(self.print_block.get("mc_percent"))
 

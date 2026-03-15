@@ -39,6 +39,7 @@ class Settings(BaseSettings):
 
     printer_name_label: str = ""
     bambulab_printer_name: str = ""
+    bambulab_printer_model: str = ""
     # Site and location removed
 
     @field_validator("polling_interval_seconds")
