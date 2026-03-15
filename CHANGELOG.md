@@ -6,7 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 - Corrected `bambulab_door_open` decoding across printer models:
-  - Uses door bitmask `0x00800000` (aligned with ha-bambulab constants).
+  - Uses door bitmask `0x00800000` (aligned with upstream constants).
   - Adds `stat` hex parsing support for models that report door state via `stat`.
   - Keeps direct `door_open` field precedence when explicitly present.
   - Applies model-aware source selection (`X1/X1C` prefer `home_flag`, others prefer `stat`).
@@ -47,7 +47,7 @@ All notable changes to this project are documented in this file.
 - `bambulab_timelapse_enabled` binary sensor (0/1) for timelapse recording.
 - `bambulab_stg_cur` numeric gauge for current print stage ID.
 - `bambulab_print_stage_info{stage}` info metric with human-readable stage name.
-- Stage ID mapping dictionary (0-35, 255) based on ha-bambulab analysis.
+- Stage ID mapping dictionary (0-35, 255) based on upstream stage reference analysis.
 - AMS slot K-value metric: `bambulab_ams_slot_k_value{ams_id,slot_id}`.
 - AMS unit humidity index metric: `bambulab_ams_unit_humidity_index{ams_id}`.
 

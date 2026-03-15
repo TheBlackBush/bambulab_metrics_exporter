@@ -29,3 +29,6 @@ tests/results/*
 
 # local release rules
 RELEASE_RULES.md
+
+# local analysis notes
+ha-bambulab-analysis.md

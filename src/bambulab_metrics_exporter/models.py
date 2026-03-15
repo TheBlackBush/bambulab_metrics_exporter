@@ -473,7 +473,7 @@ class PrinterSnapshot:
         # Also check home_flag bitmask bit for sdcard
         hf = _to_int(self.print_block.get("home_flag"))
         if hf is not None:
-            # bit 9 (0x200) = sdcard present in ha-bambulab
+            # bit 9 (0x200) = SD card present per upstream flag mapping
             return "present" if (hf & 0x200) else "absent"
         return None
 
@@ -481,7 +481,7 @@ class PrinterSnapshot:
     def door_open(self) -> float | None:
         """1.0 if door is open, 0.0 if closed.
 
-        Source selection mirrors ha-bambulab behavior:
+        Source selection mirrors upstream behavior:
         - Direct `door_open` value if present
         - X1/X1C prefer `home_flag` bitmask
         - Other models prefer `stat` hex bitmask
