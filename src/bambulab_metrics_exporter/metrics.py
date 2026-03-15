@@ -302,12 +302,14 @@ class ExporterMetrics:
                 humidity_raw = ams.get("humidity")
             if isinstance(humidity_raw, (int, float, str)):
                 try:
-                    self.ams_unit_humidity.labels(**labels, ams_id=ams_id).set(float(humidity_raw))
+                    humidity_raw_value = float(humidity_raw)
+                    if 1.0 <= humidity_raw_value <= 100.0:
+                        self.ams_unit_humidity.labels(**labels, ams_id=ams_id).set(humidity_raw_value)
                 except (TypeError, ValueError):
                     pass
 
             humidity_index = self._extract_ams_humidity_index(ams)
-            if humidity_index is not None:
+            if humidity_index is not None and 1.0 <= humidity_index <= 5.0:
                 self.ams_unit_humidity_index.labels(**labels, ams_id=ams_id).set(humidity_index)
 
             temp = ams.get("temp")
