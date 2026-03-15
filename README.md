@@ -6,7 +6,7 @@
 
 Production-oriented Prometheus exporter for Bambu Lab printers (homelab/self-hosted friendly).
 
-> Latest published GitHub release is currently `v0.1.14`.
+> Latest published GitHub release is currently `v0.1.22`.
 > Additional changes documented in `CHANGELOG.md` above that version are pending release.
 
 ## What this does
