@@ -145,6 +145,11 @@ class ExporterMetrics:
             registry=self.registry,
         )
         self.door_open = Gauge("bambulab_door_open", "1 if printer door is open", label_names, registry=self.registry)
+        self.wired_network = Gauge("bambulab_wired_network", "1 if wired network flag is set", label_names, registry=self.registry)
+        self.camera_recording = Gauge("bambulab_camera_recording", "1 if camera recording flag is set", label_names, registry=self.registry)
+        self.ams_auto_switch = Gauge("bambulab_ams_auto_switch", "1 if AMS auto switch flag is set", label_names, registry=self.registry)
+        self.filament_tangle_detected = Gauge("bambulab_filament_tangle_detected", "1 if filament tangle detected flag is set", label_names, registry=self.registry)
+        self.filament_tangle_detect_supported = Gauge("bambulab_filament_tangle_detect_supported", "1 if filament tangle detect supported flag is set", label_names, registry=self.registry)
         self.filament_loaded = Gauge("bambulab_filament_loaded", "1 if filament is loaded in extruder", label_names, registry=self.registry)
         self.timelapse_enabled = Gauge("bambulab_timelapse_enabled", "1 if timelapse recording is enabled", label_names, registry=self.registry)
 
@@ -282,6 +287,11 @@ class ExporterMetrics:
         # Phase 1 metrics
         self._set_optional(self.usage_hours, snapshot.usage_hours)
         self._set_optional(self.door_open, snapshot.door_open)
+        self._set_optional(self.wired_network, self._flag_to_float(snapshot.home_flags.get("wired_network")))
+        self._set_optional(self.camera_recording, self._flag_to_float(snapshot.home_flags.get("camera_recording")))
+        self._set_optional(self.ams_auto_switch, self._flag_to_float(snapshot.home_flags.get("ams_auto_switch")))
+        self._set_optional(self.filament_tangle_detected, self._flag_to_float(snapshot.home_flags.get("filament_tangle_detected")))
+        self._set_optional(self.filament_tangle_detect_supported, self._flag_to_float(snapshot.home_flags.get("filament_tangle_detect_supported")))
         self._set_optional(self.filament_loaded, snapshot.filament_loaded)
         self._set_optional(self.timelapse_enabled, snapshot.timelapse_enabled)
 
@@ -359,6 +369,12 @@ class ExporterMetrics:
                     **labels, ams_id=ams_id, slot_id=tray_id, tray_color=tray_color
                 ).set(1.0)
 
+
+    @staticmethod
+    def _flag_to_float(value: bool | None) -> float | None:
+        if value is None:
+            return None
+        return 1.0 if value else 0.0
 
     def _set_optional(self, gauge: Gauge, value: float | None) -> None:
         labels = self._labels()

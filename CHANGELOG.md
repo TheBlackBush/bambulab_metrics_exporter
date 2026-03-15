@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.20] - 2026-03-15
+
+### Added
+- Added dedicated high-value binary metrics decoded from `home_flag`:
+  - `bambulab_wired_network`
+  - `bambulab_camera_recording`
+  - `bambulab_ams_auto_switch`
+  - `bambulab_filament_tangle_detected`
+  - `bambulab_filament_tangle_detect_supported`
+
+### Updated
+- README metric inventory updated with the new flag-derived binary metrics.
+
 ## [0.1.19] - 2026-03-15
 
 ### Added

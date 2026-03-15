@@ -264,6 +264,11 @@ bambulab_stat_flag_state{printer_name="$printer"}
 - `bambulab_home_flag_state{flag}`
 - `bambulab_stat_flag_state{flag}`
 - `bambulab_door_open`
+- `bambulab_wired_network`
+- `bambulab_camera_recording`
+- `bambulab_ams_auto_switch`
+- `bambulab_filament_tangle_detected`
+- `bambulab_filament_tangle_detect_supported`
 - `bambulab_filament_loaded`
 - `bambulab_timelapse_enabled`
 - `bambulab_stg_cur`

@@ -82,6 +82,29 @@ class TestDoorOpen:
         assert math.isnan(_get(m, "door_open"))
 
 
+class TestFlagDerivedBinarySensors:
+    def test_flag_binary_sensors_from_home_flag(self) -> None:
+        m = _metrics()
+        m.update_from_snapshot(
+            _snap(
+                {
+                    "home_flag": (
+                        0x00040000  # wired_network
+                        | 0x00000020  # camera_recording
+                        | 0x00000400  # ams_auto_switch
+                        | 0x00100000  # filament_tangle_detected
+                        | 0x00080000  # filament_tangle_detect_supported
+                    )
+                }
+            )
+        )
+        assert _get(m, "wired_network") == 1.0
+        assert _get(m, "camera_recording") == 1.0
+        assert _get(m, "ams_auto_switch") == 1.0
+        assert _get(m, "filament_tangle_detected") == 1.0
+        assert _get(m, "filament_tangle_detect_supported") == 1.0
+
+
 class TestFilamentLoaded:
     def test_filament_loaded(self) -> None:
         m = _metrics()
