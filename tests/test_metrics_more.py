@@ -51,6 +51,7 @@ def test_metrics_full_update_with_ams_lights_xcam() -> None:
                         {
                             "id": "1",
                             "humidity": "18",
+                            "humidity_raw": "56",
                             "temp": "23",
                             "tray": [
                                 {"id": "2", "remain": "87", "tray_type": "PLA", "tray_color": "f98c36ff", "k": "0.021"},
@@ -79,7 +80,8 @@ def test_metrics_full_update_with_ams_lights_xcam() -> None:
     assert (
         metrics.fail_reason_info.labels(**labels, fail_reason="filament runout")._value.get() == 1.0
     )
-    assert metrics.ams_unit_humidity.labels(**labels, ams_id="1")._value.get() == 18.0
+    assert metrics.ams_unit_humidity.labels(**labels, ams_id="1")._value.get() == 56.0
+    assert metrics.ams_unit_humidity_index.labels(**labels, ams_id="1")._value.get() == 18.0
     assert metrics.ams_slot_tray_type.labels(**labels, ams_id="1", slot_id="2", tray_type="PLA")._value.get() == 1.0
     assert metrics.ams_slot_tray_type.labels(**labels, ams_id="1", slot_id="3", tray_type="PETG")._value.get() == 1.0
     assert metrics.ams_slot_tray_color.labels(**labels, ams_id="1", slot_id="2", tray_color="F98C36FF")._value.get() == 1.0

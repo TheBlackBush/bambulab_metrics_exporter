@@ -292,12 +292,20 @@ class ExporterMetrics:
         self._clear_ams(labels)
         for ams in snapshot.ams_units:
             ams_id = str(ams.get("id", "0"))
-            humidity = ams.get("humidity")
-            if isinstance(humidity, (int, float, str)):
+
+            # MQTT mapping:
+            # - humidity_index metric should follow the normalized/index humidity field
+            # - humidity metric should follow raw humidity when available
+            humidity_raw = ams.get("humidity_raw")
+            if not isinstance(humidity_raw, (int, float, str)):
+                # Backward compatibility for payloads that only expose "humidity"
+                humidity_raw = ams.get("humidity")
+            if isinstance(humidity_raw, (int, float, str)):
                 try:
-                    self.ams_unit_humidity.labels(**labels, ams_id=ams_id).set(float(humidity))
+                    self.ams_unit_humidity.labels(**labels, ams_id=ams_id).set(float(humidity_raw))
                 except (TypeError, ValueError):
                     pass
+
             humidity_index = self._extract_ams_humidity_index(ams)
             if humidity_index is not None:
                 self.ams_unit_humidity_index.labels(**labels, ams_id=ams_id).set(humidity_index)
@@ -337,6 +345,10 @@ class ExporterMetrics:
                 ).set(1.0)
 
                 k_value = tray.get("k")
+                if not isinstance(k_value, (int, float, str)):
+                    k_value = tray.get("k_value")
+                if not isinstance(k_value, (int, float, str)):
+                    k_value = tray.get("K")
                 if isinstance(k_value, (int, float, str)):
                     try:
                         self.ams_slot_k_value.labels(**labels, ams_id=ams_id, slot_id=tray_id).set(float(k_value))
@@ -352,7 +364,8 @@ class ExporterMetrics:
 
     @staticmethod
     def _extract_ams_humidity_index(ams: dict[str, object]) -> float | None:
-        for key in ("humidity_index", "humidity_level", "humidityIndex", "humidityLevel"):
+        # Prefer explicit index fields, then fall back to the common MQTT "humidity" field.
+        for key in ("humidity_index", "humidity_level", "humidityIndex", "humidityLevel", "humidity"):
             raw_value = ams.get(key)
             if not isinstance(raw_value, (int, float, str)):
                 continue

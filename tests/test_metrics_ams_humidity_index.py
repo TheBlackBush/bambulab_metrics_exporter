@@ -10,8 +10,8 @@ def test_ams_humidity_index_mixed_payload_variants() -> None:
             "print": {
                 "ams": {
                     "ams": [
-                        {"id": "0", "humidity": "20", "humidity_index": "6"},
-                        {"id": "1", "humidity": 30, "humidity_level": 4},
+                        {"id": "0", "humidity": "20", "humidity_raw": "62", "humidity_index": "6"},
+                        {"id": "1", "humidity": 30, "humidity_raw": 58, "humidity_level": 4},
                         {"id": "2", "humidity": "25"},
                     ]
                 }
@@ -24,7 +24,13 @@ def test_ams_humidity_index_mixed_payload_variants() -> None:
     labels = {"printer_name": "p1", "serial": "SN123"}
     assert metrics.ams_unit_humidity_index.labels(**labels, ams_id="0")._value.get() == 6.0
     assert metrics.ams_unit_humidity_index.labels(**labels, ams_id="1")._value.get() == 4.0
-    assert (labels["printer_name"], labels["serial"], "2") not in metrics.ams_unit_humidity_index._metrics
+    # Falls back to MQTT humidity field when explicit index fields are missing.
+    assert metrics.ams_unit_humidity_index.labels(**labels, ams_id="2")._value.get() == 25.0
+
+    # Raw humidity metric prefers humidity_raw and falls back to humidity.
+    assert metrics.ams_unit_humidity.labels(**labels, ams_id="0")._value.get() == 62.0
+    assert metrics.ams_unit_humidity.labels(**labels, ams_id="1")._value.get() == 58.0
+    assert metrics.ams_unit_humidity.labels(**labels, ams_id="2")._value.get() == 25.0
 
 
 def test_ams_humidity_index_invalid_values_are_skipped() -> None:
