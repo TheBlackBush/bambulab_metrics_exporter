@@ -440,10 +440,6 @@ class PrinterSnapshot:
                 out[key] = 1.0 if val else 0.0
         return out
     @property
-    def usage_hours(self) -> float | None:
-        return _to_float(self.print_block.get("usage_hours"))
-
-    @property
     def home_flags(self) -> dict[str, bool | None]:
         return decode_home_flags(self.print_block.get("home_flag"))
 
@@ -501,27 +497,6 @@ class PrinterSnapshot:
             return 1.0 if (stat_flag & STAT_FLAG_MASKS["door_open"]) else 0.0
         if home_flag is not None:
             return 1.0 if (home_flag & HOME_FLAG_MASKS["door_open"]) else 0.0
-        return None
-
-    @property
-    def filament_loaded(self) -> float | None:
-        """1.0 if filament is loaded (extruder has filament). From ctt or ams."""
-        val = to_int(self.print_block.get("ctt"))
-        if val is not None:
-            return 1.0 if val else 0.0
-        # Also check ams.tray_now != 255 as proxy
-        return None
-
-    @property
-    def timelapse_enabled(self) -> float | None:
-        """1.0 if timelapse recording is enabled."""
-        val = self.print_block.get("timelapse")
-        if isinstance(val, bool):
-            return 1.0 if val else 0.0
-        if isinstance(val, str):
-            return 1.0 if val.lower() in ("true", "1", "on", "enable") else 0.0
-        if isinstance(val, (int, float)):
-            return 1.0 if val else 0.0
         return None
 
     @property

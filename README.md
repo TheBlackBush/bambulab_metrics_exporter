@@ -259,7 +259,6 @@ bambulab_stat_flag_state{printer_name="$printer"}
 - `bambulab_spd_lvl`
 - `bambulab_spd_mag`
 - `bambulab_spd_lvl_state{mode="SILENT|STANDARD|SPORT|LUDICROUS|UNKNOWN"}`
-- `bambulab_usage_hours_total`
 - `bambulab_sdcard_status_info{status}` (`present|abnormal|absent`)
 - `bambulab_home_flag_state{flag}`
 - `bambulab_stat_flag_state{flag}`
@@ -269,8 +268,6 @@ bambulab_stat_flag_state{printer_name="$printer"}
 - `bambulab_ams_auto_switch`
 - `bambulab_filament_tangle_detected`
 - `bambulab_filament_tangle_detect_supported`
-- `bambulab_filament_loaded`
-- `bambulab_timelapse_enabled`
 - `bambulab_stg_cur`
 - `bambulab_print_stage_info{stage}`
 

@@ -1,4 +1,4 @@
-"""Tests for Phase 1 (binary sensors, usage_hours, sdcard) and Phase 3 (stage info) metrics."""
+"""Tests for Phase 1 (binary sensors, sdcard) and Phase 3 (stage info) metrics."""
 from __future__ import annotations
 
 import math
@@ -21,18 +21,6 @@ def _get(m: ExporterMetrics, gauge_name: str, extra_labels: dict | None = None) 
         labels.update(extra_labels)
     gauge = getattr(m, gauge_name)
     return gauge.labels(**labels)._value.get()
-
-
-class TestUsageHours:
-    def test_usage_hours_set(self) -> None:
-        m = _metrics()
-        m.update_from_snapshot(_snap({"usage_hours": 1234.5}))
-        assert _get(m, "usage_hours") == 1234.5
-
-    def test_usage_hours_none(self) -> None:
-        m = _metrics()
-        m.update_from_snapshot(_snap({}))
-        assert math.isnan(_get(m, "usage_hours"))
 
 
 class TestDoorOpen:
@@ -103,45 +91,6 @@ class TestFlagDerivedBinarySensors:
         assert _get(m, "ams_auto_switch") == 1.0
         assert _get(m, "filament_tangle_detected") == 1.0
         assert _get(m, "filament_tangle_detect_supported") == 1.0
-
-
-class TestFilamentLoaded:
-    def test_filament_loaded(self) -> None:
-        m = _metrics()
-        m.update_from_snapshot(_snap({"ctt": 1}))
-        assert _get(m, "filament_loaded") == 1.0
-
-    def test_filament_not_loaded(self) -> None:
-        m = _metrics()
-        m.update_from_snapshot(_snap({"ctt": 0}))
-        assert _get(m, "filament_loaded") == 0.0
-
-    def test_filament_none(self) -> None:
-        m = _metrics()
-        m.update_from_snapshot(_snap({}))
-        assert math.isnan(_get(m, "filament_loaded"))
-
-
-class TestTimelapseEnabled:
-    def test_timelapse_bool_true(self) -> None:
-        m = _metrics()
-        m.update_from_snapshot(_snap({"timelapse": True}))
-        assert _get(m, "timelapse_enabled") == 1.0
-
-    def test_timelapse_bool_false(self) -> None:
-        m = _metrics()
-        m.update_from_snapshot(_snap({"timelapse": False}))
-        assert _get(m, "timelapse_enabled") == 0.0
-
-    def test_timelapse_string(self) -> None:
-        m = _metrics()
-        m.update_from_snapshot(_snap({"timelapse": "enable"}))
-        assert _get(m, "timelapse_enabled") == 1.0
-
-    def test_timelapse_int(self) -> None:
-        m = _metrics()
-        m.update_from_snapshot(_snap({"timelapse": 1}))
-        assert _get(m, "timelapse_enabled") == 1.0
 
 
 class TestSdcardStatus:

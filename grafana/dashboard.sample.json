@@ -304,25 +304,6 @@
     },
     {
       "type": "stat",
-      "title": "Usage Hours",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "targets": [
-        {
-          "expr": "max(bambulab_usage_hours_total{printer_name=~\"${printer:regex}\"})"
-        }
-      ],
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 18,
-        "y": 0
-      }
-    },
-    {
-      "type": "stat",
       "title": "Door Open",
       "datasource": {
         "type": "prometheus",
@@ -338,44 +319,6 @@
         "w": 6,
         "x": 18,
         "y": 4
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Filament Loaded",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "targets": [
-        {
-          "expr": "max(bambulab_filament_loaded{printer_name=~\"${printer:regex}\"})"
-        }
-      ],
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 6,
-        "y": 8
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Timelapse Enabled",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "targets": [
-        {
-          "expr": "max(bambulab_timelapse_enabled{printer_name=~\"${printer:regex}\"})"
-        }
-      ],
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 12,
-        "y": 8
       }
     },
     {

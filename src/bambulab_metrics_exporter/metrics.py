@@ -125,7 +125,6 @@ class ExporterMetrics:
         )
 
         # Phase 1: New metrics
-        self.usage_hours = Gauge("bambulab_usage_hours_total", "Total printer usage hours", label_names, registry=self.registry)
         self.sdcard_status_info = Gauge(
             "bambulab_sdcard_status_info",
             "SD card status as labeled info metric",
@@ -150,8 +149,6 @@ class ExporterMetrics:
         self.ams_auto_switch = Gauge("bambulab_ams_auto_switch", "1 if AMS auto switch flag is set", label_names, registry=self.registry)
         self.filament_tangle_detected = Gauge("bambulab_filament_tangle_detected", "1 if filament tangle detected flag is set", label_names, registry=self.registry)
         self.filament_tangle_detect_supported = Gauge("bambulab_filament_tangle_detect_supported", "1 if filament tangle detect supported flag is set", label_names, registry=self.registry)
-        self.filament_loaded = Gauge("bambulab_filament_loaded", "1 if filament is loaded in extruder", label_names, registry=self.registry)
-        self.timelapse_enabled = Gauge("bambulab_timelapse_enabled", "1 if timelapse recording is enabled", label_names, registry=self.registry)
 
         # Phase 3: Stage info
         self.stg_cur = Gauge("bambulab_stg_cur", "Current print stage numeric ID", label_names, registry=self.registry)
@@ -285,15 +282,12 @@ class ExporterMetrics:
             self.printer_model_info.labels(**labels, model=snapshot.model_name).set(1.0)
 
         # Phase 1 metrics
-        self._set_optional(self.usage_hours, snapshot.usage_hours)
         self._set_optional(self.door_open, snapshot.door_open)
         self._set_optional(self.wired_network, self._flag_to_float(snapshot.home_flags.get("wired_network")))
         self._set_optional(self.camera_recording, self._flag_to_float(snapshot.home_flags.get("camera_recording")))
         self._set_optional(self.ams_auto_switch, self._flag_to_float(snapshot.home_flags.get("ams_auto_switch")))
         self._set_optional(self.filament_tangle_detected, self._flag_to_float(snapshot.home_flags.get("filament_tangle_detected")))
         self._set_optional(self.filament_tangle_detect_supported, self._flag_to_float(snapshot.home_flags.get("filament_tangle_detect_supported")))
-        self._set_optional(self.filament_loaded, snapshot.filament_loaded)
-        self._set_optional(self.timelapse_enabled, snapshot.timelapse_enabled)
 
         self.sdcard_status_info.clear()
         if snapshot.sdcard_status:

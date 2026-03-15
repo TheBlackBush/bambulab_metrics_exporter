@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.21] - 2026-03-15
+
+### Removed
+- Removed metrics with no reliable live source in current MQTT payloads:
+  - `bambulab_usage_hours_total`
+  - `bambulab_filament_loaded`
+  - `bambulab_timelapse_enabled`
+- Removed related Grafana panels and README references.
+
 ## [0.1.20] - 2026-03-15
 
 ### Added
