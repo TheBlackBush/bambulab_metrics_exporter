@@ -126,6 +126,18 @@ class TestSdcardStatus:
         snap = _snap({"sdcard": True})
         assert snap.sdcard_status == "present"
 
+    def test_home_flag_state_metric(self) -> None:
+        m = _metrics()
+        m.update_from_snapshot(_snap({"home_flag": 0x00800300}))
+        assert _get(m, "home_flag_state", {"flag": "door_open"}) == 1.0
+        assert _get(m, "home_flag_state", {"flag": "sd_card_present"}) == 1.0
+        assert _get(m, "home_flag_state", {"flag": "sd_card_abnormal"}) == 1.0
+
+    def test_stat_flag_state_metric(self) -> None:
+        m = _metrics()
+        m.update_from_snapshot(_snap({"stat": "46A58008"}))
+        assert _get(m, "stat_flag_state", {"flag": "door_open"}) == 1.0
+
     def test_sdcard_from_home_flag(self) -> None:
         snap = _snap({"home_flag": 0x100})
         assert snap.sdcard_status == "present"

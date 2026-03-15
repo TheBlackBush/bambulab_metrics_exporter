@@ -247,7 +247,9 @@ labels:
 - `bambulab_spd_mag`
 - `bambulab_spd_lvl_state{mode="SILENT|STANDARD|SPORT|LUDICROUS|UNKNOWN"}`
 - `bambulab_usage_hours_total`
-- `bambulab_sdcard_status_info{status}`
+- `bambulab_sdcard_status_info{status}` (`present|abnormal|absent`)
+- `bambulab_home_flag_state{flag}`
+- `bambulab_stat_flag_state{flag}`
 - `bambulab_door_open`
 - `bambulab_filament_loaded`
 - `bambulab_timelapse_enabled`

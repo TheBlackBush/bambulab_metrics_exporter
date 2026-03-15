@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.18] - 2026-03-15
+
+### Added
+- Added full decoded flag-state metrics from bitmasks:
+  - `bambulab_home_flag_state{flag}`
+  - `bambulab_stat_flag_state{flag}`
+- Added decoder foundation module for phased binary parity rollout.
+
+### Changed
+- `bambulab_sdcard_status_info` now derives `abnormal` state when both SD present+abnormal bits are set.
+
 ## [0.1.17] - 2026-03-15
 
 ### Fixed

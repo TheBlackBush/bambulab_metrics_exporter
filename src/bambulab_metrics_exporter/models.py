@@ -5,6 +5,8 @@ from bambulab_metrics_exporter.flags import (
     DOOR_OPEN_MASK,
     SD_CARD_ABNORMAL_MASK,
     SD_CARD_PRESENT_MASK,
+    decode_home_flags,
+    decode_stat_flags,
     to_hex_int,
     to_int,
 )
@@ -441,6 +443,14 @@ class PrinterSnapshot:
     @property
     def usage_hours(self) -> float | None:
         return _to_float(self.print_block.get("usage_hours"))
+
+    @property
+    def home_flags(self) -> dict[str, bool | None]:
+        return decode_home_flags(self.print_block.get("home_flag"))
+
+    @property
+    def stat_flags(self) -> dict[str, bool | None]:
+        return decode_stat_flags(self.print_block.get("stat"))
 
     @property
     def sdcard_status(self) -> str | None:
