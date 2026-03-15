@@ -2,9 +2,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from bambulab_metrics_exporter.flags import (
-    DOOR_OPEN_MASK,
-    SD_CARD_ABNORMAL_MASK,
-    SD_CARD_PRESENT_MASK,
+    HOME_FLAG_MASKS,
+    STAT_FLAG_MASKS,
     decode_home_flags,
     decode_stat_flags,
     to_hex_int,
@@ -465,8 +464,8 @@ class PrinterSnapshot:
         if hf is None:
             return None
 
-        present = (hf & SD_CARD_PRESENT_MASK) != 0
-        abnormal = (hf & SD_CARD_ABNORMAL_MASK) != 0
+        present = (hf & HOME_FLAG_MASKS["sd_card_present"]) != 0
+        abnormal = (hf & HOME_FLAG_MASKS["sd_card_abnormal"]) != 0
         if present and abnormal:
             return "abnormal"
         return "present" if present else "absent"
@@ -493,15 +492,15 @@ class PrinterSnapshot:
 
         if ptype in X1_HOMEFLAG_MODELS:
             if home_flag is not None:
-                return 1.0 if (home_flag & DOOR_OPEN_MASK) else 0.0
+                return 1.0 if (home_flag & HOME_FLAG_MASKS["door_open"]) else 0.0
             if stat_flag is not None:
-                return 1.0 if (stat_flag & DOOR_OPEN_MASK) else 0.0
+                return 1.0 if (stat_flag & STAT_FLAG_MASKS["door_open"]) else 0.0
             return None
 
         if stat_flag is not None:
-            return 1.0 if (stat_flag & DOOR_OPEN_MASK) else 0.0
+            return 1.0 if (stat_flag & STAT_FLAG_MASKS["door_open"]) else 0.0
         if home_flag is not None:
-            return 1.0 if (home_flag & DOOR_OPEN_MASK) else 0.0
+            return 1.0 if (home_flag & HOME_FLAG_MASKS["door_open"]) else 0.0
         return None
 
     @property

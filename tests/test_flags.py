@@ -1,7 +1,5 @@
 from bambulab_metrics_exporter.flags import (
-    DOOR_OPEN_MASK,
-    SD_CARD_ABNORMAL_MASK,
-    SD_CARD_PRESENT_MASK,
+    HOME_FLAG_MASKS,
     decode_home_flags,
     decode_stat_flags,
     is_flag_set,
@@ -18,13 +16,14 @@ def test_to_int_and_to_hex_int() -> None:
 
 
 def test_is_flag_set() -> None:
-    assert is_flag_set(DOOR_OPEN_MASK, DOOR_OPEN_MASK) is True
-    assert is_flag_set(0, DOOR_OPEN_MASK) is False
-    assert is_flag_set(None, DOOR_OPEN_MASK) is None
+    door = HOME_FLAG_MASKS["door_open"]
+    assert is_flag_set(door, door) is True
+    assert is_flag_set(0, door) is False
+    assert is_flag_set(None, door) is None
 
 
 def test_decode_home_flags() -> None:
-    value = SD_CARD_PRESENT_MASK | SD_CARD_ABNORMAL_MASK
+    value = HOME_FLAG_MASKS["sd_card_present"] | HOME_FLAG_MASKS["sd_card_abnormal"]
     decoded = decode_home_flags(value)
     assert decoded["sd_card_present"] is True
     assert decoded["sd_card_abnormal"] is True
