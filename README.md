@@ -160,6 +160,7 @@ scrape_configs:
 - `bambulab_ams_slot_remaining_percent{ams_id,slot_id}`
 - `bambulab_ams_slot_tray_type_info{ams_id,slot_id,tray_type}`
 - `bambulab_ams_slot_tray_color_info{ams_id,slot_id,tray_color}`
+- `bambulab_ams_slot_k_value{ams_id,slot_id}`
 
 - `bambulab_fan_big_1_speed_percent`
 - `bambulab_fan_big_2_speed_percent`
@@ -191,6 +192,13 @@ scrape_configs:
 - `bambulab_spd_lvl`
 - `bambulab_spd_mag`
 - `bambulab_spd_lvl_state{mode="SILENT|STANDARD|SPORT|LUDICROUS|UNKNOWN"}`
+- `bambulab_usage_hours_total`
+- `bambulab_sdcard_status_info{status}`
+- `bambulab_door_open`
+- `bambulab_filament_loaded`
+- `bambulab_timelapse_enabled`
+- `bambulab_stg_cur`
+- `bambulab_print_stage_info{stage}`
 
 - `bambulab_chamber_light_on`
 - `bambulab_work_light_on`

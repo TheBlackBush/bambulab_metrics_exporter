@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.13] - 2026-03-15
+
+### Added
+- AMS Phase-2 MVP metric: `bambulab_ams_slot_k_value{ams_id,slot_id}` from tray `k` values.
+- AMS parsing enhancement: `remain` now accepts numeric strings and `tray_type` falls back to `ctype` when needed.
+- Grafana sample dashboard panels for usage/stage/door/timelapse/filament and AMS slot remain + K-value.
+- Prometheus alerts for door-open-while-printing and stale exporter success timestamp.
+- Prometheus recording rules for latest stage ID and door state.
+
+### Changed
+- README metric inventory updated to include v0.1.12 metrics and AMS K-value metric.
+- AMS test coverage extended for K-value, string remain, and `ctype` fallback.
+
 ## [0.1.12] - 2026-03-15
 
 ### Added

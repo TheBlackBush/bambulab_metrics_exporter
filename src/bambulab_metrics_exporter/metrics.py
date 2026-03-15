@@ -103,6 +103,12 @@ class ExporterMetrics:
             [*label_names, "ams_id", "slot_id", "tray_color"],
             registry=self.registry,
         )
+        self.ams_slot_k_value = Gauge(
+            "bambulab_ams_slot_k_value",
+            "AMS slot pressure advance (k value)",
+            [*label_names, "ams_id", "slot_id"],
+            registry=self.registry,
+        )
         self.ams_unit_humidity = Gauge(
             "bambulab_ams_unit_humidity",
             "AMS unit humidity",
@@ -299,12 +305,16 @@ class ExporterMetrics:
                     1.0 if tray_id == active_id else 0.0
                 )
                 remain = tray.get("remain")
-                if isinstance(remain, (int, float)):
-                    self.ams_slot_remaining_percent.labels(
-                        **labels, ams_id=ams_id, slot_id=tray_id
-                    ).set(float(remain))
+                if isinstance(remain, (int, float, str)):
+                    try:
+                        self.ams_slot_remaining_percent.labels(
+                            **labels, ams_id=ams_id, slot_id=tray_id
+                        ).set(float(remain))
+                    except (TypeError, ValueError):
+                        pass
 
-                tray_type = str(tray.get("tray_type", "")).strip() or "unknown"
+                tray_type_raw = tray.get("tray_type", tray.get("ctype", ""))
+                tray_type = str(tray_type_raw).strip() or "unknown"
                 self.ams_slot_tray_type.labels(
                     **labels, ams_id=ams_id, slot_id=tray_id, tray_type=tray_type
                 ).set(1.0)
@@ -313,6 +323,13 @@ class ExporterMetrics:
                 self.ams_slot_tray_color.labels(
                     **labels, ams_id=ams_id, slot_id=tray_id, tray_color=tray_color
                 ).set(1.0)
+
+                k_value = tray.get("k")
+                if isinstance(k_value, (int, float, str)):
+                    try:
+                        self.ams_slot_k_value.labels(**labels, ams_id=ams_id, slot_id=tray_id).set(float(k_value))
+                    except (TypeError, ValueError):
+                        pass
 
     def _set_optional(self, gauge: Gauge, value: float | None) -> None:
         labels = self._labels()
@@ -326,6 +343,7 @@ class ExporterMetrics:
         self.ams_slot_remaining_percent.clear()
         self.ams_slot_tray_type.clear()
         self.ams_slot_tray_color.clear()
+        self.ams_slot_k_value.clear()
         self.ams_unit_humidity.clear()
         self.ams_unit_temperature_celsius.clear()
 

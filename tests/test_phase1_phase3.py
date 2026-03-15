@@ -3,8 +3,6 @@ from __future__ import annotations
 
 import math
 
-import pytest
-
 from bambulab_metrics_exporter.metrics import ExporterMetrics
 from bambulab_metrics_exporter.models import PrinterSnapshot, STG_CUR_NAMES
 
