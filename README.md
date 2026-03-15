@@ -180,6 +180,7 @@ scrape_configs:
 - `bambulab_ams_status`
 - `bambulab_ams_rfid_status`
 - `bambulab_ams_unit_humidity{ams_id}`
+- `bambulab_ams_unit_humidity_index{ams_id}`
 - `bambulab_ams_unit_temperature_celsius{ams_id}`
 - `bambulab_queue_total`
 - `bambulab_queue_estimated_seconds`

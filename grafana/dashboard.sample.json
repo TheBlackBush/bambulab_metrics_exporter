@@ -456,6 +456,26 @@
         "x": 0,
         "y": 36
       }
+    },
+    {
+      "type": "timeseries",
+      "title": "AMS Humidity Index",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "expr": "bambulab_ams_unit_humidity_index{printer_name=~\"${printer:regex}\"}",
+          "legendFormat": "humidity index ams{{ams_id}} {{printer_name}}"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 44
+      }
     }
   ]
 }

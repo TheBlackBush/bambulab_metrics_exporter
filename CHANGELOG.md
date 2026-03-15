@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.14] - 2026-03-15
+
+### Added
+- AMS unit humidity index metric: `bambulab_ams_unit_humidity_index{ams_id}`.
+- Firmware/model-safe AMS parsing for humidity index variants: `humidity_index`, `humidity_level`, `humidityIndex`, `humidityLevel`.
+- Grafana sample panel for AMS humidity index.
+
+### Changed
+- README exported metrics list includes `bambulab_ams_unit_humidity_index{ams_id}`.
+- AMS metrics tests expanded for mixed/invalid humidity-index payload variants and per-AMS refresh behavior.
+
 ## [0.1.13] - 2026-03-15
 
 ### Added

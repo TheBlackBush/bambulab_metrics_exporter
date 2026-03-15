@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 from prometheus_client import CollectorRegistry, Gauge
 
 from bambulab_metrics_exporter.models import PrinterSnapshot
@@ -112,6 +114,12 @@ class ExporterMetrics:
         self.ams_unit_humidity = Gauge(
             "bambulab_ams_unit_humidity",
             "AMS unit humidity",
+            [*label_names, "ams_id"],
+            registry=self.registry,
+        )
+        self.ams_unit_humidity_index = Gauge(
+            "bambulab_ams_unit_humidity_index",
+            "AMS unit humidity index",
             [*label_names, "ams_id"],
             registry=self.registry,
         )
@@ -290,6 +298,10 @@ class ExporterMetrics:
                     self.ams_unit_humidity.labels(**labels, ams_id=ams_id).set(float(humidity))
                 except (TypeError, ValueError):
                     pass
+            humidity_index = self._extract_ams_humidity_index(ams)
+            if humidity_index is not None:
+                self.ams_unit_humidity_index.labels(**labels, ams_id=ams_id).set(humidity_index)
+
             temp = ams.get("temp")
             if isinstance(temp, (int, float, str)):
                 try:
@@ -338,6 +350,20 @@ class ExporterMetrics:
             return
         gauge.labels(**labels).set(value)
 
+    @staticmethod
+    def _extract_ams_humidity_index(ams: dict[str, object]) -> float | None:
+        for key in ("humidity_index", "humidity_level", "humidityIndex", "humidityLevel"):
+            raw_value = ams.get(key)
+            if not isinstance(raw_value, (int, float, str)):
+                continue
+            try:
+                parsed = float(raw_value)
+            except (TypeError, ValueError):
+                continue
+            if math.isfinite(parsed):
+                return parsed
+        return None
+
     def _clear_ams(self, labels: dict[str, str]) -> None:
         self.ams_slot_active.clear()
         self.ams_slot_remaining_percent.clear()
@@ -345,6 +371,7 @@ class ExporterMetrics:
         self.ams_slot_tray_color.clear()
         self.ams_slot_k_value.clear()
         self.ams_unit_humidity.clear()
+        self.ams_unit_humidity_index.clear()
         self.ams_unit_temperature_celsius.clear()
 
     def mark_scrape(self, duration_seconds: float, success: bool, now_ts: float | None = None) -> None:
