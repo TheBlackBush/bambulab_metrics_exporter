@@ -2,85 +2,40 @@
 
 All notable changes to this project are documented in this file.
 
-## [0.1.21] - 2026-03-15
+## [Unreleased]
 
-### Removed
-- Removed metrics with no reliable live source in current MQTT payloads:
-  - `bambulab_usage_hours_total`
-  - `bambulab_filament_loaded`
-  - `bambulab_timelapse_enabled`
-- Removed related Grafana panels and README references.
-
-## [0.1.20] - 2026-03-15
+> Note: Latest published GitHub release is `v0.1.14`.
+> The changes below are currently merged on `main` but not yet published as a GitHub Release tag.
 
 ### Added
-- Added dedicated high-value binary metrics decoded from `home_flag`:
+- Decoded flag-state metrics:
+  - `bambulab_home_flag_state{flag}`
+  - `bambulab_stat_flag_state{flag}`
+- Dedicated high-value flag metrics:
   - `bambulab_wired_network`
   - `bambulab_camera_recording`
   - `bambulab_ams_auto_switch`
   - `bambulab_filament_tangle_detected`
   - `bambulab_filament_tangle_detect_supported`
-
-### Updated
-- README metric inventory updated with the new flag-derived binary metrics.
-
-## [0.1.19] - 2026-03-15
-
-### Added
-- Added Grafana panels for decoded bitmask metrics:
+- Grafana panels:
   - `Home Flag States`
   - `Stat Flag States`
-- Added `BambuSdCardAbnormal` alert rule.
-- Added `bambulab:sdcard_abnormal:latest` recording rule.
-
-### Updated
-- Expanded README with PromQL examples for decoded flag metrics and SD abnormal checks.
-
-## [0.1.18] - 2026-03-15
-
-### Added
-- Added full decoded flag-state metrics from bitmasks:
-  - `bambulab_home_flag_state{flag}`
-  - `bambulab_stat_flag_state{flag}`
-- Added decoder foundation module for phased binary parity rollout.
+- Alert + recording additions:
+  - `BambuSdCardAbnormal`
+  - `bambulab:sdcard_abnormal:latest`
 
 ### Changed
-- `bambulab_sdcard_status_info` now derives `abnormal` state when both SD present+abnormal bits are set.
-
-## [0.1.17] - 2026-03-15
-
-### Fixed
-- Corrected `bambulab_door_open` decoding across printer models:
-  - Uses door bitmask `0x00800000` (aligned with upstream constants).
-  - Adds `stat` hex parsing support for models that report door state via `stat`.
-  - Keeps direct `door_open` field precedence when explicitly present.
-  - Applies model-aware source selection (`X1/X1C` prefer `home_flag`, others prefer `stat`).
-
-### Added
-- Added full printer-type resolver from module metadata (`product_name`, `hw_ver`, `project_name`) with fallbacks.
-
-### Tests
-- Added/updated tests for door decoding from `home_flag` and `stat`, source precedence, and printer-type detection.
-
-## [0.1.16] - 2026-03-15
+- `bambulab_door_open` decoding is model-aware and bitmask-correct (`home_flag`/`stat`, mask `0x00800000`).
+- `bambulab_sdcard_status_info` now supports `abnormal` status from flag decoding.
+- Test suite reorganized into module-aligned files (cleaned phase/fix fragmentation).
+- Prometheus/Grafana assets moved under `examples/`.
 
 ### Removed
-- Removed `bambulab_ams_slot_k_value{ams_id,slot_id}` metric (MQTT payloads do not reliably provide this field in current setup).
-- Removed the related Grafana panel and README references.
-
-### Tests
-- Updated AMS tests to focus on `remain` parsing and tray type fallback without K-value assumptions.
-
-## [0.1.15] - 2026-03-15
-
-### Fixed
-- Corrected AMS humidity field mapping (strict MQTT semantics):
-  - `bambulab_ams_unit_humidity_index{ams_id}` now maps only to MQTT `humidity` (range-limited to 1..5).
-  - `bambulab_ams_unit_humidity{ams_id}` now maps only to MQTT `humidity_raw` (range-limited to 1..100).
-- Improved AMS slot K-value extraction with fallback keys: `k`, `k_value`, `K`.
-
-### Tests
-- Added coverage for strict humidity mapping (`humidity` index vs `humidity_raw`) and K-value fallback keys.
+- Removed metrics without reliable live MQTT source in current payloads:
+  - `bambulab_usage_hours_total`
+  - `bambulab_filament_loaded`
+  - `bambulab_timelapse_enabled`
+- Removed `bambulab_ams_slot_k_value{ams_id,slot_id}` and related dashboard/docs references.
 
 ## [0.1.14] - 2026-03-15
 

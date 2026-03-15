@@ -6,6 +6,9 @@
 
 Production-oriented Prometheus exporter for Bambu Lab printers (homelab/self-hosted friendly).
 
+> Latest published GitHub release is currently `v0.1.14`.
+> Additional changes documented in `CHANGELOG.md` above that version are pending release.
+
 ## What this does
 
 - Connects to Bambu printer over **LAN MQTT** or **Cloud MQTT**
@@ -145,7 +148,7 @@ scrape_configs:
 
 ## Operator PromQL examples
 
-### AMS metrics (new in v0.1.14)
+### AMS metrics
 
 - Average humidity index per AMS unit over 15 minutes:
 
