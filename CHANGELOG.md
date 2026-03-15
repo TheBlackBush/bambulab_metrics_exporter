@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.23] - 2026-03-15
+
+### Fixed
+- Aligned SN-prefix printer model mapping with the upstream model matrix:
+  - `00W -> X1`
+  - `00M -> X1C`
+  - `03W -> X1E`
+  - `01S -> P1P`
+  - `01P -> P1S`
+  - `030 -> A1MINI`
+  - `039 -> A1`
+  - `22E -> P2S`
+  - `093 -> H2S`
+  - `094 -> H2D`
+- Updated resolver tests to enforce the corrected mappings and prevent regressions.
+
 ## [0.1.22] - 2026-03-15
 
 ### Added
