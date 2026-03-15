@@ -2,6 +2,41 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.21] - 2026-03-15
+
+> Note: This version is the latest application version in the repository history after recent changes.
+> Publish tag/release when ready.
+
+### Added
+- Decoded flag-state metrics:
+  - `bambulab_home_flag_state{flag}`
+  - `bambulab_stat_flag_state{flag}`
+- Dedicated high-value flag metrics:
+  - `bambulab_wired_network`
+  - `bambulab_camera_recording`
+  - `bambulab_ams_auto_switch`
+  - `bambulab_filament_tangle_detected`
+  - `bambulab_filament_tangle_detect_supported`
+- Grafana panels:
+  - `Home Flag States`
+  - `Stat Flag States`
+- Alert + recording additions:
+  - `BambuSdCardAbnormal`
+  - `bambulab:sdcard_abnormal:latest`
+
+### Changed
+- `bambulab_door_open` decoding is model-aware and bitmask-correct (`home_flag`/`stat`, mask `0x00800000`).
+- `bambulab_sdcard_status_info` now supports `abnormal` status from flag decoding.
+- Test suite reorganized into module-aligned files (cleaned phase/fix fragmentation).
+- Prometheus/Grafana assets moved under `examples/`.
+
+### Removed
+- Removed metrics without reliable live MQTT source in current payloads:
+  - `bambulab_usage_hours_total`
+  - `bambulab_filament_loaded`
+  - `bambulab_timelapse_enabled`
+- Removed `bambulab_ams_slot_k_value{ams_id,slot_id}` and related dashboard/docs references.
+
 ## [0.1.14] - 2026-03-15
 
 ### Added
@@ -12,7 +47,7 @@ All notable changes to this project are documented in this file.
 - `bambulab_timelapse_enabled` binary sensor (0/1) for timelapse recording.
 - `bambulab_stg_cur` numeric gauge for current print stage ID.
 - `bambulab_print_stage_info{stage}` info metric with human-readable stage name.
-- Stage ID mapping dictionary (0-35, 255) based on ha-bambulab analysis.
+- Stage ID mapping dictionary (0-35, 255) based on upstream stage reference analysis.
 - AMS slot K-value metric: `bambulab_ams_slot_k_value{ams_id,slot_id}`.
 - AMS unit humidity index metric: `bambulab_ams_unit_humidity_index{ams_id}`.
 

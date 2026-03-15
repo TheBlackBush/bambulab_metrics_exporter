@@ -6,6 +6,9 @@
 
 Production-oriented Prometheus exporter for Bambu Lab printers (homelab/self-hosted friendly).
 
+> Latest published GitHub release is currently `v0.1.14`.
+> Additional changes documented in `CHANGELOG.md` above that version are pending release.
+
 ## What this does
 
 - Connects to Bambu printer over **LAN MQTT** or **Cloud MQTT**
@@ -132,7 +135,7 @@ If `BAMBULAB_CLOUD_USER_ID`/`BAMBULAB_CLOUD_ACCESS_TOKEN` are missing, startup r
 
 ## Prometheus integration
 
-Use `prometheus/prometheus.scrape.yml` snippet, or equivalent:
+Use `examples/prometheus/prometheus.scrape.yml` snippet, or equivalent:
 
 ```yaml
 scrape_configs:
@@ -145,13 +148,7 @@ scrape_configs:
 
 ## Operator PromQL examples
 
-### AMS metrics (new in v0.1.14)
-
-- Current AMS K values by slot:
-
-```promql
-bambulab_ams_slot_k_value{printer_name="$printer"}
-```
+### AMS metrics
 
 - Average humidity index per AMS unit over 15 minutes:
 
@@ -203,6 +200,19 @@ labels:
   severity: warning
 ```
 
+- SD card abnormal status:
+
+```promql
+bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
+```
+
+- Full decoded home/stat flags for diagnostics:
+
+```promql
+bambulab_home_flag_state{printer_name="$printer"}
+bambulab_stat_flag_state{printer_name="$printer"}
+```
+
 ## Exported metrics (core)
 
 - `bambulab_printer_up`
@@ -220,7 +230,6 @@ labels:
 - `bambulab_ams_slot_remaining_percent{ams_id,slot_id}`
 - `bambulab_ams_slot_tray_type_info{ams_id,slot_id,tray_type}`
 - `bambulab_ams_slot_tray_color_info{ams_id,slot_id,tray_color}`
-- `bambulab_ams_slot_k_value{ams_id,slot_id}`
 
 - `bambulab_fan_big_1_speed_percent`
 - `bambulab_fan_big_2_speed_percent`
@@ -253,11 +262,15 @@ labels:
 - `bambulab_spd_lvl`
 - `bambulab_spd_mag`
 - `bambulab_spd_lvl_state{mode="SILENT|STANDARD|SPORT|LUDICROUS|UNKNOWN"}`
-- `bambulab_usage_hours_total`
-- `bambulab_sdcard_status_info{status}`
+- `bambulab_sdcard_status_info{status}` (`present|abnormal|absent`)
+- `bambulab_home_flag_state{flag}`
+- `bambulab_stat_flag_state{flag}`
 - `bambulab_door_open`
-- `bambulab_filament_loaded`
-- `bambulab_timelapse_enabled`
+- `bambulab_wired_network`
+- `bambulab_camera_recording`
+- `bambulab_ams_auto_switch`
+- `bambulab_filament_tangle_detected`
+- `bambulab_filament_tangle_detect_supported`
 - `bambulab_stg_cur`
 - `bambulab_print_stage_info{stage}`
 
@@ -363,13 +376,13 @@ On container startup, exporter performs a connection preflight:
   - On success, new credentials are saved encrypted to config dir and synced to `.env`, so next startup won't require re-entry.
 
 
-Prometheus scrape config sample: `prometheus/prometheus.scrape.yml`
+Prometheus scrape config sample: `examples/prometheus/prometheus.scrape.yml`
 
-Alert rules sample: `prometheus/prometheus.alerts.yml`
+Alert rules sample: `examples/prometheus/prometheus.alerts.yml`
 
-Recording rules sample: `prometheus/prometheus.recording.yml`
+Recording rules sample: `examples/prometheus/prometheus.recording.yml`
 
-Grafana sample dashboard: `grafana/dashboard.sample.json`
+Grafana sample dashboard: `examples/grafana/dashboard.sample.json`
 
 
 ## Unraid Docker template

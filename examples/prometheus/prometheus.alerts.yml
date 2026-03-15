@@ -54,3 +54,12 @@ groups:
         annotations:
           summary: "Exporter has stale successful scrape"
           description: "No successful scrape from {{ $labels.printer_name }} for more than 3 minutes."
+
+      - alert: BambuSdCardAbnormal
+        expr: bambulab_sdcard_status_info{status="abnormal"} == 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SD card abnormal state detected"
+          description: "SD card status for {{ $labels.printer_name }} is abnormal."
