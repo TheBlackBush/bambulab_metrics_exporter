@@ -2,6 +2,37 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.14] - 2026-03-15
+
+### Added
+- `bambulab_usage_hours_total` metric for total printer usage hours.
+- `bambulab_sdcard_status_info{status}` info metric for SD card status.
+- `bambulab_door_open` binary sensor (0/1) for door state.
+- `bambulab_filament_loaded` binary sensor (0/1) for extruder filament state.
+- `bambulab_timelapse_enabled` binary sensor (0/1) for timelapse recording.
+- `bambulab_stg_cur` numeric gauge for current print stage ID.
+- `bambulab_print_stage_info{stage}` info metric with human-readable stage name.
+- Stage ID mapping dictionary (0-35, 255) based on ha-bambulab analysis.
+- AMS slot K-value metric: `bambulab_ams_slot_k_value{ams_id,slot_id}`.
+- AMS unit humidity index metric: `bambulab_ams_unit_humidity_index{ams_id}`.
+
+### Changed
+- AMS parsing is more tolerant:
+  - `remain` accepts numeric strings.
+  - tray type falls back to `ctype` when `tray_type` is absent.
+  - humidity index accepts firmware/model variants in priority order:
+    `humidity_index`, `humidity_level`, `humidityIndex`, `humidityLevel`.
+- Grafana sample dashboard updated with v0.1.12+ panels including AMS slot K-value and AMS humidity index.
+- Prometheus alerts updated with `BambuDoorOpenWhilePrinting` and `BambuExporterStale`.
+- Prometheus recording rules updated with:
+  - `bambulab:stage_id:latest`
+  - `bambulab:door_open:latest`
+- README updated with metric inventory and practical PromQL operator examples.
+
+### Compatibility
+- Changes are additive and backward compatible.
+- New metrics emit only when valid data is present; missing/invalid payload fields are skipped.
+
 ## [0.1.10] - 2026-03-14
 
 ### Added

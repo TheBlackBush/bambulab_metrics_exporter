@@ -2,6 +2,48 @@ from dataclasses import dataclass
 from typing import Any
 
 
+STG_CUR_NAMES: dict[int, str] = {
+    0: "printing",
+    1: "bed_leveling",
+    2: "heatbed_preheating",
+    3: "sweeping_xy_mech_mode",
+    4: "changing_filament",
+    5: "m400_pause",
+    6: "filament_runout_pause",
+    7: "heating_hotend",
+    8: "calibrating_extrusion",
+    9: "scanning_bed_surface",
+    10: "inspecting_first_layer",
+    11: "identifying_build_plate",
+    12: "calibrating_micro_lidar",
+    13: "homing_toolhead",
+    14: "cleaning_nozzle_tip",
+    15: "checking_extruder_temp",
+    16: "paused_user",
+    17: "paused_front_cover",
+    18: "calibrating_lidar",
+    19: "calibrating_micro_lidar_2",
+    20: "toolhead_shell_off_pause",
+    21: "nozzle_hub_clog_pause",
+    22: "checking_foreign_body",
+    23: "motor_noise_calibration",
+    24: "paused_nozzle_temperature_malfunction",
+    25: "paused_heat_bed_temperature_malfunction",
+    26: "filament_unloading",
+    27: "skip_step_pause",
+    28: "filament_loading",
+    29: "motor_noise_showoff",
+    30: "pressure_advance_calibrating",
+    31: "auto_bed_leveling_wip",
+    32: "change_cartridge",
+    33: "vibration_compensation_calibrating",
+    34: "standby",
+    35: "idle",
+    255: "unknown",
+    -1: "idle",
+}
+
+
 def _to_float(value: Any) -> float | None:
     if isinstance(value, (int, float)):
         return float(value)
@@ -329,6 +371,73 @@ class PrinterSnapshot:
             if isinstance(val, bool):
                 out[key] = 1.0 if val else 0.0
         return out
+    @property
+    def usage_hours(self) -> float | None:
+        return _to_float(self.print_block.get("usage_hours"))
+
+    @property
+    def sdcard_status(self) -> str | None:
+        """SD card status from home_flag or direct field."""
+        value = self.print_block.get("sdcard")
+        if isinstance(value, bool):
+            return "present" if value else "absent"
+        if isinstance(value, str) and value.strip():
+            return value.strip().lower()
+        # Also check home_flag bitmask bit for sdcard
+        hf = _to_int(self.print_block.get("home_flag"))
+        if hf is not None:
+            # bit 9 (0x200) = sdcard present in ha-bambulab
+            return "present" if (hf & 0x200) else "absent"
+        return None
+
+    @property
+    def door_open(self) -> float | None:
+        """1.0 if door is open, 0.0 if closed. From home_flag bit or direct field."""
+        val = self.print_block.get("door_open")
+        if isinstance(val, bool):
+            return 1.0 if val else 0.0
+        if isinstance(val, (int, float)):
+            return 1.0 if val else 0.0
+        hf = _to_int(self.print_block.get("home_flag"))
+        if hf is not None:
+            # bit 1 (0x2) = door open in ha-bambulab
+            return 1.0 if (hf & 0x2) else 0.0
+        return None
+
+    @property
+    def filament_loaded(self) -> float | None:
+        """1.0 if filament is loaded (extruder has filament). From ctt or ams."""
+        val = _to_int(self.print_block.get("ctt"))
+        if val is not None:
+            return 1.0 if val else 0.0
+        # Also check ams.tray_now != 255 as proxy
+        return None
+
+    @property
+    def timelapse_enabled(self) -> float | None:
+        """1.0 if timelapse recording is enabled."""
+        val = self.print_block.get("timelapse")
+        if isinstance(val, bool):
+            return 1.0 if val else 0.0
+        if isinstance(val, str):
+            return 1.0 if val.lower() in ("true", "1", "on", "enable") else 0.0
+        if isinstance(val, (int, float)):
+            return 1.0 if val else 0.0
+        return None
+
+    @property
+    def stg_cur(self) -> int | None:
+        """Current print stage ID."""
+        return _to_int(self.print_block.get("stg_cur"))
+
+    @property
+    def stg_cur_name(self) -> str | None:
+        """Human-readable name for the current print stage."""
+        stage_id = self.stg_cur
+        if stage_id is None:
+            return None
+        return STG_CUR_NAMES.get(stage_id, f"unknown_{stage_id}")
+
     @property
     def ams_units(self) -> list[dict[str, Any]]:
         ams = self.print_block.get("ams", {})

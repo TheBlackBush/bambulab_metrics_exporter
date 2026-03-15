@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 from prometheus_client import CollectorRegistry, Gauge
 
 from bambulab_metrics_exporter.models import PrinterSnapshot
@@ -103,9 +105,21 @@ class ExporterMetrics:
             [*label_names, "ams_id", "slot_id", "tray_color"],
             registry=self.registry,
         )
+        self.ams_slot_k_value = Gauge(
+            "bambulab_ams_slot_k_value",
+            "AMS slot pressure advance (k value)",
+            [*label_names, "ams_id", "slot_id"],
+            registry=self.registry,
+        )
         self.ams_unit_humidity = Gauge(
             "bambulab_ams_unit_humidity",
             "AMS unit humidity",
+            [*label_names, "ams_id"],
+            registry=self.registry,
+        )
+        self.ams_unit_humidity_index = Gauge(
+            "bambulab_ams_unit_humidity_index",
+            "AMS unit humidity index",
             [*label_names, "ams_id"],
             registry=self.registry,
         )
@@ -113,6 +127,27 @@ class ExporterMetrics:
             "bambulab_ams_unit_temperature_celsius",
             "AMS unit temperature",
             [*label_names, "ams_id"],
+            registry=self.registry,
+        )
+
+        # Phase 1: New metrics
+        self.usage_hours = Gauge("bambulab_usage_hours_total", "Total printer usage hours", label_names, registry=self.registry)
+        self.sdcard_status_info = Gauge(
+            "bambulab_sdcard_status_info",
+            "SD card status as labeled info metric",
+            [*label_names, "status"],
+            registry=self.registry,
+        )
+        self.door_open = Gauge("bambulab_door_open", "1 if printer door is open", label_names, registry=self.registry)
+        self.filament_loaded = Gauge("bambulab_filament_loaded", "1 if filament is loaded in extruder", label_names, registry=self.registry)
+        self.timelapse_enabled = Gauge("bambulab_timelapse_enabled", "1 if timelapse recording is enabled", label_names, registry=self.registry)
+
+        # Phase 3: Stage info
+        self.stg_cur = Gauge("bambulab_stg_cur", "Current print stage numeric ID", label_names, registry=self.registry)
+        self.print_stage_info = Gauge(
+            "bambulab_print_stage_info",
+            "Current print stage as labeled info metric",
+            [*label_names, "stage"],
             registry=self.registry,
         )
 
@@ -238,6 +273,22 @@ class ExporterMetrics:
         if snapshot.model_name:
             self.printer_model_info.labels(**labels, model=snapshot.model_name).set(1.0)
 
+        # Phase 1 metrics
+        self._set_optional(self.usage_hours, snapshot.usage_hours)
+        self._set_optional(self.door_open, snapshot.door_open)
+        self._set_optional(self.filament_loaded, snapshot.filament_loaded)
+        self._set_optional(self.timelapse_enabled, snapshot.timelapse_enabled)
+
+        self.sdcard_status_info.clear()
+        if snapshot.sdcard_status:
+            self.sdcard_status_info.labels(**labels, status=snapshot.sdcard_status).set(1.0)
+
+        # Phase 3: Stage info
+        self._set_optional(self.stg_cur, float(snapshot.stg_cur) if snapshot.stg_cur is not None else None)
+        self.print_stage_info.clear()
+        if snapshot.stg_cur_name:
+            self.print_stage_info.labels(**labels, stage=snapshot.stg_cur_name).set(1.0)
+
         self._clear_ams(labels)
         for ams in snapshot.ams_units:
             ams_id = str(ams.get("id", "0"))
@@ -247,6 +298,10 @@ class ExporterMetrics:
                     self.ams_unit_humidity.labels(**labels, ams_id=ams_id).set(float(humidity))
                 except (TypeError, ValueError):
                     pass
+            humidity_index = self._extract_ams_humidity_index(ams)
+            if humidity_index is not None:
+                self.ams_unit_humidity_index.labels(**labels, ams_id=ams_id).set(humidity_index)
+
             temp = ams.get("temp")
             if isinstance(temp, (int, float, str)):
                 try:
@@ -262,12 +317,16 @@ class ExporterMetrics:
                     1.0 if tray_id == active_id else 0.0
                 )
                 remain = tray.get("remain")
-                if isinstance(remain, (int, float)):
-                    self.ams_slot_remaining_percent.labels(
-                        **labels, ams_id=ams_id, slot_id=tray_id
-                    ).set(float(remain))
+                if isinstance(remain, (int, float, str)):
+                    try:
+                        self.ams_slot_remaining_percent.labels(
+                            **labels, ams_id=ams_id, slot_id=tray_id
+                        ).set(float(remain))
+                    except (TypeError, ValueError):
+                        pass
 
-                tray_type = str(tray.get("tray_type", "")).strip() or "unknown"
+                tray_type_raw = tray.get("tray_type", tray.get("ctype", ""))
+                tray_type = str(tray_type_raw).strip() or "unknown"
                 self.ams_slot_tray_type.labels(
                     **labels, ams_id=ams_id, slot_id=tray_id, tray_type=tray_type
                 ).set(1.0)
@@ -277,6 +336,13 @@ class ExporterMetrics:
                     **labels, ams_id=ams_id, slot_id=tray_id, tray_color=tray_color
                 ).set(1.0)
 
+                k_value = tray.get("k")
+                if isinstance(k_value, (int, float, str)):
+                    try:
+                        self.ams_slot_k_value.labels(**labels, ams_id=ams_id, slot_id=tray_id).set(float(k_value))
+                    except (TypeError, ValueError):
+                        pass
+
     def _set_optional(self, gauge: Gauge, value: float | None) -> None:
         labels = self._labels()
         if value is None:
@@ -284,12 +350,28 @@ class ExporterMetrics:
             return
         gauge.labels(**labels).set(value)
 
+    @staticmethod
+    def _extract_ams_humidity_index(ams: dict[str, object]) -> float | None:
+        for key in ("humidity_index", "humidity_level", "humidityIndex", "humidityLevel"):
+            raw_value = ams.get(key)
+            if not isinstance(raw_value, (int, float, str)):
+                continue
+            try:
+                parsed = float(raw_value)
+            except (TypeError, ValueError):
+                continue
+            if math.isfinite(parsed):
+                return parsed
+        return None
+
     def _clear_ams(self, labels: dict[str, str]) -> None:
         self.ams_slot_active.clear()
         self.ams_slot_remaining_percent.clear()
         self.ams_slot_tray_type.clear()
         self.ams_slot_tray_color.clear()
+        self.ams_slot_k_value.clear()
         self.ams_unit_humidity.clear()
+        self.ams_unit_humidity_index.clear()
         self.ams_unit_temperature_celsius.clear()
 
     def mark_scrape(self, duration_seconds: float, success: bool, now_ts: float | None = None) -> None:

@@ -9,16 +9,41 @@
     }
   ],
   "__requires": [
-    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.0.0" },
-    { "type": "panel", "id": "stat", "name": "Stat", "version": "" },
-    { "type": "panel", "id": "timeseries", "name": "Time series", "version": "" },
-    { "type": "panel", "id": "gauge", "name": "Gauge", "version": "" },
-    { "type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "" }
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "10.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "stat",
+      "name": "Stat",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "timeseries",
+      "name": "Time series",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "gauge",
+      "name": "Gauge",
+      "version": ""
+    },
+    {
+      "type": "datasource",
+      "id": "prometheus",
+      "name": "Prometheus",
+      "version": ""
+    }
   ],
   "title": "Bambu Lab Printer Overview",
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 2,
+  "version": 3,
   "refresh": "10s",
   "templating": {
     "list": [
@@ -27,18 +52,29 @@
         "type": "datasource",
         "query": "prometheus",
         "label": "Datasource",
-        "current": { "selected": true, "text": "Prometheus", "value": "${DS_PROMETHEUS}" }
+        "current": {
+          "selected": true,
+          "text": "Prometheus",
+          "value": "${DS_PROMETHEUS}"
+        }
       },
       {
         "name": "printer",
         "type": "query",
         "label": "Printer",
-        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
         "query": "label_values(bambulab_printer_up, printer_name)",
         "includeAll": true,
         "multi": false,
         "refresh": 2,
-        "current": { "selected": true, "text": "All", "value": "$__all" }
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        }
       }
     ]
   },
@@ -46,89 +82,400 @@
     {
       "type": "stat",
       "title": "Printer Up",
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "targets": [{ "expr": "max(bambulab_printer_up{printer_name=~\"${printer:regex}\"})" }],
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 }
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "expr": "max(bambulab_printer_up{printer_name=~\"${printer:regex}\"})"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      }
     },
     {
       "type": "stat",
       "title": "Connected",
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "targets": [{ "expr": "max(bambulab_printer_connected{printer_name=~\"${printer:regex}\"})" }],
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 }
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "expr": "max(bambulab_printer_connected{printer_name=~\"${printer:regex}\"})"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      }
     },
     {
       "type": "stat",
       "title": "WiFi Signal",
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "targets": [{ "expr": "max(bambulab_wifi_signal{printer_name=~\"${printer:regex}\"})" }],
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 }
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "expr": "max(bambulab_wifi_signal{printer_name=~\"${printer:regex}\"})"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      }
     },
     {
       "type": "gauge",
       "title": "Progress %",
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "targets": [{ "expr": "max(bambulab_print_progress_percent{printer_name=~\"${printer:regex}\"})" }],
-      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 4 }
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "expr": "max(bambulab_print_progress_percent{printer_name=~\"${printer:regex}\"})"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 4
+      }
     },
     {
       "type": "stat",
       "title": "Remaining (min)",
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "targets": [{ "expr": "max(bambulab_print_remaining_seconds{printer_name=~\"${printer:regex}\"}) / 60" }],
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 4 }
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "expr": "max(bambulab_print_remaining_seconds{printer_name=~\"${printer:regex}\"}) / 60"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 4
+      }
     },
     {
       "type": "stat",
       "title": "Layer",
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
       "targets": [
-        { "expr": "max(bambulab_print_layer_current{printer_name=~\"${printer:regex}\"})", "refId": "A" },
-        { "expr": "max(bambulab_print_layer_total{printer_name=~\"${printer:regex}\"})", "refId": "B" }
+        {
+          "expr": "max(bambulab_print_layer_current{printer_name=~\"${printer:regex}\"})",
+          "refId": "A"
+        },
+        {
+          "expr": "max(bambulab_print_layer_total{printer_name=~\"${printer:regex}\"})",
+          "refId": "B"
+        }
       ],
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 4 }
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 4
+      }
     },
     {
       "type": "timeseries",
       "title": "Temperatures",
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
       "targets": [
-        { "expr": "bambulab_nozzle_temperature_celsius{printer_name=~\"${printer:regex}\"}", "legendFormat": "nozzle {{printer_name}}" },
-        { "expr": "bambulab_bed_temperature_celsius{printer_name=~\"${printer:regex}\"}", "legendFormat": "bed {{printer_name}}" },
-        { "expr": "bambulab_chamber_temperature_celsius{printer_name=~\"${printer:regex}\"}", "legendFormat": "chamber {{printer_name}}" }
+        {
+          "expr": "bambulab_nozzle_temperature_celsius{printer_name=~\"${printer:regex}\"}",
+          "legendFormat": "nozzle {{printer_name}}"
+        },
+        {
+          "expr": "bambulab_bed_temperature_celsius{printer_name=~\"${printer:regex}\"}",
+          "legendFormat": "bed {{printer_name}}"
+        },
+        {
+          "expr": "bambulab_chamber_temperature_celsius{printer_name=~\"${printer:regex}\"}",
+          "legendFormat": "chamber {{printer_name}}"
+        }
       ],
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 }
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      }
     },
     {
       "type": "timeseries",
       "title": "Fans %",
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
       "targets": [
-        { "expr": "bambulab_fan_big_1_speed_percent{printer_name=~\"${printer:regex}\"}", "legendFormat": "big1 {{printer_name}}" },
-        { "expr": "bambulab_fan_big_2_speed_percent{printer_name=~\"${printer:regex}\"}", "legendFormat": "big2 {{printer_name}}" },
-        { "expr": "bambulab_fan_cooling_speed_percent{printer_name=~\"${printer:regex}\"}", "legendFormat": "cooling {{printer_name}}" },
-        { "expr": "bambulab_fan_heatbreak_speed_percent{printer_name=~\"${printer:regex}\"}", "legendFormat": "heatbreak {{printer_name}}" }
+        {
+          "expr": "bambulab_fan_big_1_speed_percent{printer_name=~\"${printer:regex}\"}",
+          "legendFormat": "big1 {{printer_name}}"
+        },
+        {
+          "expr": "bambulab_fan_big_2_speed_percent{printer_name=~\"${printer:regex}\"}",
+          "legendFormat": "big2 {{printer_name}}"
+        },
+        {
+          "expr": "bambulab_fan_cooling_speed_percent{printer_name=~\"${printer:regex}\"}",
+          "legendFormat": "cooling {{printer_name}}"
+        },
+        {
+          "expr": "bambulab_fan_heatbreak_speed_percent{printer_name=~\"${printer:regex}\"}",
+          "legendFormat": "heatbreak {{printer_name}}"
+        }
       ],
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 }
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      }
     },
     {
       "type": "timeseries",
       "title": "AMS Humidity / Temp",
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
       "targets": [
-        { "expr": "bambulab_ams_unit_humidity{printer_name=~\"${printer:regex}\"}", "legendFormat": "humidity ams{{ams_id}} {{printer_name}}" },
-        { "expr": "bambulab_ams_unit_temperature_celsius{printer_name=~\"${printer:regex}\"}", "legendFormat": "temp ams{{ams_id}} {{printer_name}}" }
+        {
+          "expr": "bambulab_ams_unit_humidity{printer_name=~\"${printer:regex}\"}",
+          "legendFormat": "humidity ams{{ams_id}} {{printer_name}}"
+        },
+        {
+          "expr": "bambulab_ams_unit_temperature_celsius{printer_name=~\"${printer:regex}\"}",
+          "legendFormat": "temp ams{{ams_id}} {{printer_name}}"
+        }
       ],
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 }
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      }
     },
     {
       "type": "timeseries",
       "title": "XCam Feature Flags",
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
       "targets": [
-        { "expr": "bambulab_xcam_feature_enabled{printer_name=~\"${printer:regex}\"}", "legendFormat": "{{feature}} {{printer_name}}" }
+        {
+          "expr": "bambulab_xcam_feature_enabled{printer_name=~\"${printer:regex}\"}",
+          "legendFormat": "{{feature}} {{printer_name}}"
+        }
       ],
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 }
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 20
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Usage Hours",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "expr": "max(bambulab_usage_hours_total{printer_name=~\"${printer:regex}\"})"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Door Open",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "expr": "max(bambulab_door_open{printer_name=~\"${printer:regex}\"})"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Filament Loaded",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "expr": "max(bambulab_filament_loaded{printer_name=~\"${printer:regex}\"})"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 8
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Timelapse Enabled",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "expr": "max(bambulab_timelapse_enabled{printer_name=~\"${printer:regex}\"})"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 8
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Stage ID",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "expr": "max(bambulab_stg_cur{printer_name=~\"${printer:regex}\"})"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 8
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "AMS Slot Remaining %",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "expr": "bambulab_ams_slot_remaining_percent{printer_name=~\"${printer:regex}\"}",
+          "legendFormat": "ams{{ams_id}} slot{{slot_id}} {{printer_name}}"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "AMS Slot K Value",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "expr": "bambulab_ams_slot_k_value{printer_name=~\"${printer:regex}\"}",
+          "legendFormat": "ams{{ams_id}} slot{{slot_id}} {{printer_name}}"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 28
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Print Stage Info",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "expr": "bambulab_print_stage_info{printer_name=~\"${printer:regex}\"}",
+          "legendFormat": "{{stage}} {{printer_name}}"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 36
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "AMS Humidity Index",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "expr": "bambulab_ams_unit_humidity_index{printer_name=~\"${printer:regex}\"}",
+          "legendFormat": "humidity index ams{{ams_id}} {{printer_name}}"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 44
+      }
     }
   ]
 }
