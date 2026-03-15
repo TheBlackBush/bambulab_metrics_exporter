@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.16] - 2026-03-15
+
+### Removed
+- Removed `bambulab_ams_slot_k_value{ams_id,slot_id}` metric (MQTT payloads do not reliably provide this field in current setup).
+- Removed the related Grafana panel and README references.
+
+### Tests
+- Updated AMS tests to focus on `remain` parsing and tray type fallback without K-value assumptions.
+
 ## [0.1.15] - 2026-03-15
 
 ### Fixed

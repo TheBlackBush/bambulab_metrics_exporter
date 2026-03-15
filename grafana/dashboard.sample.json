@@ -419,26 +419,6 @@
     },
     {
       "type": "timeseries",
-      "title": "AMS Slot K Value",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "targets": [
-        {
-          "expr": "bambulab_ams_slot_k_value{printer_name=~\"${printer:regex}\"}",
-          "legendFormat": "ams{{ams_id}} slot{{slot_id}} {{printer_name}}"
-        }
-      ],
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 28
-      }
-    },
-    {
-      "type": "timeseries",
       "title": "Print Stage Info",
       "datasource": {
         "type": "prometheus",

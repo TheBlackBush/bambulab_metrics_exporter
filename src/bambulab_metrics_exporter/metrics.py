@@ -105,12 +105,6 @@ class ExporterMetrics:
             [*label_names, "ams_id", "slot_id", "tray_color"],
             registry=self.registry,
         )
-        self.ams_slot_k_value = Gauge(
-            "bambulab_ams_slot_k_value",
-            "AMS slot pressure advance (k value)",
-            [*label_names, "ams_id", "slot_id"],
-            registry=self.registry,
-        )
         self.ams_unit_humidity = Gauge(
             "bambulab_ams_unit_humidity",
             "AMS unit humidity",
@@ -343,16 +337,6 @@ class ExporterMetrics:
                     **labels, ams_id=ams_id, slot_id=tray_id, tray_color=tray_color
                 ).set(1.0)
 
-                k_value = tray.get("k")
-                if not isinstance(k_value, (int, float, str)):
-                    k_value = tray.get("k_value")
-                if not isinstance(k_value, (int, float, str)):
-                    k_value = tray.get("K")
-                if isinstance(k_value, (int, float, str)):
-                    try:
-                        self.ams_slot_k_value.labels(**labels, ams_id=ams_id, slot_id=tray_id).set(float(k_value))
-                    except (TypeError, ValueError):
-                        pass
 
     def _set_optional(self, gauge: Gauge, value: float | None) -> None:
         labels = self._labels()
@@ -379,7 +363,6 @@ class ExporterMetrics:
         self.ams_slot_remaining_percent.clear()
         self.ams_slot_tray_type.clear()
         self.ams_slot_tray_color.clear()
-        self.ams_slot_k_value.clear()
         self.ams_unit_humidity.clear()
         self.ams_unit_humidity_index.clear()
         self.ams_unit_temperature_celsius.clear()

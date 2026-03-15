@@ -147,12 +147,6 @@ scrape_configs:
 
 ### AMS metrics (new in v0.1.14)
 
-- Current AMS K values by slot:
-
-```promql
-bambulab_ams_slot_k_value{printer_name="$printer"}
-```
-
 - Average humidity index per AMS unit over 15 minutes:
 
 ```promql
@@ -220,7 +214,6 @@ labels:
 - `bambulab_ams_slot_remaining_percent{ams_id,slot_id}`
 - `bambulab_ams_slot_tray_type_info{ams_id,slot_id,tray_type}`
 - `bambulab_ams_slot_tray_color_info{ams_id,slot_id,tray_color}`
-- `bambulab_ams_slot_k_value{ams_id,slot_id}`
 
 - `bambulab_fan_big_1_speed_percent`
 - `bambulab_fan_big_2_speed_percent`
