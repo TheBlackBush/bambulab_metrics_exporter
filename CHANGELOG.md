@@ -8,18 +8,12 @@ All notable changes to this project are documented in this file.
 > Publish tag/release when ready.
 
 ### Added
-- Decoded flag-state metrics:
-  - `bambulab_home_flag_state{flag}`
-  - `bambulab_stat_flag_state{flag}`
 - Dedicated high-value flag metrics:
   - `bambulab_wired_network`
   - `bambulab_camera_recording`
   - `bambulab_ams_auto_switch`
   - `bambulab_filament_tangle_detected`
   - `bambulab_filament_tangle_detect_supported`
-- Grafana panels:
-  - `Home Flag States`
-  - `Stat Flag States`
 - Alert + recording additions:
   - `BambuSdCardAbnormal`
   - `bambulab:sdcard_abnormal:latest`
@@ -35,6 +29,8 @@ All notable changes to this project are documented in this file.
   - `bambulab_usage_hours_total`
   - `bambulab_filament_loaded`
   - `bambulab_timelapse_enabled`
+  - `bambulab_fan_speed_percent`
+  - `bambulab_fan_gear`
 - Removed `bambulab_ams_slot_k_value{ams_id,slot_id}` and related dashboard/docs references.
 
 ## [0.1.14] - 2026-03-15

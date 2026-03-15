@@ -29,8 +29,6 @@ class ExporterMetrics:
         self.bed_temp = Gauge("bambulab_bed_temperature_celsius", "Bed temperature", label_names, registry=self.registry)
         self.bed_target_temp = Gauge("bambulab_bed_target_temperature_celsius", "Bed target temperature", label_names, registry=self.registry)
         self.chamber_temp = Gauge("bambulab_chamber_temperature_celsius", "Chamber temperature", label_names, registry=self.registry)
-        self.fan_speed = Gauge("bambulab_fan_speed_percent", "Fan speed percent", label_names, registry=self.registry)
-        self.fan_gear = Gauge("bambulab_fan_gear", "Raw fan_gear value from MQTT", label_names, registry=self.registry)
         self.fan_big_1_speed = Gauge("bambulab_fan_big_1_speed_percent", "Big fan 1 speed percent", label_names, registry=self.registry)
         self.fan_big_2_speed = Gauge("bambulab_fan_big_2_speed_percent", "Big fan 2 speed percent", label_names, registry=self.registry)
         self.fan_cooling_speed = Gauge("bambulab_fan_cooling_speed_percent", "Cooling fan speed percent", label_names, registry=self.registry)
@@ -131,18 +129,6 @@ class ExporterMetrics:
             [*label_names, "status"],
             registry=self.registry,
         )
-        self.home_flag_state = Gauge(
-            "bambulab_home_flag_state",
-            "Decoded home_flag bit states (1=true,0=false)",
-            [*label_names, "flag"],
-            registry=self.registry,
-        )
-        self.stat_flag_state = Gauge(
-            "bambulab_stat_flag_state",
-            "Decoded stat bit states (1=true,0=false)",
-            [*label_names, "flag"],
-            registry=self.registry,
-        )
         self.door_open = Gauge("bambulab_door_open", "1 if printer door is open", label_names, registry=self.registry)
         self.wired_network = Gauge("bambulab_wired_network", "1 if wired network flag is set", label_names, registry=self.registry)
         self.camera_recording = Gauge("bambulab_camera_recording", "1 if camera recording flag is set", label_names, registry=self.registry)
@@ -198,8 +184,6 @@ class ExporterMetrics:
         self._set_optional(self.bed_temp, snapshot.bed_temp)
         self._set_optional(self.bed_target_temp, snapshot.bed_target_temp)
         self._set_optional(self.chamber_temp, snapshot.chamber_temp)
-        self._set_optional(self.fan_speed, snapshot.fan_gear)
-        self._set_optional(self.fan_gear, snapshot.fan_gear_raw)
         self._set_optional(self.fan_big_1_speed, snapshot.fan_big_1_percent)
         self._set_optional(self.fan_big_2_speed, snapshot.fan_big_2_percent)
         self._set_optional(self.fan_cooling_speed, snapshot.fan_cooling_percent)
@@ -292,16 +276,6 @@ class ExporterMetrics:
         self.sdcard_status_info.clear()
         if snapshot.sdcard_status:
             self.sdcard_status_info.labels(**labels, status=snapshot.sdcard_status).set(1.0)
-
-        self.home_flag_state.clear()
-        for flag, flag_state in snapshot.home_flags.items():
-            if flag_state is not None:
-                self.home_flag_state.labels(**labels, flag=flag).set(1.0 if flag_state else 0.0)
-
-        self.stat_flag_state.clear()
-        for flag, flag_state in snapshot.stat_flags.items():
-            if flag_state is not None:
-                self.stat_flag_state.labels(**labels, flag=flag).set(1.0 if flag_state else 0.0)
 
         # Phase 3: Stage info
         self._set_optional(self.stg_cur, float(snapshot.stg_cur) if snapshot.stg_cur is not None else None)

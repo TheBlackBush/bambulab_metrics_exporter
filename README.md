@@ -206,12 +206,6 @@ labels:
 bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 ```
 
-- Full decoded home/stat flags for diagnostics:
-
-```promql
-bambulab_home_flag_state{printer_name="$printer"}
-bambulab_stat_flag_state{printer_name="$printer"}
-```
 
 ## Exported metrics (core)
 
@@ -222,7 +216,6 @@ bambulab_stat_flag_state{printer_name="$printer"}
 - `bambulab_nozzle_temperature_celsius`
 - `bambulab_bed_temperature_celsius`
 - `bambulab_chamber_temperature_celsius`
-- `bambulab_fan_speed_percent`
 - `bambulab_printer_error`
 - `bambulab_printer_error_code`
 - `bambulab_printer_gcode_state{state="..."}` (one-hot)
@@ -257,14 +250,11 @@ bambulab_stat_flag_state{printer_name="$printer"}
 - `bambulab_queue_status`
 - `bambulab_queue_position`
 - `bambulab_print_error`
-- `bambulab_fan_gear`
 - `bambulab_nozzle_diameter`
 - `bambulab_spd_lvl`
 - `bambulab_spd_mag`
 - `bambulab_spd_lvl_state{mode="SILENT|STANDARD|SPORT|LUDICROUS|UNKNOWN"}`
 - `bambulab_sdcard_status_info{status}` (`present|abnormal|absent`)
-- `bambulab_home_flag_state{flag}`
-- `bambulab_stat_flag_state{flag}`
 - `bambulab_door_open`
 - `bambulab_wired_network`
 - `bambulab_camera_recording`

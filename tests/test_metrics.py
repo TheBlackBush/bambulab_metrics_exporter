@@ -134,7 +134,6 @@ def test_metrics_full_update_with_ams_lights_xcam() -> None:
     assert metrics.printer_up.labels(**labels)._value.get() == 1.0
     assert metrics.chamber_light_on.labels(**labels)._value.get() == 1.0
     assert metrics.work_light_on.labels(**labels)._value.get() == 0.0
-    assert metrics.fan_gear.labels(**labels)._value.get() == 10.0
     assert metrics.nozzle_diameter.labels(**labels)._value.get() == 0.4
     assert metrics.spd_lvl.labels(**labels)._value.get() == 3.0
     assert metrics.spd_mag.labels(**labels)._value.get() == 124.0
@@ -420,20 +419,6 @@ class TestSdcardStatus:
     def test_sdcard_from_bool(self) -> None:
         snap = _snap({"sdcard": True})
         assert snap.sdcard_status == "present"
-
-    def test_home_flag_state_metric(self) -> None:
-        m = ExporterMetrics(printer_name="test", serial="SN123")
-        m.update_from_snapshot(_snap({"home_flag": 0x00800300}))
-        labels: dict = {"printer_name": "test", "serial": "SN123"}
-        assert m.home_flag_state.labels(**labels, flag="door_open")._value.get() == 1.0
-        assert m.home_flag_state.labels(**labels, flag="sd_card_present")._value.get() == 1.0
-        assert m.home_flag_state.labels(**labels, flag="sd_card_abnormal")._value.get() == 1.0
-
-    def test_stat_flag_state_metric(self) -> None:
-        m = ExporterMetrics(printer_name="test", serial="SN123")
-        m.update_from_snapshot(_snap({"stat": "46A58008"}))
-        labels: dict = {"printer_name": "test", "serial": "SN123"}
-        assert m.stat_flag_state.labels(**labels, flag="door_open")._value.get() == 1.0
 
     def test_sdcard_from_home_flag(self) -> None:
         snap = _snap({"home_flag": 0x100})
