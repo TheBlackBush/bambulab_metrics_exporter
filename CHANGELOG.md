@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.12] - 2026-03-15
+
+### Added
+- `bambulab_usage_hours_total` metric for total printer usage hours.
+- `bambulab_sdcard_status_info` info metric for SD card status.
+- `bambulab_door_open` binary sensor (0/1) for door state.
+- `bambulab_filament_loaded` binary sensor (0/1) for extruder filament state.
+- `bambulab_timelapse_enabled` binary sensor (0/1) for timelapse recording.
+- `bambulab_stg_cur` numeric gauge for current print stage ID.
+- `bambulab_print_stage_info` info metric with human-readable stage name.
+- Stage ID mapping dictionary (0-35, 255) based on ha-bambulab analysis.
+
 ## [0.1.10] - 2026-03-14
 
 ### Added

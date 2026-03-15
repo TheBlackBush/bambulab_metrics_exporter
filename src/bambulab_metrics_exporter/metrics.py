@@ -116,6 +116,27 @@ class ExporterMetrics:
             registry=self.registry,
         )
 
+        # Phase 1: New metrics
+        self.usage_hours = Gauge("bambulab_usage_hours_total", "Total printer usage hours", label_names, registry=self.registry)
+        self.sdcard_status_info = Gauge(
+            "bambulab_sdcard_status_info",
+            "SD card status as labeled info metric",
+            [*label_names, "status"],
+            registry=self.registry,
+        )
+        self.door_open = Gauge("bambulab_door_open", "1 if printer door is open", label_names, registry=self.registry)
+        self.filament_loaded = Gauge("bambulab_filament_loaded", "1 if filament is loaded in extruder", label_names, registry=self.registry)
+        self.timelapse_enabled = Gauge("bambulab_timelapse_enabled", "1 if timelapse recording is enabled", label_names, registry=self.registry)
+
+        # Phase 3: Stage info
+        self.stg_cur = Gauge("bambulab_stg_cur", "Current print stage numeric ID", label_names, registry=self.registry)
+        self.print_stage_info = Gauge(
+            "bambulab_print_stage_info",
+            "Current print stage as labeled info metric",
+            [*label_names, "stage"],
+            registry=self.registry,
+        )
+
         self.scrape_duration_seconds = Gauge(
             "bambulab_exporter_scrape_duration_seconds",
             "Duration of last polling cycle",
@@ -237,6 +258,22 @@ class ExporterMetrics:
         self.printer_model_info.clear()
         if snapshot.model_name:
             self.printer_model_info.labels(**labels, model=snapshot.model_name).set(1.0)
+
+        # Phase 1 metrics
+        self._set_optional(self.usage_hours, snapshot.usage_hours)
+        self._set_optional(self.door_open, snapshot.door_open)
+        self._set_optional(self.filament_loaded, snapshot.filament_loaded)
+        self._set_optional(self.timelapse_enabled, snapshot.timelapse_enabled)
+
+        self.sdcard_status_info.clear()
+        if snapshot.sdcard_status:
+            self.sdcard_status_info.labels(**labels, status=snapshot.sdcard_status).set(1.0)
+
+        # Phase 3: Stage info
+        self._set_optional(self.stg_cur, float(snapshot.stg_cur) if snapshot.stg_cur is not None else None)
+        self.print_stage_info.clear()
+        if snapshot.stg_cur_name:
+            self.print_stage_info.labels(**labels, stage=snapshot.stg_cur_name).set(1.0)
 
         self._clear_ams(labels)
         for ams in snapshot.ams_units:
