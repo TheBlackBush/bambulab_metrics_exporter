@@ -216,7 +216,6 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 - `bambulab_nozzle_temperature_celsius`
 - `bambulab_bed_temperature_celsius`
 - `bambulab_chamber_temperature_celsius`
-- `bambulab_fan_speed_percent`
 - `bambulab_printer_error`
 - `bambulab_printer_error_code`
 - `bambulab_printer_gcode_state{state="..."}` (one-hot)
@@ -251,7 +250,6 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 - `bambulab_queue_status`
 - `bambulab_queue_position`
 - `bambulab_print_error`
-- `bambulab_fan_gear`
 - `bambulab_nozzle_diameter`
 - `bambulab_spd_lvl`
 - `bambulab_spd_mag`

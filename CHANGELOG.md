@@ -29,6 +29,8 @@ All notable changes to this project are documented in this file.
   - `bambulab_usage_hours_total`
   - `bambulab_filament_loaded`
   - `bambulab_timelapse_enabled`
+  - `bambulab_fan_speed_percent`
+  - `bambulab_fan_gear`
 - Removed `bambulab_ams_slot_k_value{ams_id,slot_id}` and related dashboard/docs references.
 
 ## [0.1.14] - 2026-03-15

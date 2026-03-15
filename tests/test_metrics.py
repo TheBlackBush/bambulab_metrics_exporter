@@ -134,7 +134,6 @@ def test_metrics_full_update_with_ams_lights_xcam() -> None:
     assert metrics.printer_up.labels(**labels)._value.get() == 1.0
     assert metrics.chamber_light_on.labels(**labels)._value.get() == 1.0
     assert metrics.work_light_on.labels(**labels)._value.get() == 0.0
-    assert metrics.fan_gear.labels(**labels)._value.get() == 10.0
     assert metrics.nozzle_diameter.labels(**labels)._value.get() == 0.4
     assert metrics.spd_lvl.labels(**labels)._value.get() == 3.0
     assert metrics.spd_mag.labels(**labels)._value.get() == 124.0
