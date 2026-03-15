@@ -8,16 +8,12 @@ All notable changes to this project are documented in this file.
 > Publish tag/release when ready.
 
 ### Added
-- Decoded stat flag-state metric:
-  - `bambulab_stat_flag_state{flag}`
 - Dedicated high-value flag metrics:
   - `bambulab_wired_network`
   - `bambulab_camera_recording`
   - `bambulab_ams_auto_switch`
   - `bambulab_filament_tangle_detected`
   - `bambulab_filament_tangle_detect_supported`
-- Grafana panel:
-  - `Stat Flag States`
 - Alert + recording additions:
   - `BambuSdCardAbnormal`
   - `bambulab:sdcard_abnormal:latest`

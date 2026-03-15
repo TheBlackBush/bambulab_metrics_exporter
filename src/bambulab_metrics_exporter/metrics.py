@@ -131,12 +131,6 @@ class ExporterMetrics:
             [*label_names, "status"],
             registry=self.registry,
         )
-        self.stat_flag_state = Gauge(
-            "bambulab_stat_flag_state",
-            "Decoded stat bit states (1=true,0=false)",
-            [*label_names, "flag"],
-            registry=self.registry,
-        )
         self.door_open = Gauge("bambulab_door_open", "1 if printer door is open", label_names, registry=self.registry)
         self.wired_network = Gauge("bambulab_wired_network", "1 if wired network flag is set", label_names, registry=self.registry)
         self.camera_recording = Gauge("bambulab_camera_recording", "1 if camera recording flag is set", label_names, registry=self.registry)
@@ -286,11 +280,6 @@ class ExporterMetrics:
         self.sdcard_status_info.clear()
         if snapshot.sdcard_status:
             self.sdcard_status_info.labels(**labels, status=snapshot.sdcard_status).set(1.0)
-
-        self.stat_flag_state.clear()
-        for flag, flag_state in snapshot.stat_flags.items():
-            if flag_state is not None:
-                self.stat_flag_state.labels(**labels, flag=flag).set(1.0 if flag_state else 0.0)
 
         # Phase 3: Stage info
         self._set_optional(self.stg_cur, float(snapshot.stg_cur) if snapshot.stg_cur is not None else None)
