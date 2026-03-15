@@ -26,5 +26,4 @@ jobs:
         run: |
           python -m compileall -q src tests
           ruff check src tests
-          # Run a fast smoke subset without enforcing global coverage threshold.
-          pytest -q --no-cov tests/test_api.py tests/test_config.py tests/test_models.py tests/test_metrics.py
+          pytest -q
