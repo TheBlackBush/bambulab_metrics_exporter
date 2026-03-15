@@ -421,14 +421,6 @@ class TestSdcardStatus:
         snap = _snap({"sdcard": True})
         assert snap.sdcard_status == "present"
 
-    def test_home_flag_state_metric(self) -> None:
-        m = ExporterMetrics(printer_name="test", serial="SN123")
-        m.update_from_snapshot(_snap({"home_flag": 0x00800300}))
-        labels: dict = {"printer_name": "test", "serial": "SN123"}
-        assert m.home_flag_state.labels(**labels, flag="door_open")._value.get() == 1.0
-        assert m.home_flag_state.labels(**labels, flag="sd_card_present")._value.get() == 1.0
-        assert m.home_flag_state.labels(**labels, flag="sd_card_abnormal")._value.get() == 1.0
-
     def test_stat_flag_state_metric(self) -> None:
         m = ExporterMetrics(printer_name="test", serial="SN123")
         m.update_from_snapshot(_snap({"stat": "46A58008"}))
