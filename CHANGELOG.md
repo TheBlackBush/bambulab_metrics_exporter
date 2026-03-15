@@ -2,10 +2,9 @@
 
 All notable changes to this project are documented in this file.
 
-## [0.1.21] - 2026-03-15
+## [0.1.22] - 2026-03-15
 
-> Note: This version is the latest application version in the repository history after recent changes.
-> Publish tag/release when ready.
+> Note: This version includes the latest cleanup changes after `v0.1.21`. Publish tag/release when ready.
 
 ### Added
 - Dedicated high-value flag metrics:
