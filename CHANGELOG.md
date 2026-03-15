@@ -5,13 +5,13 @@ All notable changes to this project are documented in this file.
 ## [0.1.15] - 2026-03-15
 
 ### Fixed
-- Corrected AMS humidity field mapping:
-  - `bambulab_ams_unit_humidity_index{ams_id}` now maps to MQTT humidity/index values (prefers explicit index keys, falls back to `humidity`).
-  - `bambulab_ams_unit_humidity{ams_id}` now maps to MQTT `humidity_raw` when present (falls back to `humidity` for older payloads).
+- Corrected AMS humidity field mapping (strict MQTT semantics):
+  - `bambulab_ams_unit_humidity_index{ams_id}` now maps only to MQTT `humidity` (range-limited to 1..5).
+  - `bambulab_ams_unit_humidity{ams_id}` now maps only to MQTT `humidity_raw` (range-limited to 1..100).
 - Improved AMS slot K-value extraction with fallback keys: `k`, `k_value`, `K`.
 
 ### Tests
-- Added coverage for humidity mapping (`humidity_raw` vs `humidity`) and K-value fallback keys.
+- Added coverage for strict humidity mapping (`humidity` index vs `humidity_raw`) and K-value fallback keys.
 
 ## [0.1.14] - 2026-03-15
 

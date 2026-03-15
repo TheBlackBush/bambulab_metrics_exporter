@@ -293,13 +293,10 @@ class ExporterMetrics:
         for ams in snapshot.ams_units:
             ams_id = str(ams.get("id", "0"))
 
-            # MQTT mapping:
-            # - humidity_index metric should follow the normalized/index humidity field
-            # - humidity metric should follow raw humidity when available
+            # Strict MQTT mapping:
+            # - humidity_index metric follows MQTT "humidity" (index 1..5)
+            # - humidity metric follows MQTT "humidity_raw" (raw % 1..100)
             humidity_raw = ams.get("humidity_raw")
-            if not isinstance(humidity_raw, (int, float, str)):
-                # Backward compatibility for payloads that only expose "humidity"
-                humidity_raw = ams.get("humidity")
             if isinstance(humidity_raw, (int, float, str)):
                 try:
                     humidity_raw_value = float(humidity_raw)
@@ -366,17 +363,15 @@ class ExporterMetrics:
 
     @staticmethod
     def _extract_ams_humidity_index(ams: dict[str, object]) -> float | None:
-        # Prefer explicit index fields, then fall back to the common MQTT "humidity" field.
-        for key in ("humidity_index", "humidity_level", "humidityIndex", "humidityLevel", "humidity"):
-            raw_value = ams.get(key)
-            if not isinstance(raw_value, (int, float, str)):
-                continue
-            try:
-                parsed = float(raw_value)
-            except (TypeError, ValueError):
-                continue
-            if math.isfinite(parsed):
-                return parsed
+        raw_value = ams.get("humidity")
+        if not isinstance(raw_value, (int, float, str)):
+            return None
+        try:
+            parsed = float(raw_value)
+        except (TypeError, ValueError):
+            return None
+        if math.isfinite(parsed):
+            return parsed
         return None
 
     def _clear_ams(self, labels: dict[str, str]) -> None:
