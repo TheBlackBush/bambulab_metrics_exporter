@@ -44,8 +44,20 @@ class ExporterMetrics:
         self.wifi_signal = Gauge("bambulab_wifi_signal", "WiFi signal value from printer telemetry", label_names, registry=self.registry)
         self.online_ahb = Gauge("bambulab_online_ahb", "AHB online flag", label_names, registry=self.registry)
         self.online_ext = Gauge("bambulab_online_ext", "External online flag", label_names, registry=self.registry)
-        self.ams_status = Gauge("bambulab_ams_status", "AMS status numeric code", label_names, registry=self.registry)
-        self.ams_rfid_status = Gauge("bambulab_ams_rfid_status", "AMS RFID status numeric code", label_names, registry=self.registry)
+        self.ams_status_id = Gauge("bambulab_ams_status_id", "AMS status numeric code", label_names, registry=self.registry)
+        self.ams_status_name_info = Gauge(
+            "bambulab_ams_status_name",
+            "AMS status as labeled info metric",
+            [*label_names, "status"],
+            registry=self.registry,
+        )
+        self.ams_rfid_status_id = Gauge("bambulab_ams_rfid_status_id", "AMS RFID status numeric code", label_names, registry=self.registry)
+        self.ams_rfid_status_name_info = Gauge(
+            "bambulab_ams_rfid_status_name",
+            "AMS RFID status as labeled info metric",
+            [*label_names, "status"],
+            registry=self.registry,
+        )
         self.queue_total = Gauge("bambulab_queue_total", "Total queued jobs", label_names, registry=self.registry)
         self.queue_est = Gauge("bambulab_queue_estimated_seconds", "Estimated queue time seconds", label_names, registry=self.registry)
         self.queue_number = Gauge("bambulab_queue_number", "Queue number", label_names, registry=self.registry)
@@ -195,8 +207,14 @@ class ExporterMetrics:
         self._set_optional(self.wifi_signal, snapshot.wifi_signal)
         self._set_optional(self.online_ahb, snapshot.online_ahb)
         self._set_optional(self.online_ext, snapshot.online_ext)
-        self._set_optional(self.ams_status, snapshot.ams_status)
-        self._set_optional(self.ams_rfid_status, snapshot.ams_rfid_status)
+        self._set_optional(self.ams_status_id, snapshot.ams_status)
+        self.ams_status_name_info.clear()
+        if snapshot.ams_status_name is not None:
+            self.ams_status_name_info.labels(**labels, status=snapshot.ams_status_name).set(1.0)
+        self._set_optional(self.ams_rfid_status_id, snapshot.ams_rfid_status)
+        self.ams_rfid_status_name_info.clear()
+        if snapshot.ams_rfid_status_name is not None:
+            self.ams_rfid_status_name_info.labels(**labels, status=snapshot.ams_rfid_status_name).set(1.0)
         self._set_optional(self.queue_total, snapshot.queue_total)
         self._set_optional(self.queue_est, snapshot.queue_est)
         self._set_optional(self.queue_number, snapshot.queue_number)

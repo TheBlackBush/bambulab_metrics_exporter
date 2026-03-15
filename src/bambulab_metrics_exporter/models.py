@@ -12,6 +12,8 @@ from bambulab_metrics_exporter.flags import (
 
 
 X1_HOMEFLAG_MODELS = {"X1", "X1C"}
+
+# product_name → model (priority 1 in resolver)
 PRODUCT_NAME_TO_PRINTER: dict[str, str] = {
     "bambu lab a1": "A1",
     "bambu lab a1 mini": "A1MINI",
@@ -22,12 +24,83 @@ PRODUCT_NAME_TO_PRINTER: dict[str, str] = {
     "bambu lab h2d": "H2D",
     "bambu lab h2d pro": "H2DPRO",
     "bambu lab h2s": "H2S",
+    "bambu lab x1": "X1",
+    "bambu lab x1 carbon": "X1C",
+    "bambu lab x1e": "X1E",
+}
+
+# (hw_ver, project_name) → model (priority 2 in resolver, AP-module path)
+_HW_PROJECT_TO_PRINTER: dict[tuple[str, str], str] = {
+    ("AP02", ""): "X1E",
+    ("AP03", "N1"): "A1MINI",
+    ("AP04", "C11"): "P1P",
+    ("AP04", "C12"): "P1S",
+    ("AP05", "N2S"): "A1",
+    ("AP05", ""): "X1C",
+}
+
+# SN-prefix → model (priority 3 – only clearly confirmed prefixes)
+_SN_PREFIX_TO_PRINTER: dict[str, str] = {
+    "00W": "X1C",
+    "00M": "X1C",
+    "01S": "P1S",
+    "01P": "P1P",
+    "030": "A1MINI",
+    "036": "A1",
+}
+
+# legacy device.type → model (priority 4)
+_DEVICE_TYPE_TO_PRINTER: dict[int, str] = {
+    0: "X1",
+    1: "X1C",
+    2: "P1P",
+    3: "P1S",
+    4: "A1",
+    5: "A1MINI",
 }
 
 
+# AMS status code → human-readable name (from synman parseAMSStatus)
+AMS_STATUS_NAMES: dict[int, str] = {
+    0: "idle",
+    1: "filament_change",
+    2: "rfid_identifying",
+    3: "assist",
+    4: "calibration",
+    0x100: "self_check",
+    0x200: "debug",
+    0xFF00: "unknown_device",
+}
+
+# AMS RFID status code → human-readable name (from synman parseRFIDStatus)
+AMS_RFID_STATUS_NAMES: dict[int, str] = {
+    0: "idle",
+    1: "reading",
+    2: "writing",
+    3: "identifying",
+    4: "close",
+    5: "unknown_rfid",
+}
+
+
+def _ams_status_name(code: int) -> str:
+    """Return human-readable AMS status name or 'unknown_<hex>' fallback."""
+    if code in AMS_STATUS_NAMES:
+        return AMS_STATUS_NAMES[code]
+    return f"unknown_{code}"
+
+
+def _ams_rfid_status_name(code: int) -> str:
+    """Return human-readable AMS RFID status name or 'unknown_<hex>' fallback."""
+    if code in AMS_RFID_STATUS_NAMES:
+        return AMS_RFID_STATUS_NAMES[code]
+    return f"unknown_{code}"
+
+
 STG_CUR_NAMES: dict[int, str] = {
+    -1: "idle",
     0: "printing",
-    1: "bed_leveling",
+    1: "auto_bed_leveling",
     2: "heatbed_preheating",
     3: "sweeping_xy_mech_mode",
     4: "changing_filament",
@@ -37,11 +110,11 @@ STG_CUR_NAMES: dict[int, str] = {
     8: "calibrating_extrusion",
     9: "scanning_bed_surface",
     10: "inspecting_first_layer",
-    11: "identifying_build_plate",
+    11: "identifying_build_plate_type",
     12: "calibrating_micro_lidar",
     13: "homing_toolhead",
     14: "cleaning_nozzle_tip",
-    15: "checking_extruder_temp",
+    15: "checking_extruder_temperature",
     16: "paused_user",
     17: "paused_front_cover",
     18: "calibrating_lidar",
@@ -57,13 +130,12 @@ STG_CUR_NAMES: dict[int, str] = {
     28: "filament_loading",
     29: "motor_noise_showoff",
     30: "pressure_advance_calibrating",
-    31: "auto_bed_leveling_wip",
+    31: "bed_leveling_wip",
     32: "change_cartridge",
     33: "vibration_compensation_calibrating",
     34: "standby",
     35: "idle",
     255: "unknown",
-    -1: "idle",
 }
 
 
@@ -130,12 +202,14 @@ class PrinterSnapshot:
 
     @property
     def printer_type(self) -> str | None:
+        # --- Step 1: product_name mapping ---
         modules = self.modules
         for mod in modules:
             mapped = PRODUCT_NAME_TO_PRINTER.get(_normalize_product_name(mod.get("product_name")))
             if mapped:
                 return mapped
 
+        # --- Step 2: hw_ver + project_name mapping ---
         ap_module = next(
             (
                 m
@@ -147,33 +221,27 @@ class PrinterSnapshot:
         if isinstance(ap_module, dict):
             hw_ver = str(ap_module.get("hw_ver", "")).strip().upper()
             project_name = str(ap_module.get("project_name", "")).strip().upper()
-            if hw_ver == "AP02":
-                return "X1E"
+            key = (hw_ver, project_name)
+            if key in _HW_PROJECT_TO_PRINTER:
+                return _HW_PROJECT_TO_PRINTER[key]
+            # fallback: project_name=N1 regardless of hw_ver
             if project_name == "N1":
                 return "A1MINI"
-            if hw_ver == "AP04":
-                if project_name == "C11":
-                    return "P1P"
-                if project_name == "C12":
-                    return "P1S"
-            if hw_ver == "AP05":
-                if project_name == "N2S":
-                    return "A1"
-                if project_name == "":
-                    return "X1C"
 
-        dtype = to_int(self.print_block.get("device", {}).get("type"))
-        mapping = {
-            0: "X1",
-            1: "X1C",
-            2: "P1P",
-            3: "P1S",
-            4: "A1",
-            5: "A1MINI",
-        }
-        if dtype in mapping:
-            return mapping[dtype]
+        # --- Step 3: SN-prefix mapping ---
+        sn = self.sn
+        if sn:
+            for prefix, model in _SN_PREFIX_TO_PRINTER.items():
+                if sn.upper().startswith(prefix.upper()):
+                    return model
 
+        # --- Step 4: legacy device.type ---
+        device = self.print_block.get("device")
+        dtype = to_int(device.get("type") if isinstance(device, dict) else None)
+        if dtype is not None and dtype in _DEVICE_TYPE_TO_PRINTER:
+            return _DEVICE_TYPE_TO_PRINTER[dtype]
+
+        # --- Step 5: model_id fallback ---
         model_id = self.print_block.get("model_id")
         if isinstance(model_id, str) and model_id.strip():
             return model_id.strip().upper().replace(" ", "")
@@ -336,9 +404,25 @@ class PrinterSnapshot:
         return float(value) if value is not None else None
 
     @property
+    def ams_status_name(self) -> str | None:
+        """Human-readable AMS status name, or 'unknown_<code>' for unknown codes."""
+        code = to_int(self.print_block.get("ams_status"))
+        if code is None:
+            return None
+        return _ams_status_name(code)
+
+    @property
     def ams_rfid_status(self) -> float | None:
         value = to_int(self.print_block.get("ams_rfid_status"))
         return float(value) if value is not None else None
+
+    @property
+    def ams_rfid_status_name(self) -> str | None:
+        """Human-readable AMS RFID status name, or 'unknown_<code>' for unknown codes."""
+        code = to_int(self.print_block.get("ams_rfid_status"))
+        if code is None:
+            return None
+        return _ams_rfid_status_name(code)
 
 
     @property

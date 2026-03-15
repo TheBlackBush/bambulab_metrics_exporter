@@ -287,3 +287,115 @@ def test_model_nozzle_temp_vt_tray_none() -> None:
 def test_model_name_none_when_absent() -> None:
     snap = PrinterSnapshot(connected=True, raw={})
     assert snap.name is None
+
+
+# ---------------------------------------------------------------------------
+# AMS status name mapping
+# ---------------------------------------------------------------------------
+
+def test_ams_status_name_known_codes() -> None:
+    from bambulab_metrics_exporter.models import AMS_STATUS_NAMES
+    for code, expected in AMS_STATUS_NAMES.items():
+        snap = PrinterSnapshot(connected=True, raw={"print": {"ams_status": code}})
+        assert snap.ams_status_name == expected, f"code {code}: expected {expected}, got {snap.ams_status_name}"
+
+
+def test_ams_status_name_unknown_code() -> None:
+    snap = PrinterSnapshot(connected=True, raw={"print": {"ams_status": 999}})
+    assert snap.ams_status_name == "unknown_999"
+
+
+def test_ams_status_name_none_when_missing() -> None:
+    snap = PrinterSnapshot(connected=True, raw={"print": {}})
+    assert snap.ams_status_name is None
+
+
+def test_ams_status_idle() -> None:
+    snap = PrinterSnapshot(connected=True, raw={"print": {"ams_status": 0}})
+    assert snap.ams_status == 0.0
+    assert snap.ams_status_name == "idle"
+
+
+def test_ams_status_filament_change() -> None:
+    snap = PrinterSnapshot(connected=True, raw={"print": {"ams_status": 1}})
+    assert snap.ams_status_name == "filament_change"
+
+
+# ---------------------------------------------------------------------------
+# AMS RFID status name mapping
+# ---------------------------------------------------------------------------
+
+def test_ams_rfid_status_name_known_codes() -> None:
+    from bambulab_metrics_exporter.models import AMS_RFID_STATUS_NAMES
+    for code, expected in AMS_RFID_STATUS_NAMES.items():
+        snap = PrinterSnapshot(connected=True, raw={"print": {"ams_rfid_status": code}})
+        assert snap.ams_rfid_status_name == expected, f"code {code}: expected {expected}, got {snap.ams_rfid_status_name}"
+
+
+def test_ams_rfid_status_name_unknown_code() -> None:
+    snap = PrinterSnapshot(connected=True, raw={"print": {"ams_rfid_status": 99}})
+    assert snap.ams_rfid_status_name == "unknown_99"
+
+
+def test_ams_rfid_status_name_none_when_missing() -> None:
+    snap = PrinterSnapshot(connected=True, raw={"print": {}})
+    assert snap.ams_rfid_status_name is None
+
+
+def test_ams_rfid_status_idle() -> None:
+    snap = PrinterSnapshot(connected=True, raw={"print": {"ams_rfid_status": 0}})
+    assert snap.ams_rfid_status == 0.0
+    assert snap.ams_rfid_status_name == "idle"
+
+
+def test_ams_rfid_status_reading() -> None:
+    snap = PrinterSnapshot(connected=True, raw={"print": {"ams_rfid_status": 1}})
+    assert snap.ams_rfid_status_name == "reading"
+
+
+# ---------------------------------------------------------------------------
+# Printer model resolver modernization
+# ---------------------------------------------------------------------------
+
+def test_printer_type_product_name_x1c() -> None:
+    snap = PrinterSnapshot(
+        connected=True,
+        raw={"module": [{"name": "ota", "product_name": "Bambu Lab X1 Carbon"}]},
+    )
+    assert snap.printer_type == "X1C"
+
+
+def test_printer_type_product_name_x1e() -> None:
+    snap = PrinterSnapshot(
+        connected=True,
+        raw={"module": [{"name": "ota", "product_name": "Bambu Lab X1E"}]},
+    )
+    assert snap.printer_type == "X1E"
+
+
+def test_printer_type_sn_prefix_x1c() -> None:
+    snap = PrinterSnapshot(connected=True, raw={"print": {"sn": "00M09D510900751"}})
+    assert snap.printer_type == "X1C"
+
+
+def test_printer_type_sn_prefix_p1s() -> None:
+    snap = PrinterSnapshot(connected=True, raw={"print": {"sn": "01S0FABCDE123"}})
+    assert snap.printer_type == "P1S"
+
+
+def test_printer_type_sn_prefix_a1mini() -> None:
+    snap = PrinterSnapshot(connected=True, raw={"print": {"sn": "030XYZABC"}})
+    assert snap.printer_type == "A1MINI"
+
+
+def test_printer_type_hw_project_a1mini() -> None:
+    snap = PrinterSnapshot(
+        connected=True,
+        raw={"module": [{"name": "esp32", "hw_ver": "AP03", "project_name": "N1"}]},
+    )
+    assert snap.printer_type == "A1MINI"
+
+
+def test_printer_type_device_type_p1p() -> None:
+    snap = PrinterSnapshot(connected=True, raw={"print": {"device": {"type": 2}}})
+    assert snap.printer_type == "P1P"

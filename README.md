@@ -239,8 +239,10 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 - `bambulab_wifi_signal`
 - `bambulab_online_ahb`
 - `bambulab_online_ext`
-- `bambulab_ams_status`
-- `bambulab_ams_rfid_status`
+- `bambulab_ams_status_id` — AMS status numeric code (renamed from `bambulab_ams_status`)
+- `bambulab_ams_status_name{status}` — AMS status as info metric (`idle|filament_change|rfid_identifying|assist|calibration|self_check|debug|unknown_device|unknown_<code>`)
+- `bambulab_ams_rfid_status_id` — AMS RFID status numeric code (renamed from `bambulab_ams_rfid_status`)
+- `bambulab_ams_rfid_status_name{status}` — AMS RFID status as info metric (`idle|reading|writing|identifying|close|unknown_rfid|unknown_<code>`)
 - `bambulab_ams_unit_humidity{ams_id}`
 - `bambulab_ams_unit_humidity_index{ams_id}`
 - `bambulab_ams_unit_temperature_celsius{ams_id}`
