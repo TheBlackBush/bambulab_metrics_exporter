@@ -36,3 +36,21 @@ groups:
         annotations:
           summary: "Nozzle temperature too high"
           description: "Nozzle temperature for {{ $labels.printer_name }} exceeded safe threshold."
+
+      - alert: BambuDoorOpenWhilePrinting
+        expr: bambulab_door_open == 1 and on(printer_name, serial) bambulab_printer_gcode_state{state="RUNNING"} == 1
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Printer door open during active print"
+          description: "Door sensor reports open while {{ $labels.printer_name }} is printing."
+
+      - alert: BambuExporterStale
+        expr: time() - bambulab_exporter_last_success_unixtime > 180
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Exporter has stale successful scrape"
+          description: "No successful scrape from {{ $labels.printer_name }} for more than 3 minutes."

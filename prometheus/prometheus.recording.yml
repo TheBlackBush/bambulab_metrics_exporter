@@ -19,3 +19,9 @@ groups:
 
       - record: bambulab:chamber_temp:avg5m
         expr: avg_over_time(bambulab_chamber_temperature_celsius[5m])
+
+      - record: bambulab:stage_id:latest
+        expr: last_over_time(bambulab_stg_cur[5m])
+
+      - record: bambulab:door_open:latest
+        expr: last_over_time(bambulab_door_open[5m])
