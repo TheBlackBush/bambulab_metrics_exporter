@@ -898,15 +898,19 @@ class TestAmsGen2DryingTelemetryAdditional:
         assert len(m.ams_dry_fan_status._metrics) == 0
         assert len(m.ams_dry_sub_status_info._metrics) == 0
 
-    def test_ams_info_string_does_not_emit_drying_metrics(self) -> None:
-        """Non-int ams_info should not emit drying metrics."""
+    def test_ams_info_string_emits_drying_metrics(self) -> None:
+        """String ams_info should be parsed and emit drying metrics."""
         m = self._m()
         snap = PrinterSnapshot(
             connected=True,
             raw={"print": {"ams": {"ams": [{"id": "0", "ams_info": "0x33"}]}}},
         )
         m.update_from_snapshot(snap)
-        assert len(m.ams_heater_state_info._metrics) == 0
+        labels = {"printer_name": "test", "serial": "SN123"}
+        v = m.ams_heater_state_info.labels(
+            **labels, ams_id="0", ams_model="ams_2_pro", ams_series="gen_2", state="3"
+        )._value.get()
+        assert v == 1.0
 
     def test_two_ams_units_both_emit_drying_metrics(self) -> None:
         """Both AMS units with ams_info should emit their own drying metrics."""

@@ -701,12 +701,17 @@ class TestAmsSerialPrefixEdgeCases:
 # ---------------------------------------------------------------------------
 
 class TestAmsInfoPrecedenceEdgeCases:
-    """Additional edge cases: ams_info over serial, invalid ams_info types."""
+    """Additional edge cases: ams_info over serial, including string payload variants."""
 
-    def test_ams_info_string_is_not_used(self) -> None:
-        # ams_info must be an int; string should fall through to serial
+    def test_ams_info_decimal_string_is_used(self) -> None:
+        # Some payloads provide ams_info as decimal string
         result = resolve_ams_model({"sn": "006ABCDEF", "ams_info": "3"})
-        assert result == "ams_1"  # from serial prefix
+        assert result == "ams_2_pro"  # type=3 overrides serial prefix
+
+    def test_ams_info_hex_string_in_info_field_is_used(self) -> None:
+        # Some cloud payloads use key `info` with hex payload
+        result = resolve_ams_model({"sn": "006ABCDEF", "info": "0x4"})
+        assert result == "ams_ht"  # type=4 overrides serial prefix
 
     def test_ams_info_float_is_not_used(self) -> None:
         # float is not an int

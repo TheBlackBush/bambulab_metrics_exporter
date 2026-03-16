@@ -89,23 +89,59 @@ AMS_TYPE_TO_MODEL: dict[int, str] = {
 }
 
 
+def _extract_ams_info(ams_unit: dict[str, Any]) -> int | None:
+    """Extract AMS info bitfield from known payload keys.
+
+    Supports both:
+    - ams_info: int
+    - info: str/int (seen in some cloud payloads)
+    """
+    raw = ams_unit.get("ams_info", ams_unit.get("info"))
+
+    if isinstance(raw, int):
+        return raw
+
+    if isinstance(raw, str):
+        s = raw.strip()
+        if not s:
+            return None
+
+        # Prefer explicit decimal for digit-only values; otherwise parse as hex.
+        if s.isdigit():
+            try:
+                return int(s, 10)
+            except ValueError:
+                return None
+
+        if s.lower().startswith("0x"):
+            s = s[2:]
+
+        if all(ch in "0123456789abcdefABCDEF" for ch in s):
+            try:
+                return int(s, 16)
+            except ValueError:
+                return None
+
+    return None
+
+
 def resolve_ams_model(ams_unit: dict[str, Any]) -> str:
     """Resolve AMS model name for a single AMS unit dict.
 
     Precedence:
-    1. ams_info bits 0-3 (ams_type) when valid (nonzero and known)
+    1. ams_info/info bits 0-3 (ams_type) when valid (nonzero and known)
     2. AMS serial prefix mapping
     3. 'unknown' fallback
     """
     # 1. ams_info ams_type bits 0-3
-    ams_info_raw = ams_unit.get("ams_info")
+    ams_info_raw = _extract_ams_info(ams_unit)
     if isinstance(ams_info_raw, int) and ams_info_raw > 0:
         ams_type = ams_info_raw & 0xF  # bits 0-3
         if ams_type in AMS_TYPE_TO_MODEL:
             return AMS_TYPE_TO_MODEL[ams_type]
 
-    # 2. AMS serial prefix
-    ams_serial = ams_unit.get("sn")
+    # 2. AMS serial prefix (support multiple key names)
+    ams_serial = ams_unit.get("sn", ams_unit.get("serial", ""))
     if isinstance(ams_serial, str) and ams_serial.strip():
         serial_upper = ams_serial.strip().upper()
         for prefix, model in AMS_SERIAL_PREFIX_TO_MODEL.items():
