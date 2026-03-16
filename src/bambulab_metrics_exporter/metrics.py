@@ -4,7 +4,7 @@ import math
 
 from prometheus_client import CollectorRegistry, Gauge
 
-from bambulab_metrics_exporter.models import PrinterSnapshot, parse_ams_info
+from bambulab_metrics_exporter.models import PrinterSnapshot, _extract_ams_info, parse_ams_info
 
 
 class ExporterMetrics:
@@ -334,7 +334,7 @@ class ExporterMetrics:
             ams_id = str(ams.get("id", "0"))
             ams_model = str(ams.get("ams_model", "unknown"))
             ams_series = str(ams.get("ams_series", "unknown"))
-            ams_serial = str(ams.get("sn", "")).strip()
+            ams_serial = str(ams.get("sn", ams.get("serial", ""))).strip()
 
             # AMS unit info metric
             self.ams_unit_info.labels(
@@ -364,8 +364,8 @@ class ExporterMetrics:
                 except (TypeError, ValueError):
                     pass
 
-            # Gen2 drying telemetry from ams_info bits
-            ams_info_raw = ams.get("ams_info")
+            # Gen2 drying telemetry from ams_info/info bits
+            ams_info_raw = _extract_ams_info(ams)
             if isinstance(ams_info_raw, int) and ams_info_raw > 0:
                 parsed = parse_ams_info(ams_info_raw)
                 dry_heater_state = parsed["dry_heater_state"]
