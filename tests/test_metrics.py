@@ -479,6 +479,24 @@ class TestExternalSpoolMetrics:
         m.update_from_snapshot(_snap({}))
         assert len(m.external_spool_info._metrics) == 0
 
+    def test_external_spool_active_is_nan_when_tray_now_missing(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({}))
+        labels: dict = {"printer_name": "test", "serial": "SN123"}
+        assert math.isnan(m.external_spool_active.labels(**labels)._value.get())
+
+    def test_external_spool_info_unknown_fallback_labels(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({"vt_tray": {"id": "254"}}))
+        labels: dict = {"printer_name": "test", "serial": "SN123"}
+        assert m.external_spool_info.labels(
+            **labels,
+            external_id="254",
+            tray_type="unknown",
+            tray_info_idx="unknown",
+            tray_color="unknown",
+        )._value.get() == 1.0
+
 
 class TestSdcardStatus:
     def test_sdcard_from_bool(self) -> None:
