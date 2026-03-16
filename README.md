@@ -11,8 +11,6 @@ Production-oriented Prometheus exporter for Bambu Lab printers (homelab/self-hos
 > **Note:** Development and real-world validation of this exporter are currently done only on an **X1C** printer.
 > If you want to help improve support for additional printer models, please get in touch with me via GitHub.
 
-> Latest published GitHub release is currently `v0.1.22`.
-> Additional changes documented in `CHANGELOG.md` above that version are pending release.
 
 ## What this does
 
