@@ -11,10 +11,18 @@ All notable changes to this project are documented in this file.
   - `bambulab_extruder_target_temperature_celsius{extruder_id}`
   - `bambulab_extruder_nozzle_info{extruder_id,nozzle_type,nozzle_diameter}`
   - `bambulab_active_nozzle_info{nozzle_type,nozzle_diameter}`
+- Added Hotend Rack core telemetry support:
+  - `bambulab_hotend_rack_holder_position_info{position}`
+  - `bambulab_hotend_rack_holder_state_info{state}`
+  - `bambulab_hotend_rack_slot_state_info{slot_id,state}`
+  - `bambulab_hotend_rack_hotend_info{slot_id,nozzle_type,nozzle_diameter}`
+  - `bambulab_hotend_rack_hotend_wear_ratio{slot_id}`
+  - `bambulab_hotend_rack_hotend_runtime_minutes{slot_id}`
 
 ### Changed
 - Added parser support for `print.device.extruder.state`, `print.device.extruder.info[]`, and `print.device.nozzle.info[]` in the snapshot model.
 - Added packed extruder temperature unpacking (`low16=actual`, `high16=target`) for dual-extruder payloads.
+- Added Hotend Rack parsing from `print.device.holder` and `print.device.nozzle` (`exist`, `info`, `tar_id`) with slot-state normalization (`mounted|docked|empty`) for rack slots `16..21`.
 
 ## [0.1.26] - 2026-03-16
 
