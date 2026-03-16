@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bambulab-metrics-exporter"
-version = "0.1.27"
+version = "0.1.28"
 description = "Prometheus exporter for Bambu Lab printers"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -28,7 +28,7 @@ dependencies = {file = ["requirements.txt"]}
 dev = {file = ["requirements-dev.txt"]}
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests/unit", "tests/integration", "tests/e2e"]
 addopts = "--cov=src/bambulab_metrics_exporter --cov-report=term-missing --cov-report=xml:tests/results/coverage.xml --cov-fail-under=90 -o cache_dir=tests/results/.pytest_cache"
 
 [tool.coverage.run]

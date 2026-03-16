@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.28] - 2026-03-16
+
+### Added
+- Added explicit test hierarchy with dedicated suites:
+  - `tests/unit/`
+  - `tests/integration/`
+  - `tests/e2e/`
+- Added integration contract test for API endpoints (`/health`, `/ready`, `/metrics`).
+- Added end-to-end collector cycle test that validates readiness transition and metric emission through HTTP.
+- Added security/logging coverage tests (encryption roundtrip, `ensure_parent` chmod-failure path, logging level fallback).
+
+### Changed
+- Moved all existing `tests/test_*.py` files under `tests/unit/`.
+- Updated pytest discovery paths in `pyproject.toml` to run unit/integration/e2e suites explicitly.
+- Improved overall coverage while keeping existing coverage gate intact.
+
 ## [0.1.27] - 2026-03-16
 
 ### Added
