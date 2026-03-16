@@ -240,7 +240,8 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 | `bambulab_fan_cooling_speed_percent` | Gauge | Cooling fan speed percent. |
 | `bambulab_fan_heatbreak_speed_percent` | Gauge | Heatbreak fan speed percent. |
 | `bambulab_printer_error` | Gauge | 1 when printer error code is non-zero. |
-| `bambulab_printer_error_code` | Gauge | Raw printer error code. |
+| `bambulab_printer_error_code` | Gauge | Raw printer error code (`mc_print_error_code`). |
+| `bambulab_print_error_code` | Gauge | Raw `print_error` value from MQTT (legacy alias). |
 | `bambulab_print_error` | Gauge | Raw `print_error` value from MQTT. |
 | `bambulab_ap_error_code` | Gauge | Raw `ap_err` value from MQTT. |
 | `bambulab_printer_gcode_state{state}` | One-hot Gauge | Current gcode state as one-hot labels. |
