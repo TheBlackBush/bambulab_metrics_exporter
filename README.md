@@ -225,6 +225,8 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 - `bambulab_ams_slot_remaining_percent{ams_id,slot_id}`
 - `bambulab_ams_slot_tray_type_info{ams_id,slot_id,tray_type}`
 - `bambulab_ams_slot_tray_color_info{ams_id,slot_id,tray_color}`
+- `bambulab_external_spool_active`
+- `bambulab_external_spool_info{external_id,tray_type,tray_info_idx,tray_color}`
 
 - `bambulab_fan_big_1_speed_percent`
 - `bambulab_fan_big_2_speed_percent`
@@ -264,6 +266,8 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 - `bambulab_sdcard_status_info{status}` (`present|abnormal|absent`)
 - `bambulab_door_open`
 - `bambulab_wired_network`
+- `bambulab_external_spool_active`
+- `bambulab_external_spool_info{external_id,tray_type,tray_info_idx,tray_color}`
 - `bambulab_camera_recording`
 - `bambulab_ams_auto_switch`
 - `bambulab_filament_tangle_detected`
