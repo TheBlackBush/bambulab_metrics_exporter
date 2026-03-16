@@ -713,6 +713,12 @@ class TestAmsInfoPrecedenceEdgeCases:
         result = resolve_ams_model({"sn": "006ABCDEF", "info": "0x4"})
         assert result == "ams_ht"  # type=4 overrides serial prefix
 
+    def test_info_digit_string_prefers_hex_when_type_matches(self) -> None:
+        # Real cloud payload example: "1001" should be interpreted as hex (0x1001),
+        # which yields ams_type=1 (ams_1), not decimal 1001 (ams_type=9 unknown).
+        result = resolve_ams_model({"info": "1001"})
+        assert result == "ams_1"
+
     def test_ams_info_float_is_not_used(self) -> None:
         # float is not an int
         result = resolve_ams_model({"sn": "006ABCDEF", "ams_info": 3.0})
