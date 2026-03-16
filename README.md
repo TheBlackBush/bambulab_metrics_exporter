@@ -12,6 +12,19 @@ Production-oriented Prometheus exporter for Bambu Lab printers (homelab/self-hos
 > If you want to help improve support for additional printer models, please get in touch with me via GitHub.
 
 
+## Table of contents
+
+- [What this does](#what-this-does)
+- [Quick start (local)](#quick-start-local)
+- [Cloud connection (email + 2FA code)](#cloud-connection-email--2fa-code)
+- [Environment variables](#environment-variables)
+- [Docker](#docker)
+- [Prometheus integration](#prometheus-integration)
+- [Operator PromQL examples](#operator-promql-examples)
+- [Exported metrics (core)](#exported-metrics-core)
+- [Testing](#testing)
+- [Known limitations](#known-limitations)
+
 ## What this does
 
 - Connects to Bambu printer over **LAN MQTT** or **Cloud MQTT**
@@ -121,12 +134,6 @@ docker compose up -d --build
 - Required cloud fields are active by default.
 - Optional fields stay commented with short inline hints.
 - Works for regular Linux hosts and Unraid (`PUID/PGID/UMASK` optional).
-
-### CI/CD behavior (current)
-
-- Pull Requests to `main`: run essential tests only.
-- Push/Merge to `main`: run full test suite.
-- Published Release: run full tests, then Docker multi-arch build/push to GHCR.
 
 Minimal required values before first run (cloud mode):
 
@@ -309,7 +316,7 @@ pip install -r requirements-dev.txt
 pytest --cov=src --cov-report=term-missing
 ```
 
-Currently maintaining **>95% test coverage** for core modules.
+Maintaining **>90% test coverage** for core modules.
 
 ### Sample payload and expected metrics
 
