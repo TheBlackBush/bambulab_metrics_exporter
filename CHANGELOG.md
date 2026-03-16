@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.25] - 2026-03-16
+
+### Fixed
+- Cloud AMS model detection now also parses AMS type from string-based payload keys (`info` / `ams_info`), including bare digit strings and hex forms (`0x...`).
+- Improved AMS type inference for cloud payloads like `info="1001"` by preferring interpretations that produce a known AMS type nibble.
+- Gen2 drying telemetry parsing now uses the same AMS info extraction path, so string-based payloads emit drying metrics consistently.
+
+### Changed
+- `bambulab_ams_unit_info` labels simplified to `{printer_name,serial,ams_id,ams_model,ams_series}`.
+- Removed `ams_serial` label from `bambulab_ams_unit_info` to avoid empty/unstable label values in cloud payloads where AMS serial is not provided.
+
 ## [0.1.24] - 2026-03-16
 
 ### Added
