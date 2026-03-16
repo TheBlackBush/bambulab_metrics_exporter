@@ -232,6 +232,12 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 - `bambulab_extruder_target_temperature_celsius{extruder_id}`
 - `bambulab_extruder_nozzle_info{extruder_id,nozzle_type,nozzle_diameter}`
 - `bambulab_active_nozzle_info{nozzle_type,nozzle_diameter}`
+- `bambulab_hotend_rack_holder_position_info{position}`
+- `bambulab_hotend_rack_holder_state_info{state}`
+- `bambulab_hotend_rack_slot_state_info{slot_id,state}`
+- `bambulab_hotend_rack_hotend_info{slot_id,nozzle_type,nozzle_diameter}`
+- `bambulab_hotend_rack_hotend_wear_ratio{slot_id}`
+- `bambulab_hotend_rack_hotend_runtime_minutes{slot_id}`
 
 - `bambulab_fan_big_1_speed_percent`
 - `bambulab_fan_big_2_speed_percent`
@@ -278,6 +284,12 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 - `bambulab_extruder_target_temperature_celsius{extruder_id}`
 - `bambulab_extruder_nozzle_info{extruder_id,nozzle_type,nozzle_diameter}`
 - `bambulab_active_nozzle_info{nozzle_type,nozzle_diameter}`
+- `bambulab_hotend_rack_holder_position_info{position}`
+- `bambulab_hotend_rack_holder_state_info{state}`
+- `bambulab_hotend_rack_slot_state_info{slot_id,state}`
+- `bambulab_hotend_rack_hotend_info{slot_id,nozzle_type,nozzle_diameter}`
+- `bambulab_hotend_rack_hotend_wear_ratio{slot_id}`
+- `bambulab_hotend_rack_hotend_runtime_minutes{slot_id}`
 - `bambulab_camera_recording`
 - `bambulab_ams_auto_switch`
 - `bambulab_filament_tangle_detected`

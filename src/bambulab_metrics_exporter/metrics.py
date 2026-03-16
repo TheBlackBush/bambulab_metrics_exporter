@@ -208,6 +208,42 @@ class ExporterMetrics:
             [*label_names, "nozzle_type", "nozzle_diameter"],
             registry=self.registry,
         )
+        self.hotend_rack_holder_position_info = Gauge(
+            "bambulab_hotend_rack_holder_position_info",
+            "Hotend rack holder position as labeled info metric",
+            [*label_names, "position"],
+            registry=self.registry,
+        )
+        self.hotend_rack_holder_state_info = Gauge(
+            "bambulab_hotend_rack_holder_state_info",
+            "Hotend rack holder state as labeled info metric",
+            [*label_names, "state"],
+            registry=self.registry,
+        )
+        self.hotend_rack_slot_state_info = Gauge(
+            "bambulab_hotend_rack_slot_state_info",
+            "Hotend rack slot state as labeled info metric",
+            [*label_names, "slot_id", "state"],
+            registry=self.registry,
+        )
+        self.hotend_rack_hotend_info = Gauge(
+            "bambulab_hotend_rack_hotend_info",
+            "Hotend rack hotend type/diameter info",
+            [*label_names, "slot_id", "nozzle_type", "nozzle_diameter"],
+            registry=self.registry,
+        )
+        self.hotend_rack_hotend_wear_ratio = Gauge(
+            "bambulab_hotend_rack_hotend_wear_ratio",
+            "Hotend rack hotend wear ratio per slot",
+            [*label_names, "slot_id"],
+            registry=self.registry,
+        )
+        self.hotend_rack_hotend_runtime_minutes = Gauge(
+            "bambulab_hotend_rack_hotend_runtime_minutes",
+            "Hotend rack hotend runtime minutes per slot",
+            [*label_names, "slot_id"],
+            registry=self.registry,
+        )
         self.camera_recording = Gauge("bambulab_camera_recording", "1 if camera recording flag is set", label_names, registry=self.registry)
         self.ams_auto_switch = Gauge("bambulab_ams_auto_switch", "1 if AMS auto switch flag is set", label_names, registry=self.registry)
         self.filament_tangle_detected = Gauge("bambulab_filament_tangle_detected", "1 if filament tangle detected flag is set", label_names, registry=self.registry)
@@ -391,6 +427,44 @@ class ExporterMetrics:
                 nozzle_type=str(active_nozzle.get("nozzle_type", "")).strip() or "unknown",
                 nozzle_diameter=str(active_nozzle.get("nozzle_diameter", "")).strip() or "unknown",
             ).set(1.0)
+
+        self.hotend_rack_holder_position_info.clear()
+        self.hotend_rack_holder_state_info.clear()
+        self.hotend_rack_slot_state_info.clear()
+        self.hotend_rack_hotend_info.clear()
+        self.hotend_rack_hotend_wear_ratio.clear()
+        self.hotend_rack_hotend_runtime_minutes.clear()
+        if snapshot.hotend_rack_present:
+            if snapshot.hotend_rack_holder_position_name:
+                self.hotend_rack_holder_position_info.labels(
+                    **labels, position=snapshot.hotend_rack_holder_position_name
+                ).set(1.0)
+            if snapshot.hotend_rack_holder_state_name:
+                self.hotend_rack_holder_state_info.labels(
+                    **labels, state=snapshot.hotend_rack_holder_state_name
+                ).set(1.0)
+
+            for slot in snapshot.hotend_rack_slot_entries:
+                self.hotend_rack_slot_state_info.labels(
+                    **labels,
+                    slot_id=str(slot.get("slot_id", "unknown")),
+                    state=str(slot.get("state", "unknown")),
+                ).set(1.0)
+
+            for hotend in snapshot.hotend_rack_hotend_entries:
+                slot_id = str(hotend.get("slot_id", "unknown"))
+                self.hotend_rack_hotend_info.labels(
+                    **labels,
+                    slot_id=slot_id,
+                    nozzle_type=str(hotend.get("nozzle_type", "")).strip() or "unknown",
+                    nozzle_diameter=str(hotend.get("nozzle_diameter", "")).strip() or "unknown",
+                ).set(1.0)
+                wear = hotend.get("wear")
+                runtime = hotend.get("runtime_minutes")
+                if isinstance(wear, (int, float)):
+                    self.hotend_rack_hotend_wear_ratio.labels(**labels, slot_id=slot_id).set(float(wear))
+                if isinstance(runtime, (int, float)):
+                    self.hotend_rack_hotend_runtime_minutes.labels(**labels, slot_id=slot_id).set(float(runtime))
 
         self._set_optional(self.camera_recording, self._flag_to_float(snapshot.home_flags.get("camera_recording")))
         self._set_optional(self.ams_auto_switch, self._flag_to_float(snapshot.home_flags.get("ams_auto_switch")))

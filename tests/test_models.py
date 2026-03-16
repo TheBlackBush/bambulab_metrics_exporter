@@ -331,6 +331,56 @@ def test_active_nozzle_entry_from_active_extruder() -> None:
     assert snap.active_nozzle_entry == {"id": "0", "nozzle_type": "HS01", "nozzle_diameter": 0.4}
 
 
+def test_hotend_rack_present_with_holder() -> None:
+    snap = PrinterSnapshot(connected=True, raw={"print": {"device": {"holder": {"pos": 3, "stat": 0}}}})
+    assert snap.hotend_rack_present is True
+
+
+def test_hotend_rack_holder_names() -> None:
+    snap = PrinterSnapshot(connected=True, raw={"print": {"device": {"holder": {"pos": 3, "stat": 7}}}})
+    assert snap.hotend_rack_holder_position_name == "centre"
+    assert snap.hotend_rack_holder_state_name == "place_hotend"
+
+
+def test_hotend_rack_slot_entries_mounted_docked_empty() -> None:
+    exist = (1 << 16) | (1 << 19)
+    snap = PrinterSnapshot(
+        connected=True,
+        raw={"print": {"device": {"nozzle": {"exist": exist, "tar_id": 19}}}},
+    )
+    out = {item["slot_id"]: item["state"] for item in snap.hotend_rack_slot_entries}
+    assert out["19"] == "mounted"
+    assert out["16"] == "docked"
+    assert out["17"] == "empty"
+
+
+def test_hotend_rack_hotend_entries_from_nozzle_info() -> None:
+    snap = PrinterSnapshot(
+        connected=True,
+        raw={
+            "print": {
+                "device": {
+                    "nozzle": {
+                        "info": [
+                            {"id": 16, "type": "HS00", "diameter": 0.2, "wear": 0.1, "tm": 120},
+                            {"id": 0, "type": "HS01", "diameter": 0.4},
+                        ]
+                    }
+                }
+            }
+        },
+    )
+    assert snap.hotend_rack_hotend_entries == [
+        {
+            "slot_id": "16",
+            "nozzle_type": "HS00",
+            "nozzle_diameter": 0.2,
+            "wear": 0.1,
+            "runtime_minutes": 120.0,
+        }
+    ]
+
+
 def test_model_ams_units_name() -> None:
     snap = PrinterSnapshot(connected=True, raw={"print": {"ams": {"ams": [{"id": "0", "name": "AMS1"}]}}})
     assert snap.ams_units[0]["name"] == "AMS1"
