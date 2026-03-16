@@ -326,6 +326,7 @@ make test              # full suite with coverage gate
 make test-unit         # unit suite with coverage gate
 make test-integration  # integration-only (runs with --no-cov)
 make test-e2e          # e2e-only (runs with --no-cov)
+make test-profile      # deterministic smoke profile (integration + e2e)
 ```
 
 Why `--no-cov` for integration/e2e-only runs?
