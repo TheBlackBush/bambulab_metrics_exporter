@@ -319,6 +319,18 @@ pytest --cov=src --cov-report=term-missing
 
 Maintaining **>90% test coverage** for core modules.
 
+### Test command profiles
+
+```bash
+make test              # full suite with coverage gate
+make test-unit         # unit suite with coverage gate
+make test-integration  # integration-only (runs with --no-cov)
+make test-e2e          # e2e-only (runs with --no-cov)
+```
+
+Why `--no-cov` for integration/e2e-only runs?
+The project enforces a global coverage threshold in default pytest options, so subset-only runs use `--no-cov` to avoid false negatives unrelated to test correctness.
+
 ### Sample payload and expected metrics
 
 - MQTT sample payload: `examples/sample_mqtt_message.json`
