@@ -662,6 +662,34 @@ class PrinterSnapshot:
         return decode_stat_flags(self.print_block.get("stat"))
 
     @property
+    def wired_network(self) -> float | None:
+        """Best-effort wired network state from print.net.info.
+
+        Current payloads typically expose adapters in `print.net.info` as:
+        - index 0: WLAN
+        - index 1: wired/LAN
+
+        Emit only when this structure is present.
+        """
+        net = self.print_block.get("net")
+        if not isinstance(net, dict):
+            return None
+
+        info = net.get("info")
+        if not isinstance(info, list) or len(info) < 2:
+            return None
+
+        wired_entry = info[1]
+        if not isinstance(wired_entry, dict):
+            return None
+
+        wired_ip = to_int(wired_entry.get("ip"))
+        if wired_ip is None:
+            return None
+
+        return 1.0 if wired_ip > 0 else 0.0
+
+    @property
     def sdcard_status(self) -> str | None:
         """SD card status from direct field or home_flag bits."""
         value = self.print_block.get("sdcard")

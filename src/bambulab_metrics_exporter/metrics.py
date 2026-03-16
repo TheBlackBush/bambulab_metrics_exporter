@@ -313,7 +313,7 @@ class ExporterMetrics:
 
         # Phase 1 metrics
         self._set_optional(self.door_open, snapshot.door_open)
-        self._set_optional(self.wired_network, self._flag_to_float(snapshot.home_flags.get("wired_network")))
+        self._set_optional(self.wired_network, snapshot.wired_network)
         self._set_optional(self.camera_recording, self._flag_to_float(snapshot.home_flags.get("camera_recording")))
         self._set_optional(self.ams_auto_switch, self._flag_to_float(snapshot.home_flags.get("ams_auto_switch")))
         self._set_optional(self.filament_tangle_detected, self._flag_to_float(snapshot.home_flags.get("filament_tangle_detected")))

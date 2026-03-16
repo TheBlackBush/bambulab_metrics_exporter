@@ -398,8 +398,7 @@ class TestFlagDerivedBinarySensors:
             _snap(
                 {
                     "home_flag": (
-                        0x00040000  # wired_network
-                        | 0x00000020  # camera_recording
+                        0x00000020  # camera_recording
                         | 0x00000400  # ams_auto_switch
                         | 0x00100000  # filament_tangle_detected
                         | 0x00080000  # filament_tangle_detect_supported
@@ -408,11 +407,28 @@ class TestFlagDerivedBinarySensors:
             )
         )
         labels: dict = {"printer_name": "test", "serial": "SN123"}
-        assert m.wired_network.labels(**labels)._value.get() == 1.0
         assert m.camera_recording.labels(**labels)._value.get() == 1.0
         assert m.ams_auto_switch.labels(**labels)._value.get() == 1.0
         assert m.filament_tangle_detected.labels(**labels)._value.get() == 1.0
         assert m.filament_tangle_detect_supported.labels(**labels)._value.get() == 1.0
+
+
+class TestWiredNetworkMetric:
+    def test_wired_network_from_net_info(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(
+            _snap({"net": {"info": [{"ip": 123}, {"ip": 456}]}})
+        )
+        labels: dict = {"printer_name": "test", "serial": "SN123"}
+        assert m.wired_network.labels(**labels)._value.get() == 1.0
+
+    def test_wired_network_false_when_wired_ip_is_zero(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(
+            _snap({"net": {"info": [{"ip": 123}, {"ip": 0}]}})
+        )
+        labels: dict = {"printer_name": "test", "serial": "SN123"}
+        assert m.wired_network.labels(**labels)._value.get() == 0.0
 
 
 class TestSdcardStatus:
