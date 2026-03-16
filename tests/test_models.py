@@ -246,6 +246,46 @@ def test_model_ams_tray_now_from_short_form() -> None:
     assert snap.ams_tray_now == "1"
 
 
+def test_external_spool_active_from_tray_now() -> None:
+    snap = PrinterSnapshot(connected=True, raw={"print": {"ams": {"tray_now": "254"}}})
+    assert snap.external_spool_active == 1.0
+
+
+def test_external_spool_inactive_from_tray_now() -> None:
+    snap = PrinterSnapshot(connected=True, raw={"print": {"ams": {"tray_now": "255"}}})
+    assert snap.external_spool_active == 0.0
+
+
+def test_external_spool_entries_from_vir_slot_preferred() -> None:
+    snap = PrinterSnapshot(
+        connected=True,
+        raw={
+            "print": {
+                "vir_slot": [
+                    {"id": "254", "tray_type": "PLA", "tray_info_idx": "GFA01", "tray_color": "76d9f4ff"},
+                    {"id": "255", "tray_type": "PETG", "tray_info_idx": "GFB99", "tray_color": "11223344"},
+                    {"id": "12", "tray_type": "SHOULD_IGNORE"},
+                ],
+                "vt_tray": {"id": "254", "tray_type": "ABS", "tray_info_idx": "X", "tray_color": "FFFFFFFF"},
+            }
+        },
+    )
+    assert snap.external_spool_entries == [
+        {"id": "254", "tray_type": "PLA", "tray_info_idx": "GFA01", "tray_color": "76D9F4FF"},
+        {"id": "255", "tray_type": "PETG", "tray_info_idx": "GFB99", "tray_color": "11223344"},
+    ]
+
+
+def test_external_spool_entries_from_vt_tray_fallback() -> None:
+    snap = PrinterSnapshot(
+        connected=True,
+        raw={"print": {"vt_tray": {"id": "254", "tray_type": "ABS", "tray_info_idx": "GFB00", "tray_color": "000000ff"}}},
+    )
+    assert snap.external_spool_entries == [
+        {"id": "254", "tray_type": "ABS", "tray_info_idx": "GFB00", "tray_color": "000000FF"}
+    ]
+
+
 def test_model_ams_units_name() -> None:
     snap = PrinterSnapshot(connected=True, raw={"print": {"ams": {"ams": [{"id": "0", "name": "AMS1"}]}}})
     assert snap.ams_units[0]["name"] == "AMS1"

@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.26] - 2026-03-16
+
+### Added
+- Added external spool telemetry support:
+  - `bambulab_external_spool_active` (1 when `print.ams.tray_now == 254`, else 0)
+  - `bambulab_external_spool_info{external_id,tray_type,tray_info_idx,tray_color}` from `vir_slot` / `vt_tray`
+
+### Changed
+- External spool metadata extraction now normalizes `tray_color` to uppercase and prefers `vir_slot` over `vt_tray` when both are present.
+
 ## [0.1.25] - 2026-03-16
 
 ### Fixed
