@@ -592,6 +592,56 @@ class PrinterSnapshot:
             if isinstance(value, str):
                 return value
         return None
+
+    @property
+    def external_spool_active(self) -> float | None:
+        """1 when external spool is active (tray_now == 254), else 0.
+
+        Returns None when tray_now is unavailable.
+        """
+        ams = self.print_block.get("ams")
+        if not isinstance(ams, dict):
+            return None
+        tray_now = to_int(ams.get("tray_now"))
+        if tray_now is None:
+            return None
+        return 1.0 if tray_now == 254 else 0.0
+
+    @property
+    def external_spool_entries(self) -> list[dict[str, Any]]:
+        """Return normalized external spool entries from vir_slot/vt_tray payloads."""
+
+        def _norm(entry: dict[str, Any]) -> dict[str, Any] | None:
+            ext_id = to_int(entry.get("id"))
+            if ext_id not in {254, 255}:
+                return None
+            return {
+                "id": str(ext_id),
+                "tray_type": str(entry.get("tray_type", "")).strip(),
+                "tray_info_idx": str(entry.get("tray_info_idx", "")).strip(),
+                "tray_color": str(entry.get("tray_color", "")).strip().upper(),
+            }
+
+        vir_slot = self.print_block.get("vir_slot")
+        if isinstance(vir_slot, list):
+            entries: list[dict[str, Any]] = []
+            for item in vir_slot:
+                if not isinstance(item, dict):
+                    continue
+                normalized = _norm(item)
+                if normalized is not None:
+                    entries.append(normalized)
+            if entries:
+                return entries
+
+        vt_tray = self.print_block.get("vt_tray")
+        if isinstance(vt_tray, dict):
+            normalized = _norm(vt_tray)
+            if normalized is not None:
+                return [normalized]
+
+        return []
+
     @property
     def print_error_code(self) -> int | None:
         return to_int(self.print_block.get("mc_print_error_code"))

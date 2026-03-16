@@ -171,6 +171,13 @@ class ExporterMetrics:
         )
         self.door_open = Gauge("bambulab_door_open", "1 if printer door is open", label_names, registry=self.registry)
         self.wired_network = Gauge("bambulab_wired_network", "1 if wired network flag is set", label_names, registry=self.registry)
+        self.external_spool_active = Gauge("bambulab_external_spool_active", "1 if external spool is currently active", label_names, registry=self.registry)
+        self.external_spool_info = Gauge(
+            "bambulab_external_spool_info",
+            "External spool metadata as labeled info metric",
+            [*label_names, "external_id", "tray_type", "tray_info_idx", "tray_color"],
+            registry=self.registry,
+        )
         self.camera_recording = Gauge("bambulab_camera_recording", "1 if camera recording flag is set", label_names, registry=self.registry)
         self.ams_auto_switch = Gauge("bambulab_ams_auto_switch", "1 if AMS auto switch flag is set", label_names, registry=self.registry)
         self.filament_tangle_detected = Gauge("bambulab_filament_tangle_detected", "1 if filament tangle detected flag is set", label_names, registry=self.registry)
@@ -314,6 +321,16 @@ class ExporterMetrics:
         # Phase 1 metrics
         self._set_optional(self.door_open, snapshot.door_open)
         self._set_optional(self.wired_network, snapshot.wired_network)
+        self._set_optional(self.external_spool_active, snapshot.external_spool_active)
+        self.external_spool_info.clear()
+        for entry in snapshot.external_spool_entries:
+            self.external_spool_info.labels(
+                **labels,
+                external_id=str(entry.get("id", "unknown")),
+                tray_type=str(entry.get("tray_type", "")).strip() or "unknown",
+                tray_info_idx=str(entry.get("tray_info_idx", "")).strip() or "unknown",
+                tray_color=str(entry.get("tray_color", "")).strip().upper() or "unknown",
+            ).set(1.0)
         self._set_optional(self.camera_recording, self._flag_to_float(snapshot.home_flags.get("camera_recording")))
         self._set_optional(self.ams_auto_switch, self._flag_to_float(snapshot.home_flags.get("ams_auto_switch")))
         self._set_optional(self.filament_tangle_detected, self._flag_to_float(snapshot.home_flags.get("filament_tangle_detected")))

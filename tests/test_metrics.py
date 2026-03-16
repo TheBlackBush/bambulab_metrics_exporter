@@ -431,6 +431,55 @@ class TestWiredNetworkMetric:
         assert m.wired_network.labels(**labels)._value.get() == 0.0
 
 
+class TestExternalSpoolMetrics:
+    def test_external_spool_active_from_tray_now_254(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({"ams": {"tray_now": "254"}}))
+        labels: dict = {"printer_name": "test", "serial": "SN123"}
+        assert m.external_spool_active.labels(**labels)._value.get() == 1.0
+
+    def test_external_spool_inactive_from_tray_now_255(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({"ams": {"tray_now": "255"}}))
+        labels: dict = {"printer_name": "test", "serial": "SN123"}
+        assert m.external_spool_active.labels(**labels)._value.get() == 0.0
+
+    def test_external_spool_info_from_vir_slot(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(
+            _snap(
+                {
+                    "vir_slot": [
+                        {"id": "254", "tray_type": "PLA", "tray_info_idx": "GFA01", "tray_color": "76d9f4ff"},
+                        {"id": "255", "tray_type": "PETG", "tray_info_idx": "GFB99", "tray_color": "11223344"},
+                    ]
+                }
+            )
+        )
+        labels: dict = {"printer_name": "test", "serial": "SN123"}
+        assert m.external_spool_info.labels(
+            **labels,
+            external_id="254",
+            tray_type="PLA",
+            tray_info_idx="GFA01",
+            tray_color="76D9F4FF",
+        )._value.get() == 1.0
+        assert m.external_spool_info.labels(
+            **labels,
+            external_id="255",
+            tray_type="PETG",
+            tray_info_idx="GFB99",
+            tray_color="11223344",
+        )._value.get() == 1.0
+
+    def test_external_spool_info_clears_between_updates(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({"vt_tray": {"id": "254", "tray_type": "ABS"}}))
+        assert len(m.external_spool_info._metrics) == 1
+        m.update_from_snapshot(_snap({}))
+        assert len(m.external_spool_info._metrics) == 0
+
+
 class TestSdcardStatus:
     def test_sdcard_from_bool(self) -> None:
         snap = _snap({"sdcard": True})
