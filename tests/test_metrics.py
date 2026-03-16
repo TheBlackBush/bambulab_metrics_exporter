@@ -599,7 +599,7 @@ class TestAmsUnitInfoMetric:
         m.update_from_snapshot(snap)
         labels = self._labels()
         v = m.ams_unit_info.labels(
-            **labels, ams_id="0", ams_model="ams_1", ams_series="gen_1", ams_serial="006TESTSERIAL"
+            **labels, ams_id="0", ams_model="ams_1", ams_series="gen_1"
         )._value.get()
         assert v == 1.0
 
@@ -612,7 +612,7 @@ class TestAmsUnitInfoMetric:
         m.update_from_snapshot(snap)
         labels = self._labels()
         v = m.ams_unit_info.labels(
-            **labels, ams_id="0", ams_model="unknown", ams_series="unknown", ams_serial=""
+            **labels, ams_id="0", ams_model="unknown", ams_series="unknown"
         )._value.get()
         assert v == 1.0
 
@@ -786,7 +786,7 @@ class TestAmsUnitInfoMetricAdditional:
         m.update_from_snapshot(snap)
         labels = self._labels()
         v = m.ams_unit_info.labels(
-            **labels, ams_id="0", ams_model="ams_2_pro", ams_series="gen_2", ams_serial="006TESTSERIAL"
+            **labels, ams_id="0", ams_model="ams_2_pro", ams_series="gen_2"
         )._value.get()
         assert v == 1.0
 
@@ -804,16 +804,16 @@ class TestAmsUnitInfoMetricAdditional:
         labels = self._labels()
         assert len(m.ams_unit_info._metrics) == 2
         v0 = m.ams_unit_info.labels(
-            **labels, ams_id="0", ams_model="ams_1", ams_series="gen_1", ams_serial="006UNIT0"
+            **labels, ams_id="0", ams_model="ams_1", ams_series="gen_1"
         )._value.get()
         v1 = m.ams_unit_info.labels(
-            **labels, ams_id="1", ams_model="ams_ht", ams_series="gen_2", ams_serial="19FUNIT1"
+            **labels, ams_id="1", ams_model="ams_ht", ams_series="gen_2"
         )._value.get()
         assert v0 == 1.0
         assert v1 == 1.0
 
     def test_ams_unit_info_no_serial_field(self) -> None:
-        """Unit with no sn field uses empty string for ams_serial label."""
+        """Unit with no sn field still emits AMS unit info."""
         m = self._m()
         snap = PrinterSnapshot(
             connected=True,
@@ -822,7 +822,7 @@ class TestAmsUnitInfoMetricAdditional:
         m.update_from_snapshot(snap)
         labels = self._labels()
         v = m.ams_unit_info.labels(
-            **labels, ams_id="0", ams_model="unknown", ams_series="unknown", ams_serial=""
+            **labels, ams_id="0", ams_model="unknown", ams_series="unknown"
         )._value.get()
         assert v == 1.0
 
@@ -836,7 +836,7 @@ class TestAmsUnitInfoMetricAdditional:
         m.update_from_snapshot(snap)
         labels = self._labels()
         v = m.ams_unit_info.labels(
-            **labels, ams_id="0", ams_model="ams_lite", ams_series="gen_1", ams_serial="03CLITEUNIT"
+            **labels, ams_id="0", ams_model="ams_lite", ams_series="gen_1"
         )._value.get()
         assert v == 1.0
 
