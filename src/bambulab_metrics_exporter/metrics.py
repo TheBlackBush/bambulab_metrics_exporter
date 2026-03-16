@@ -95,7 +95,7 @@ class ExporterMetrics:
         self.ams_unit_info = Gauge(
             "bambulab_ams_unit_info",
             "AMS unit info with model and series labels",
-            [*label_names, "ams_id", "ams_model", "ams_series", "ams_serial"],
+            [*label_names, "ams_id", "ams_model", "ams_series"],
             registry=self.registry,
         )
 
@@ -334,11 +334,9 @@ class ExporterMetrics:
             ams_id = str(ams.get("id", "0"))
             ams_model = str(ams.get("ams_model", "unknown"))
             ams_series = str(ams.get("ams_series", "unknown"))
-            ams_serial = str(ams.get("sn", ams.get("serial", ""))).strip()
-
             # AMS unit info metric
             self.ams_unit_info.labels(
-                **labels, ams_id=ams_id, ams_model=ams_model, ams_series=ams_series, ams_serial=ams_serial
+                **labels, ams_id=ams_id, ams_model=ams_model, ams_series=ams_series
             ).set(1.0)
 
             # Strict MQTT mapping:
