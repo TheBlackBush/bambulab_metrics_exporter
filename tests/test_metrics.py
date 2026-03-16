@@ -540,6 +540,47 @@ class TestMultiExtruderMetrics:
         )._value.get() == 1.0
 
 
+class TestHotendRackMetrics:
+    def test_hotend_rack_holder_info_metrics(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({"device": {"holder": {"pos": 3, "stat": 7}}}))
+        labels: dict = {"printer_name": "test", "serial": "SN123"}
+        assert m.hotend_rack_holder_position_info.labels(**labels, position="centre")._value.get() == 1.0
+        assert m.hotend_rack_holder_state_info.labels(**labels, state="place_hotend")._value.get() == 1.0
+
+    def test_hotend_rack_slot_and_hotend_metrics(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        exist = (1 << 16) | (1 << 19)
+        m.update_from_snapshot(
+            _snap(
+                {
+                    "device": {
+                        "nozzle": {
+                            "exist": exist,
+                            "tar_id": 19,
+                            "info": [{"id": 16, "type": "HS00", "diameter": 0.2, "wear": 0.1, "tm": 120}],
+                        }
+                    }
+                }
+            )
+        )
+        labels: dict = {"printer_name": "test", "serial": "SN123"}
+        assert m.hotend_rack_slot_state_info.labels(**labels, slot_id="19", state="mounted")._value.get() == 1.0
+        assert m.hotend_rack_slot_state_info.labels(**labels, slot_id="16", state="docked")._value.get() == 1.0
+        assert m.hotend_rack_hotend_info.labels(
+            **labels, slot_id="16", nozzle_type="HS00", nozzle_diameter="0.2"
+        )._value.get() == 1.0
+        assert m.hotend_rack_hotend_wear_ratio.labels(**labels, slot_id="16")._value.get() == 0.1
+        assert m.hotend_rack_hotend_runtime_minutes.labels(**labels, slot_id="16")._value.get() == 120.0
+
+    def test_hotend_rack_metrics_clear_when_absent(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({"device": {"holder": {"pos": 3, "stat": 0}}}))
+        assert len(m.hotend_rack_holder_position_info._metrics) == 1
+        m.update_from_snapshot(_snap({}))
+        assert len(m.hotend_rack_holder_position_info._metrics) == 0
+
+
 class TestSdcardStatus:
     def test_sdcard_from_bool(self) -> None:
         snap = _snap({"sdcard": True})

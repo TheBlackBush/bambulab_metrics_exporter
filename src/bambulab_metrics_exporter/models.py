@@ -88,6 +88,27 @@ AMS_TYPE_TO_MODEL: dict[int, str] = {
     4: "ams_ht",
 }
 
+HOTEND_RACK_SLOT_IDS: tuple[int, ...] = (16, 17, 18, 19, 20, 21)
+
+HOTEND_RACK_HOLDER_POSITION_NAMES: dict[int, str] = {
+    1: "a_top",
+    2: "b_top",
+    3: "centre",
+}
+
+HOTEND_RACK_HOLDER_STATE_NAMES: dict[int, str] = {
+    0: "idle",
+    1: "hotend_centre",
+    2: "toolhead_centre",
+    3: "calibrate_hotend_rack",
+    4: "cut_material",
+    5: "unlock_hotend",
+    6: "lift_hotend_rack",
+    7: "place_hotend",
+    8: "pick_hotend",
+    9: "lock_hotend",
+}
+
 
 def _extract_ams_info(ams_unit: dict[str, Any]) -> int | None:
     """Extract AMS info bitfield from known payload keys.
@@ -771,6 +792,118 @@ class PrinterSnapshot:
             if to_int(item.get("id")) == active:
                 return item
         return None
+
+    @property
+    def hotend_rack_present(self) -> bool:
+        device = self.print_block.get("device")
+        if not isinstance(device, dict):
+            return False
+
+        holder = device.get("holder")
+        if isinstance(holder, dict):
+            return True
+
+        nozzle = device.get("nozzle")
+        if not isinstance(nozzle, dict):
+            return False
+
+        exist = to_int(nozzle.get("exist"))
+        if isinstance(exist, int):
+            for slot_id in HOTEND_RACK_SLOT_IDS:
+                if (exist & (1 << slot_id)) != 0:
+                    return True
+
+        info = nozzle.get("info")
+        if isinstance(info, list):
+            for item in info:
+                if not isinstance(item, dict):
+                    continue
+                nozzle_id = to_int(item.get("id"))
+                if nozzle_id in HOTEND_RACK_SLOT_IDS:
+                    return True
+
+        return False
+
+    @property
+    def hotend_rack_holder_position_name(self) -> str | None:
+        device = self.print_block.get("device")
+        if not isinstance(device, dict):
+            return None
+        holder = device.get("holder")
+        if not isinstance(holder, dict):
+            return None
+        pos = to_int(holder.get("pos"))
+        if pos is None:
+            return None
+        return HOTEND_RACK_HOLDER_POSITION_NAMES.get(pos, "unknown")
+
+    @property
+    def hotend_rack_holder_state_name(self) -> str | None:
+        device = self.print_block.get("device")
+        if not isinstance(device, dict):
+            return None
+        holder = device.get("holder")
+        if not isinstance(holder, dict):
+            return None
+        stat = to_int(holder.get("stat"))
+        if stat is None:
+            return None
+        return HOTEND_RACK_HOLDER_STATE_NAMES.get(stat, "unknown")
+
+    @property
+    def hotend_rack_slot_entries(self) -> list[dict[str, str]]:
+        device = self.print_block.get("device")
+        if not isinstance(device, dict):
+            return []
+        nozzle = device.get("nozzle")
+        if not isinstance(nozzle, dict):
+            return []
+
+        exist = to_int(nozzle.get("exist"))
+        tar_id = to_int(nozzle.get("tar_id"))
+        if exist is None and tar_id is None:
+            return []
+
+        out: list[dict[str, str]] = []
+        for slot_id in HOTEND_RACK_SLOT_IDS:
+            if tar_id == slot_id:
+                state = "mounted"
+            elif isinstance(exist, int) and (exist & (1 << slot_id)) != 0:
+                state = "docked"
+            else:
+                state = "empty"
+            out.append({"slot_id": str(slot_id), "state": state})
+        return out
+
+    @property
+    def hotend_rack_hotend_entries(self) -> list[dict[str, Any]]:
+        device = self.print_block.get("device")
+        if not isinstance(device, dict):
+            return []
+        nozzle = device.get("nozzle")
+        if not isinstance(nozzle, dict):
+            return []
+        info = nozzle.get("info")
+        if not isinstance(info, list):
+            return []
+
+        out: list[dict[str, Any]] = []
+        for item in info:
+            if not isinstance(item, dict):
+                continue
+            nozzle_id = to_int(item.get("id"))
+            if nozzle_id not in HOTEND_RACK_SLOT_IDS:
+                continue
+            out.append(
+                {
+                    "slot_id": str(nozzle_id),
+                    "nozzle_type": str(item.get("type", "")).strip(),
+                    "nozzle_diameter": _to_float(item.get("diameter")),
+                    "wear": _to_float(item.get("wear")),
+                    "runtime_minutes": _to_float(item.get("tm")),
+                }
+            )
+        return out
 
     @property
     def print_error_code(self) -> int | None:
