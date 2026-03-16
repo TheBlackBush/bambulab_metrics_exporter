@@ -89,23 +89,73 @@ AMS_TYPE_TO_MODEL: dict[int, str] = {
 }
 
 
+def _extract_ams_info(ams_unit: dict[str, Any]) -> int | None:
+    """Extract AMS info bitfield from known payload keys.
+
+    Supports both:
+    - ams_info: int
+    - info: str/int (seen in some cloud payloads)
+    """
+    raw = ams_unit.get("ams_info", ams_unit.get("info"))
+
+    if isinstance(raw, int):
+        return raw
+
+    if isinstance(raw, str):
+        s = raw.strip()
+        if not s:
+            return None
+
+        # Some firmware/cloud payloads send `info` as bare hex string (e.g. "1001").
+        # For digit-only strings, try both decimal and hex and prefer a value whose
+        # low nibble maps to a known AMS type.
+        if s.isdigit():
+            candidates: list[int] = []
+            try:
+                candidates.append(int(s, 10))
+            except ValueError:
+                pass
+            try:
+                candidates.append(int(s, 16))
+            except ValueError:
+                pass
+
+            for candidate in candidates:
+                ams_type = candidate & 0xF
+                if candidate > 0 and ams_type in AMS_TYPE_TO_MODEL:
+                    return candidate
+
+            return candidates[0] if candidates else None
+
+        if s.lower().startswith("0x"):
+            s = s[2:]
+
+        if all(ch in "0123456789abcdefABCDEF" for ch in s):
+            try:
+                return int(s, 16)
+            except ValueError:
+                return None
+
+    return None
+
+
 def resolve_ams_model(ams_unit: dict[str, Any]) -> str:
     """Resolve AMS model name for a single AMS unit dict.
 
     Precedence:
-    1. ams_info bits 0-3 (ams_type) when valid (nonzero and known)
+    1. ams_info/info bits 0-3 (ams_type) when valid (nonzero and known)
     2. AMS serial prefix mapping
     3. 'unknown' fallback
     """
     # 1. ams_info ams_type bits 0-3
-    ams_info_raw = ams_unit.get("ams_info")
+    ams_info_raw = _extract_ams_info(ams_unit)
     if isinstance(ams_info_raw, int) and ams_info_raw > 0:
         ams_type = ams_info_raw & 0xF  # bits 0-3
         if ams_type in AMS_TYPE_TO_MODEL:
             return AMS_TYPE_TO_MODEL[ams_type]
 
-    # 2. AMS serial prefix
-    ams_serial = ams_unit.get("sn")
+    # 2. AMS serial prefix (support multiple key names)
+    ams_serial = ams_unit.get("sn", ams_unit.get("serial", ""))
     if isinstance(ams_serial, str) and ams_serial.strip():
         serial_upper = ams_serial.strip().upper()
         for prefix, model in AMS_SERIAL_PREFIX_TO_MODEL.items():
@@ -610,6 +660,34 @@ class PrinterSnapshot:
     @property
     def stat_flags(self) -> dict[str, bool | None]:
         return decode_stat_flags(self.print_block.get("stat"))
+
+    @property
+    def wired_network(self) -> float | None:
+        """Best-effort wired network state from print.net.info.
+
+        Current payloads typically expose adapters in `print.net.info` as:
+        - index 0: WLAN
+        - index 1: wired/LAN
+
+        Emit only when this structure is present.
+        """
+        net = self.print_block.get("net")
+        if not isinstance(net, dict):
+            return None
+
+        info = net.get("info")
+        if not isinstance(info, list) or len(info) < 2:
+            return None
+
+        wired_entry = info[1]
+        if not isinstance(wired_entry, dict):
+            return None
+
+        wired_ip = to_int(wired_entry.get("ip"))
+        if wired_ip is None:
+            return None
+
+        return 1.0 if wired_ip > 0 else 0.0
 
     @property
     def sdcard_status(self) -> str | None:

@@ -4,7 +4,7 @@ import math
 
 from prometheus_client import CollectorRegistry, Gauge
 
-from bambulab_metrics_exporter.models import PrinterSnapshot, parse_ams_info
+from bambulab_metrics_exporter.models import PrinterSnapshot, _extract_ams_info, parse_ams_info
 
 
 class ExporterMetrics:
@@ -95,7 +95,7 @@ class ExporterMetrics:
         self.ams_unit_info = Gauge(
             "bambulab_ams_unit_info",
             "AMS unit info with model and series labels",
-            [*label_names, "ams_id", "ams_model", "ams_series", "ams_serial"],
+            [*label_names, "ams_id", "ams_model", "ams_series"],
             registry=self.registry,
         )
 
@@ -313,7 +313,7 @@ class ExporterMetrics:
 
         # Phase 1 metrics
         self._set_optional(self.door_open, snapshot.door_open)
-        self._set_optional(self.wired_network, self._flag_to_float(snapshot.home_flags.get("wired_network")))
+        self._set_optional(self.wired_network, snapshot.wired_network)
         self._set_optional(self.camera_recording, self._flag_to_float(snapshot.home_flags.get("camera_recording")))
         self._set_optional(self.ams_auto_switch, self._flag_to_float(snapshot.home_flags.get("ams_auto_switch")))
         self._set_optional(self.filament_tangle_detected, self._flag_to_float(snapshot.home_flags.get("filament_tangle_detected")))
@@ -334,11 +334,9 @@ class ExporterMetrics:
             ams_id = str(ams.get("id", "0"))
             ams_model = str(ams.get("ams_model", "unknown"))
             ams_series = str(ams.get("ams_series", "unknown"))
-            ams_serial = str(ams.get("sn", "")).strip()
-
             # AMS unit info metric
             self.ams_unit_info.labels(
-                **labels, ams_id=ams_id, ams_model=ams_model, ams_series=ams_series, ams_serial=ams_serial
+                **labels, ams_id=ams_id, ams_model=ams_model, ams_series=ams_series
             ).set(1.0)
 
             # Strict MQTT mapping:
@@ -364,8 +362,8 @@ class ExporterMetrics:
                 except (TypeError, ValueError):
                     pass
 
-            # Gen2 drying telemetry from ams_info bits
-            ams_info_raw = ams.get("ams_info")
+            # Gen2 drying telemetry from ams_info/info bits
+            ams_info_raw = _extract_ams_info(ams)
             if isinstance(ams_info_raw, int) and ams_info_raw > 0:
                 parsed = parse_ams_info(ams_info_raw)
                 dry_heater_state = parsed["dry_heater_state"]

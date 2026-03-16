@@ -32,6 +32,28 @@ Never stop after "commit + push". The task is incomplete until tag + release bot
 4. Create tag `vX.Y.Z` and push it.
 5. Create GitHub Release `vX.Y.Z` with notes.
 
+## PR creation checklist (always use this)
+
+When preparing a change for review, follow this exact sequence:
+
+1. Create a **new branch from `main`**
+   - Never open release/fix PRs from another feature branch.
+   - Example: `git checkout main && git pull --ff-only && git checkout -b <branch-name>`
+
+2. Prepare release docs before opening PR
+   - Update `CHANGELOG.md` with the relevant version section and concise bullets.
+   - Update `README.md` if metrics/labels/behavior changed.
+
+3. Open PR with a title that matches the real change
+   - Title must describe the user-facing fix/feature (not generic wording).
+   - Prefer format: `<scope>: <what changed>` or `Release X.Y.Z: <summary>`.
+
+4. Add PR description with:
+   - What changed (bullet list)
+   - Why it changed (short context)
+   - Version to be released (e.g. `0.1.25`)
+   - Validation proof (tests/live checks if relevant)
+
 ## Validation guard
 
 Before tag/release, ensure:
