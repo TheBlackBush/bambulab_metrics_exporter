@@ -283,6 +283,21 @@ def _to_float(value: Any) -> float | None:
     return None
 
 
+def _unpack_temperature(value: Any) -> tuple[float | None, float | None]:
+    """Unpack packed temperature integer into (actual, target).
+
+    Follows the H2D telemetry convention used by community implementations:
+    - low 16 bits: actual temperature
+    - high 16 bits: target temperature
+    """
+    raw = to_int(value)
+    if raw is None:
+        return None, None
+    actual = float(raw & 0xFFFF)
+    target = float((raw >> 16) & 0xFFFF)
+    return actual, target
+
+
 # Backward-compatible aliases for legacy tests/importers.
 _to_int = to_int
 _to_hex_int = to_hex_int
@@ -641,6 +656,121 @@ class PrinterSnapshot:
                 return [normalized]
 
         return []
+
+    @property
+    def extruder_state_raw(self) -> int | None:
+        device = self.print_block.get("device")
+        if not isinstance(device, dict):
+            return None
+        extruder = device.get("extruder")
+        if not isinstance(extruder, dict):
+            return None
+        return to_int(extruder.get("state"))
+
+    @property
+    def active_extruder_index(self) -> float | None:
+        raw = self.extruder_state_raw
+        if raw is None:
+            return None
+        return float((raw >> 4) & 0xF)
+
+    @property
+    def extruder_entries(self) -> list[dict[str, Any]]:
+        device = self.print_block.get("device")
+        if not isinstance(device, dict):
+            return []
+        extruder = device.get("extruder")
+        if not isinstance(extruder, dict):
+            return []
+        info = extruder.get("info")
+        if not isinstance(info, list):
+            return []
+
+        out: list[dict[str, Any]] = []
+        for item in info:
+            if not isinstance(item, dict):
+                continue
+            extruder_id = to_int(item.get("id"))
+            if extruder_id is None:
+                continue
+            actual_temp, target_temp = _unpack_temperature(item.get("temp"))
+            out.append(
+                {
+                    "id": str(extruder_id),
+                    "actual_temp": actual_temp,
+                    "target_temp": target_temp,
+                    "hnow": to_int(item.get("hnow")),
+                }
+            )
+        return out
+
+    @property
+    def extruder_nozzle_info_entries(self) -> list[dict[str, Any]]:
+        device = self.print_block.get("device")
+        if not isinstance(device, dict):
+            return []
+
+        nozzle = device.get("nozzle")
+        if not isinstance(nozzle, dict):
+            return []
+        nozzle_info = nozzle.get("info")
+        if not isinstance(nozzle_info, list):
+            return []
+
+        nozzle_by_id: dict[int, dict[str, Any]] = {}
+        for item in nozzle_info:
+            if not isinstance(item, dict):
+                continue
+            nid = to_int(item.get("id"))
+            if nid is None:
+                continue
+            nozzle_by_id[nid] = item
+
+        entries: list[dict[str, Any]] = []
+        for ext in self.extruder_entries:
+            ext_id = to_int(ext.get("id"))
+            if ext_id is None:
+                continue
+            nozzle_id = to_int(ext.get("hnow"))
+            chosen = nozzle_by_id.get(nozzle_id) if nozzle_id is not None else None
+            if chosen is None:
+                chosen = nozzle_by_id.get(ext_id)
+            if chosen is None:
+                continue
+            entries.append(
+                {
+                    "id": str(ext_id),
+                    "nozzle_type": str(chosen.get("type", "")).strip(),
+                    "nozzle_diameter": _to_float(chosen.get("diameter")),
+                }
+            )
+
+        if entries:
+            return entries
+
+        # fallback for payloads exposing only nozzle.info ids 0/1 without extruder.info
+        for fallback_id in (0, 1):
+            chosen = nozzle_by_id.get(fallback_id)
+            if chosen is None:
+                continue
+            entries.append(
+                {
+                    "id": str(fallback_id),
+                    "nozzle_type": str(chosen.get("type", "")).strip(),
+                    "nozzle_diameter": _to_float(chosen.get("diameter")),
+                }
+            )
+        return entries
+
+    @property
+    def active_nozzle_entry(self) -> dict[str, Any] | None:
+        active = to_int(self.active_extruder_index)
+        if active is None:
+            return None
+        for item in self.extruder_nozzle_info_entries:
+            if to_int(item.get("id")) == active:
+                return item
+        return None
 
     @property
     def print_error_code(self) -> int | None:

@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.27] - 2026-03-16
+
+### Added
+- Added initial multi-extruder telemetry support (H2D/H2D Pro payload-compatible):
+  - `bambulab_active_extruder_index`
+  - `bambulab_extruder_temperature_celsius{extruder_id}`
+  - `bambulab_extruder_target_temperature_celsius{extruder_id}`
+  - `bambulab_extruder_nozzle_info{extruder_id,nozzle_type,nozzle_diameter}`
+  - `bambulab_active_nozzle_info{nozzle_type,nozzle_diameter}`
+
+### Changed
+- Added parser support for `print.device.extruder.state`, `print.device.extruder.info[]`, and `print.device.nozzle.info[]` in the snapshot model.
+- Added packed extruder temperature unpacking (`low16=actual`, `high16=target`) for dual-extruder payloads.
+
 ## [0.1.26] - 2026-03-16
 
 ### Added
