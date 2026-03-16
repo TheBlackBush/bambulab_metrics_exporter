@@ -498,6 +498,48 @@ class TestExternalSpoolMetrics:
         )._value.get() == 1.0
 
 
+class TestMultiExtruderMetrics:
+    def test_active_extruder_index_metric(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({"device": {"extruder": {"state": 16}}}))
+        labels: dict = {"printer_name": "test", "serial": "SN123"}
+        assert m.active_extruder_index.labels(**labels)._value.get() == 1.0
+
+    def test_extruder_temperature_metrics(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        packed0 = (220 << 16) | 210
+        packed1 = (230 << 16) | 215
+        m.update_from_snapshot(
+            _snap({"device": {"extruder": {"info": [{"id": 0, "temp": packed0}, {"id": 1, "temp": packed1}]}}})
+        )
+        labels: dict = {"printer_name": "test", "serial": "SN123"}
+        assert m.extruder_temperature_celsius.labels(**labels, extruder_id="0")._value.get() == 210.0
+        assert m.extruder_target_temperature_celsius.labels(**labels, extruder_id="1")._value.get() == 230.0
+
+    def test_extruder_nozzle_and_active_nozzle_info(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(
+            _snap(
+                {
+                    "device": {
+                        "extruder": {
+                            "state": 0,
+                            "info": [{"id": 0, "temp": 0, "hnow": 0}, {"id": 1, "temp": 0, "hnow": 1}],
+                        },
+                        "nozzle": {"info": [{"id": 0, "type": "HS01", "diameter": 0.4}, {"id": 1, "type": "HX05", "diameter": 0.6}]},
+                    }
+                }
+            )
+        )
+        labels: dict = {"printer_name": "test", "serial": "SN123"}
+        assert m.extruder_nozzle_info.labels(
+            **labels, extruder_id="0", nozzle_type="HS01", nozzle_diameter="0.4"
+        )._value.get() == 1.0
+        assert m.active_nozzle_info.labels(
+            **labels, nozzle_type="HS01", nozzle_diameter="0.4"
+        )._value.get() == 1.0
+
+
 class TestSdcardStatus:
     def test_sdcard_from_bool(self) -> None:
         snap = _snap({"sdcard": True})

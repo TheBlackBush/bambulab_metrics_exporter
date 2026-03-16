@@ -178,6 +178,36 @@ class ExporterMetrics:
             [*label_names, "external_id", "tray_type", "tray_info_idx", "tray_color"],
             registry=self.registry,
         )
+        self.active_extruder_index = Gauge(
+            "bambulab_active_extruder_index",
+            "Active extruder index (0=right,1=left on dual-extruder models)",
+            label_names,
+            registry=self.registry,
+        )
+        self.extruder_temperature_celsius = Gauge(
+            "bambulab_extruder_temperature_celsius",
+            "Current extruder temperature per extruder id",
+            [*label_names, "extruder_id"],
+            registry=self.registry,
+        )
+        self.extruder_target_temperature_celsius = Gauge(
+            "bambulab_extruder_target_temperature_celsius",
+            "Target extruder temperature per extruder id",
+            [*label_names, "extruder_id"],
+            registry=self.registry,
+        )
+        self.extruder_nozzle_info = Gauge(
+            "bambulab_extruder_nozzle_info",
+            "Nozzle type/diameter per extruder id",
+            [*label_names, "extruder_id", "nozzle_type", "nozzle_diameter"],
+            registry=self.registry,
+        )
+        self.active_nozzle_info = Gauge(
+            "bambulab_active_nozzle_info",
+            "Nozzle type/diameter of currently active extruder",
+            [*label_names, "nozzle_type", "nozzle_diameter"],
+            registry=self.registry,
+        )
         self.camera_recording = Gauge("bambulab_camera_recording", "1 if camera recording flag is set", label_names, registry=self.registry)
         self.ams_auto_switch = Gauge("bambulab_ams_auto_switch", "1 if AMS auto switch flag is set", label_names, registry=self.registry)
         self.filament_tangle_detected = Gauge("bambulab_filament_tangle_detected", "1 if filament tangle detected flag is set", label_names, registry=self.registry)
@@ -331,6 +361,37 @@ class ExporterMetrics:
                 tray_info_idx=str(entry.get("tray_info_idx", "")).strip() or "unknown",
                 tray_color=str(entry.get("tray_color", "")).strip().upper() or "unknown",
             ).set(1.0)
+
+        self._set_optional(self.active_extruder_index, snapshot.active_extruder_index)
+        self.extruder_temperature_celsius.clear()
+        self.extruder_target_temperature_celsius.clear()
+        for ext in snapshot.extruder_entries:
+            ext_id = str(ext.get("id", "unknown"))
+            actual = ext.get("actual_temp")
+            target = ext.get("target_temp")
+            if isinstance(actual, (int, float)):
+                self.extruder_temperature_celsius.labels(**labels, extruder_id=ext_id).set(float(actual))
+            if isinstance(target, (int, float)):
+                self.extruder_target_temperature_celsius.labels(**labels, extruder_id=ext_id).set(float(target))
+
+        self.extruder_nozzle_info.clear()
+        for nozzle in snapshot.extruder_nozzle_info_entries:
+            self.extruder_nozzle_info.labels(
+                **labels,
+                extruder_id=str(nozzle.get("id", "unknown")),
+                nozzle_type=str(nozzle.get("nozzle_type", "")).strip() or "unknown",
+                nozzle_diameter=str(nozzle.get("nozzle_diameter", "")).strip() or "unknown",
+            ).set(1.0)
+
+        self.active_nozzle_info.clear()
+        active_nozzle = snapshot.active_nozzle_entry
+        if active_nozzle is not None:
+            self.active_nozzle_info.labels(
+                **labels,
+                nozzle_type=str(active_nozzle.get("nozzle_type", "")).strip() or "unknown",
+                nozzle_diameter=str(active_nozzle.get("nozzle_diameter", "")).strip() or "unknown",
+            ).set(1.0)
+
         self._set_optional(self.camera_recording, self._flag_to_float(snapshot.home_flags.get("camera_recording")))
         self._set_optional(self.ams_auto_switch, self._flag_to_float(snapshot.home_flags.get("ams_auto_switch")))
         self._set_optional(self.filament_tangle_detected, self._flag_to_float(snapshot.home_flags.get("filament_tangle_detected")))
