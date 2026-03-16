@@ -227,6 +227,11 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 - `bambulab_ams_slot_tray_color_info{ams_id,slot_id,tray_color}`
 - `bambulab_external_spool_active`
 - `bambulab_external_spool_info{external_id,tray_type,tray_info_idx,tray_color}`
+- `bambulab_active_extruder_index`
+- `bambulab_extruder_temperature_celsius{extruder_id}`
+- `bambulab_extruder_target_temperature_celsius{extruder_id}`
+- `bambulab_extruder_nozzle_info{extruder_id,nozzle_type,nozzle_diameter}`
+- `bambulab_active_nozzle_info{nozzle_type,nozzle_diameter}`
 
 - `bambulab_fan_big_1_speed_percent`
 - `bambulab_fan_big_2_speed_percent`
@@ -268,6 +273,11 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 - `bambulab_wired_network`
 - `bambulab_external_spool_active`
 - `bambulab_external_spool_info{external_id,tray_type,tray_info_idx,tray_color}`
+- `bambulab_active_extruder_index`
+- `bambulab_extruder_temperature_celsius{extruder_id}`
+- `bambulab_extruder_target_temperature_celsius{extruder_id}`
+- `bambulab_extruder_nozzle_info{extruder_id,nozzle_type,nozzle_diameter}`
+- `bambulab_active_nozzle_info{nozzle_type,nozzle_diameter}`
 - `bambulab_camera_recording`
 - `bambulab_ams_auto_switch`
 - `bambulab_filament_tangle_detected`

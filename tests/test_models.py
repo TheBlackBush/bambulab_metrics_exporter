@@ -286,6 +286,51 @@ def test_external_spool_entries_from_vt_tray_fallback() -> None:
     ]
 
 
+def test_active_extruder_index_from_device_extruder_state() -> None:
+    snap = PrinterSnapshot(connected=True, raw={"print": {"device": {"extruder": {"state": 16}}}})
+    assert snap.active_extruder_index == 1.0
+
+
+def test_extruder_entries_unpack_temp() -> None:
+    # low16=210 actual, high16=220 target
+    packed = (220 << 16) | 210
+    snap = PrinterSnapshot(
+        connected=True,
+        raw={"print": {"device": {"extruder": {"info": [{"id": 0, "temp": packed, "hnow": 1}]}}}},
+    )
+    assert snap.extruder_entries == [{"id": "0", "actual_temp": 210.0, "target_temp": 220.0, "hnow": 1}]
+
+
+def test_extruder_nozzle_info_entries_map_via_hnow() -> None:
+    snap = PrinterSnapshot(
+        connected=True,
+        raw={
+            "print": {
+                "device": {
+                    "extruder": {"info": [{"id": 0, "temp": 0, "hnow": 1}]},
+                    "nozzle": {"info": [{"id": 0, "type": "HS01", "diameter": 0.4}, {"id": 1, "type": "HX05", "diameter": 0.6}]},
+                }
+            }
+        },
+    )
+    assert snap.extruder_nozzle_info_entries == [{"id": "0", "nozzle_type": "HX05", "nozzle_diameter": 0.6}]
+
+
+def test_active_nozzle_entry_from_active_extruder() -> None:
+    snap = PrinterSnapshot(
+        connected=True,
+        raw={
+            "print": {
+                "device": {
+                    "extruder": {"state": 0, "info": [{"id": 0, "temp": 0, "hnow": 0}]},
+                    "nozzle": {"info": [{"id": 0, "type": "HS01", "diameter": 0.4}]},
+                }
+            }
+        },
+    )
+    assert snap.active_nozzle_entry == {"id": "0", "nozzle_type": "HS01", "nozzle_diameter": 0.4}
+
+
 def test_model_ams_units_name() -> None:
     snap = PrinterSnapshot(connected=True, raw={"print": {"ams": {"ams": [{"id": "0", "name": "AMS1"}]}}})
     assert snap.ams_units[0]["name"] == "AMS1"
