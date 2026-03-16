@@ -106,12 +106,26 @@ def _extract_ams_info(ams_unit: dict[str, Any]) -> int | None:
         if not s:
             return None
 
-        # Prefer explicit decimal for digit-only values; otherwise parse as hex.
+        # Some firmware/cloud payloads send `info` as bare hex string (e.g. "1001").
+        # For digit-only strings, try both decimal and hex and prefer a value whose
+        # low nibble maps to a known AMS type.
         if s.isdigit():
+            candidates: list[int] = []
             try:
-                return int(s, 10)
+                candidates.append(int(s, 10))
             except ValueError:
-                return None
+                pass
+            try:
+                candidates.append(int(s, 16))
+            except ValueError:
+                pass
+
+            for candidate in candidates:
+                ams_type = candidate & 0xF
+                if candidate > 0 and ams_type in AMS_TYPE_TO_MODEL:
+                    return candidate
+
+            return candidates[0] if candidates else None
 
         if s.lower().startswith("0x"):
             s = s[2:]
