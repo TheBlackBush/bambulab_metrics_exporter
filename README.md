@@ -235,10 +235,11 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 | `bambulab_bed_temperature_celsius` | Gauge | Current bed temperature. |
 | `bambulab_bed_target_temperature_celsius` | Gauge | Target bed temperature. |
 | `bambulab_chamber_temperature_celsius` | Gauge | Chamber temperature. |
-| `bambulab_fan_big_1_speed_percent` | Gauge | Big fan 1 speed percent. |
-| `bambulab_fan_big_2_speed_percent` | Gauge | Big fan 2 speed percent. |
-| `bambulab_fan_cooling_speed_percent` | Gauge | Cooling fan speed percent. |
-| `bambulab_fan_heatbreak_speed_percent` | Gauge | Heatbreak fan speed percent. |
+| `bambulab_fan_big_1_speed_percent` | Gauge | Big fan 1 speed percent . |
+| `bambulab_fan_big_2_speed_percent` | Gauge | Big fan 2 speed percent . |
+| `bambulab_fan_cooling_speed_percent` | Gauge | Cooling fan speed percent . |
+| `bambulab_fan_heatbreak_speed_percent` | Gauge | Heatbreak fan speed percent . |
+| `bambulab_fan_secondary_aux_speed_percent` | Gauge | Secondary auxiliary fan speed percent from `print.device.airduct.parts[id=160]` . |
 | `bambulab_printer_error` | Gauge | 1 when printer error code is non-zero. |
 | `bambulab_printer_error_code` | Gauge | Raw printer error code (`mc_print_error_code`). |
 | `bambulab_print_error_code` | Gauge | Raw `print_error` value from MQTT (legacy alias). |

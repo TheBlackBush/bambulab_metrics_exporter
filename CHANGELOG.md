@@ -4,12 +4,18 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- Fan metrics now follow step-aware normalization for raw fan levels (`0..15` -> percent) with nearest-10 rounding.
+- Added secondary auxiliary fan metric: `bambulab_fan_secondary_aux_speed_percent` from `print.device.airduct.parts[id=160]`.
+- Unified fan parsing behavior across dedicated fan fields: `big_fan1`, `big_fan2`, `cooling`, and `heatbreak`.
+- Removed legacy `fan_gear` fan-speed parsing path (no longer used for fan metrics).
+
 ## [0.1.29] - 2026-03-17
 
 ### Changed
 - Removed deprecated `bambulab_mc_print_stage_state{stage}` metric.
-- Aligned `STG_CUR_NAMES` with Home Assistant (`ha-bambulab`) `CURRENT_STAGE_IDS`, including stage IDs `36..58` and idle mapping for `255`.
-- Updated stage resolution to match HA StageAction behavior:
+- Aligned `STG_CUR_NAMES` with Home Assistant (`upstream reference`) `CURRENT_STAGE_IDS`, including stage IDs `36..58` and idle mapping for `255`.
+- Updated stage resolution to match optimized behavior:
   - prefer `print.stage._id` over `print.stg_cur`
   - normalize `print_type=idle` + stage `0` to `255`
   - retain unknown fallback as `unknown_<id>`
