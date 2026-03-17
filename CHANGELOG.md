@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.30] - 2026-03-17
+
 ### Changed
 - Fan metrics now follow step-aware normalization for raw fan levels (`0..15` -> percent) with nearest-10 rounding.
 - Added secondary auxiliary fan metric: `bambulab_fan_secondary_aux_speed_percent` from `print.device.airduct.parts[id=160]`.
