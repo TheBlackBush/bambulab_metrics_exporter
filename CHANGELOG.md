@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.29] - 2026-03-17
+
 ### Changed
 - Removed deprecated `bambulab_mc_print_stage_state{stage}` metric.
 - Aligned `STG_CUR_NAMES` with Home Assistant (`ha-bambulab`) `CURRENT_STAGE_IDS`, including stage IDs `36..58` and idle mapping for `255`.
