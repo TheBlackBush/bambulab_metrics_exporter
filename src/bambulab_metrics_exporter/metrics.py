@@ -70,7 +70,6 @@ class ExporterMetrics:
         self.work_light_on = Gauge("bambulab_work_light_on", "Work light on/off", label_names, registry=self.registry)
         self.xcam_feature_enabled = Gauge("bambulab_xcam_feature_enabled", "XCam feature enabled flags", [*label_names, "feature"], registry=self.registry)
         self.gcode_state = Gauge("bambulab_printer_gcode_state", "Current gcode state encoded as one-hot labels", [*label_names, "state"], registry=self.registry)
-        self.mc_print_stage_state = Gauge("bambulab_mc_print_stage_state", "Current machine print stage as one-hot labels", [*label_names, "stage"], registry=self.registry)
         self.spd_lvl_state = Gauge("bambulab_spd_lvl_state", "Current speed level as one-hot labels", [*label_names, "mode"], registry=self.registry)
         self.subtask_name_info = Gauge(
             "bambulab_subtask_name_info",
@@ -354,15 +353,6 @@ class ExporterMetrics:
         current = snapshot.gcode_state if snapshot.gcode_state in known_states else "UNKNOWN"
         for state in known_states:
             self.gcode_state.labels(**labels, state=state).set(1.0 if state == current else 0.0)
-
-        known_print_stages = {
-            "AUTO_BED_LEVELING", "HEATBED_PREHEATING", "CHANGING_FILAMENT", "M400_PAUSE", "PAUSED_DUE_TO_FILAMENT_RUNOUT", "HEATING_HOTEND", "CALIBRATING_EXTRUSION", "SCANNING_BED_SURFACE", "INSPECTING_FIRST_LAYER", "IDENTIFYING_BUILD_PLATE_TYPE", "HOMING_TOOLHEAD", "CLEANING_NOZZLE_TIP", "CHECKING_EXTRUDER_TEMPERATURE", "PRINTING", "MOTOR_NOISE_CALIBRATION", "UNKNOWN"
-        }
-        stage_current = snapshot.mc_print_stage_name or "UNKNOWN"
-        if stage_current not in known_print_stages:
-            stage_current = "UNKNOWN"
-        for stage in known_print_stages:
-            self.mc_print_stage_state.labels(**labels, stage=stage).set(1.0 if stage == stage_current else 0.0)
 
         speed_modes = {1.0: "SILENT", 2.0: "STANDARD", 3.0: "SPORT", 4.0: "LUDICROUS"}
         current_speed_mode = "UNKNOWN"

@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Changed
+- Removed deprecated `bambulab_mc_print_stage_state{stage}` metric.
+- Aligned `STG_CUR_NAMES` with Home Assistant (`ha-bambulab`) `CURRENT_STAGE_IDS`, including stage IDs `36..58` and idle mapping for `255`.
+- Updated stage resolution to match HA StageAction behavior:
+  - prefer `print.stage._id` over `print.stg_cur`
+  - normalize `print_type=idle` + stage `0` to `255`
+  - retain unknown fallback as `unknown_<id>`
+- Updated tests and README migration guidance for stage-metric migration.
+
 ## [0.1.28] - 2026-03-16
 
 ### Added

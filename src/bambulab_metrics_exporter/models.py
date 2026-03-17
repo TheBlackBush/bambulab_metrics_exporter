@@ -256,7 +256,7 @@ STG_CUR_NAMES: dict[int, str] = {
     3: "sweeping_xy_mech_mode",
     4: "changing_filament",
     5: "m400_pause",
-    6: "filament_runout_pause",
+    6: "paused_filament_runout",
     7: "heating_hotend",
     8: "calibrating_extrusion",
     9: "scanning_bed_surface",
@@ -267,26 +267,49 @@ STG_CUR_NAMES: dict[int, str] = {
     14: "cleaning_nozzle_tip",
     15: "checking_extruder_temperature",
     16: "paused_user",
-    17: "paused_front_cover",
-    18: "calibrating_lidar",
-    19: "calibrating_micro_lidar_2",
-    20: "toolhead_shell_off_pause",
-    21: "nozzle_hub_clog_pause",
-    22: "checking_foreign_body",
-    23: "motor_noise_calibration",
-    24: "paused_nozzle_temperature_malfunction",
-    25: "paused_heat_bed_temperature_malfunction",
-    26: "filament_unloading",
-    27: "skip_step_pause",
-    28: "filament_loading",
-    29: "motor_noise_showoff",
-    30: "pressure_advance_calibrating",
-    31: "bed_leveling_wip",
-    32: "change_cartridge",
-    33: "vibration_compensation_calibrating",
-    34: "standby",
-    35: "idle",
-    255: "unknown",
+    17: "paused_front_cover_falling",
+    18: "calibrating_micro_lidar",
+    19: "calibrating_extrusion_flow",
+    20: "paused_nozzle_temperature_malfunction",
+    21: "paused_heat_bed_temperature_malfunction",
+    22: "filament_unloading",
+    23: "paused_skipped_step",
+    24: "filament_loading",
+    25: "calibrating_motor_noise",
+    26: "paused_ams_lost",
+    27: "paused_low_fan_speed_heat_break",
+    28: "paused_chamber_temperature_control_error",
+    29: "cooling_chamber",
+    30: "paused_user_gcode",
+    31: "motor_noise_showoff",
+    32: "paused_nozzle_filament_covered_detected",
+    33: "paused_cutter_error",
+    34: "paused_first_layer_error",
+    35: "paused_nozzle_clog",
+    36: "check_absolute_accuracy_before_calibration",
+    37: "absolute_accuracy_calibration",
+    38: "check_absolute_accuracy_after_calibration",
+    39: "calibrate_nozzle_offset",
+    40: "bed_level_high_temperature",
+    41: "check_quick_release",
+    42: "check_door_and_cover",
+    43: "laser_calibration",
+    44: "check_plaform",
+    45: "check_birdeye_camera_position",
+    46: "calibrate_birdeye_camera",
+    47: "bed_level_phase_1",
+    48: "bed_level_phase_2",
+    49: "heating_chamber",
+    50: "heated_bedcooling",
+    51: "print_calibration_lines",
+    52: "check_material",
+    53: "calibrating_live_view_camera",
+    54: "waiting_for_heatbed_temperature",
+    55: "check_material_position",
+    56: "calibrating_cutter_model_offset",
+    57: "measuring_surface",
+    58: "thermal_preconditioning",
+    255: "idle",
 }
 
 
@@ -1056,8 +1079,25 @@ class PrinterSnapshot:
 
     @property
     def stg_cur(self) -> int | None:
-        """Current print stage ID."""
-        return to_int(self.print_block.get("stg_cur"))
+        """Current print stage ID.
+
+        Mirrors Home Assistant stage selection behavior:
+        - prefer `print.stage._id` when available
+        - otherwise use `print.stg_cur`
+        - normalize idle payload edge-case (`print_type == idle` and stage id 0) to 255
+        """
+        stage_block = self.print_block.get("stage")
+        stage_id = to_int(stage_block.get("_id")) if isinstance(stage_block, dict) else None
+        if stage_id is None:
+            stage_id = to_int(self.print_block.get("stg_cur"))
+        if stage_id is None:
+            return None
+
+        print_type = self.print_block.get("print_type")
+        if isinstance(print_type, str) and print_type.strip().lower() == "idle" and stage_id == 0:
+            return 255
+
+        return stage_id
 
     @property
     def stg_cur_name(self) -> str | None:

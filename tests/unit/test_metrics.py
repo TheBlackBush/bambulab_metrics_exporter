@@ -615,9 +615,20 @@ class TestStgCur:
         assert snap.stg_cur == 0
         assert snap.stg_cur_name == "printing"
 
-    def test_stg_cur_bed_leveling(self) -> None:
-        snap = _snap({"stg_cur": 1})
-        assert snap.stg_cur_name == "auto_bed_leveling"
+    def test_stg_cur_prefers_stage_id_when_present(self) -> None:
+        snap = _snap({"stg_cur": 7, "stage": {"_id": 13}})
+        assert snap.stg_cur == 13
+        assert snap.stg_cur_name == "homing_toolhead"
+
+    def test_stg_cur_falls_back_to_stg_cur(self) -> None:
+        snap = _snap({"stg_cur": 7, "stage": {"name": "ignored_without_id"}})
+        assert snap.stg_cur == 7
+        assert snap.stg_cur_name == "heating_hotend"
+
+    def test_stg_cur_idle_fix_normalizes_zero_to_255(self) -> None:
+        snap = _snap({"print_type": "idle", "stg_cur": 0})
+        assert snap.stg_cur == 255
+        assert snap.stg_cur_name == "idle"
 
     def test_stg_cur_unknown_id(self) -> None:
         snap = _snap({"stg_cur": 99})
@@ -625,7 +636,7 @@ class TestStgCur:
 
     def test_stg_cur_255(self) -> None:
         snap = _snap({"stg_cur": 255})
-        assert snap.stg_cur_name == "unknown"
+        assert snap.stg_cur_name == "idle"
 
     def test_stg_cur_none(self) -> None:
         snap = _snap({})
@@ -651,16 +662,23 @@ class TestStgCur:
         labels: dict = {"printer_name": "test", "serial": "SN123", "stage": "auto_bed_leveling"}
         assert m.print_stage_info.labels(**labels)._value.get() == 1.0
 
+    def test_removed_mc_print_stage_state_metric(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        assert not hasattr(m, "mc_print_stage_state")
+
 
 class TestStgCurMapping:
     def test_all_known_stages(self) -> None:
         assert STG_CUR_NAMES[0] == "printing"
         assert STG_CUR_NAMES[1] == "auto_bed_leveling"
         assert STG_CUR_NAMES[13] == "homing_toolhead"
-        assert STG_CUR_NAMES[23] == "motor_noise_calibration"
-        assert STG_CUR_NAMES[34] == "standby"
-        assert STG_CUR_NAMES[35] == "idle"
+        assert STG_CUR_NAMES[23] == "paused_skipped_step"
+        assert STG_CUR_NAMES[34] == "paused_first_layer_error"
+        assert STG_CUR_NAMES[35] == "paused_nozzle_clog"
+        assert STG_CUR_NAMES[36] == "check_absolute_accuracy_before_calibration"
+        assert STG_CUR_NAMES[58] == "thermal_preconditioning"
         assert STG_CUR_NAMES[-1] == "idle"
+        assert STG_CUR_NAMES[255] == "idle"
         assert STG_CUR_NAMES[11] == "identifying_build_plate_type"
         assert STG_CUR_NAMES[15] == "checking_extruder_temperature"
 
