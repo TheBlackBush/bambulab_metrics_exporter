@@ -55,7 +55,6 @@ def test_model_parsing_extended_fields() -> None:
         connected=False,
         raw={
             "print": {
-                "fan_gear": 10,
                 "big_fan1_speed": "40",
                 "big_fan2_speed": "55",
                 "cooling_fan_speed": "60",
@@ -91,10 +90,8 @@ def test_model_parsing_extended_fields() -> None:
         },
     )
 
-    assert snap.fan_gear is not None
-    assert snap.fan_gear_raw == 10.0
     assert snap.fan_big_1_percent == 40.0
-    assert snap.fan_big_2_percent == 55.0
+    assert snap.fan_big_2_percent == 60.0
     assert snap.fan_cooling_percent == 60.0
     assert snap.fan_heatbreak_percent == 70.0
     assert snap.mc_stage == 2.0
@@ -185,22 +182,26 @@ def test_parsing_helpers() -> None:
 
 
 # ---------------------------------------------------------------------------
-# fan_gear edge cases
+# Fan normalization / secondary auxiliary fan
 # ---------------------------------------------------------------------------
 
-def test_model_fan_gear_gear_scale() -> None:
-    snap = PrinterSnapshot(connected=True, raw={"print": {"fan_gear": 15}})
-    assert snap.fan_gear == 100.0  # (15/15)*100
-
-
-def test_model_fan_gear_above_15() -> None:
-    snap = PrinterSnapshot(connected=True, raw={"print": {"fan_gear": 20.0}})
-    assert snap.fan_gear == 20.0
-
-
-def test_model_fan_gear_high_passthrough() -> None:
-    snap = PrinterSnapshot(connected=True, raw={"print": {"fan_gear": 50}})
-    assert snap.fan_gear == 50.0
+def test_model_secondary_aux_fan_percent_from_airduct_parts() -> None:
+    snap = PrinterSnapshot(
+        connected=True,
+        raw={
+            "print": {
+                "device": {
+                    "airduct": {
+                        "parts": [
+                            {"id": 42, "value": "5"},
+                            {"id": 160, "value": "7"},
+                        ]
+                    }
+                }
+            }
+        },
+    )
+    assert snap.fan_secondary_aux_percent == 50.0
 
 
 # ---------------------------------------------------------------------------

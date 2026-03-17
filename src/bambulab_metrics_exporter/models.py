@@ -342,6 +342,22 @@ def _unpack_temperature(value: Any) -> tuple[float | None, float | None]:
     return actual, target
 
 
+def _fan_percent_normalized(value: Any) -> float | None:
+    """Normalize fan speed to percent with step-aware rounding.
+
+    Normalization logic for raw 0..15 fan steps: (raw/15)*100 rounded to nearest 10.
+    For already-percent values (>15), pass through as percent and still round to nearest 10.
+    """
+    raw = _to_float(value)
+    if raw is None:
+        return None
+    if raw <= 15.0:
+        percent = (raw / 15.0) * 100.0
+    else:
+        percent = raw
+    return float(round(percent / 10.0) * 10)
+
+
 # Backward-compatible aliases for legacy tests/importers.
 _to_int = to_int
 _to_hex_int = to_hex_int
@@ -500,35 +516,38 @@ class PrinterSnapshot:
         return (current / total) * 100.0
 
     @property
-    def fan_gear(self) -> float | None:
-        value = _to_float(self.print_block.get("fan_gear"))
-        if value is None:
-            value = _to_float(self.print_block.get("big_fan1_speed"))
-        if value is None:
-            return None
-        if value <= 15:
-            return (value / 15.0) * 100.0
-        return value
-
-    @property
-    def fan_gear_raw(self) -> float | None:
-        return _to_float(self.print_block.get("fan_gear"))
-
-    @property
     def fan_big_1_percent(self) -> float | None:
-        return _to_float(self.print_block.get("big_fan1_speed"))
+        return _fan_percent_normalized(self.print_block.get("big_fan1_speed"))
 
     @property
     def fan_big_2_percent(self) -> float | None:
-        return _to_float(self.print_block.get("big_fan2_speed"))
+        return _fan_percent_normalized(self.print_block.get("big_fan2_speed"))
 
     @property
     def fan_cooling_percent(self) -> float | None:
-        return _to_float(self.print_block.get("cooling_fan_speed"))
+        return _fan_percent_normalized(self.print_block.get("cooling_fan_speed"))
 
     @property
     def fan_heatbreak_percent(self) -> float | None:
-        return _to_float(self.print_block.get("heatbreak_fan_speed"))
+        return _fan_percent_normalized(self.print_block.get("heatbreak_fan_speed"))
+
+    @property
+    def fan_secondary_aux_percent(self) -> float | None:
+        device = self.print_block.get("device")
+        if not isinstance(device, dict):
+            return None
+        airduct = device.get("airduct")
+        if not isinstance(airduct, dict):
+            return None
+        parts = airduct.get("parts")
+        if not isinstance(parts, list):
+            return None
+        for entry in parts:
+            if not isinstance(entry, dict):
+                continue
+            if to_int(entry.get("id")) == 160:
+                return _fan_percent_normalized(entry.get("value"))
+        return None
 
     @property
     def mc_stage(self) -> float | None:
