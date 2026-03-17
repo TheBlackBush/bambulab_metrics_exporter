@@ -4,6 +4,11 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.31] - 2026-03-17
+
+### Changed
+- Merged `bambulab_ams_slot_tray_type_info` and `bambulab_ams_slot_tray_color_info` into a single `bambulab_ams_slot_tray_info` metric with both `tray_type` and `tray_color` labels (**breaking change**).
+
 ## [0.1.30] - 2026-03-17
 
 ### Changed
