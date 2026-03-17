@@ -4,6 +4,11 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.32] - 2026-03-17
+
+### Changed
+- `tray_color` label values in `bambulab_ams_slot_tray_info` and `bambulab_external_spool_info` now include a `#` prefix for valid hex color codes (e.g. `#F98C36FF`). Empty or missing values remain `"unknown"`.
+
 ## [0.1.31] - 2026-03-17
 
 ### Changed
