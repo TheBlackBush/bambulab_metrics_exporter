@@ -61,6 +61,34 @@ def test_metrics_no_subtask_no_fail_reason() -> None:
     assert len(metrics.fail_reason_info._metrics) == 0
 
 
+def test_metrics_fans_follow_step_aware_percent_rounding_and_secondary_aux() -> None:
+    metrics = _metrics("p2s", "SNFAN")
+    snapshot = PrinterSnapshot(
+        connected=True,
+        raw={
+            "print": {
+                "big_fan1_speed": "12",     # 80
+                "big_fan2_speed": "7",      # 50
+                "cooling_fan_speed": "15",  # 100
+                "heatbreak_fan_speed": "21",  # 20 (rounded)
+                "device": {
+                    "airduct": {
+                        "parts": [{"id": 160, "value": "7"}],
+                    }
+                },
+            }
+        },
+    )
+    metrics.update_from_snapshot(snapshot)
+
+    labels = {"printer_name": "p2s", "serial": "SNFAN"}
+    assert metrics.fan_big_1_speed.labels(**labels)._value.get() == 80.0
+    assert metrics.fan_big_2_speed.labels(**labels)._value.get() == 50.0
+    assert metrics.fan_cooling_speed.labels(**labels)._value.get() == 100.0
+    assert metrics.fan_heatbreak_speed.labels(**labels)._value.get() == 20.0
+    assert metrics.fan_secondary_aux_speed.labels(**labels)._value.get() == 50.0
+
+
 # ---------------------------------------------------------------------------
 # Full update including AMS, lights, xcam
 # ---------------------------------------------------------------------------
@@ -83,7 +111,6 @@ def test_metrics_full_update_with_ams_lights_xcam() -> None:
                 "bed_temper": 60,
                 "bed_target_temper": 65,
                 "chamber_temper": 34,
-                "fan_gear": 10,
                 "big_fan1_speed": "33",
                 "big_fan2_speed": "44",
                 "cooling_fan_speed": "55",
