@@ -381,7 +381,7 @@ class ExporterMetrics:
                 external_id=str(entry.get("id", "unknown")),
                 tray_type=str(entry.get("tray_type", "")).strip() or "unknown",
                 tray_info_idx=str(entry.get("tray_info_idx", "")).strip() or "unknown",
-                tray_color=str(entry.get("tray_color", "")).strip().upper() or "unknown",
+                tray_color=self._format_color(entry.get("tray_color")),
             ).set(1.0)
 
         self._set_optional(self.active_extruder_index, snapshot.active_extruder_index)
@@ -539,11 +539,16 @@ class ExporterMetrics:
 
                 tray_type_raw = tray.get("tray_type", tray.get("ctype", ""))
                 tray_type = str(tray_type_raw).strip() or "unknown"
-                tray_color = str(tray.get("tray_color", "")).strip().upper() or "unknown"
+                tray_color = self._format_color(tray.get("tray_color"))
                 self.ams_slot_tray_info.labels(
                     **labels, ams_id=ams_id, slot_id=tray_id, tray_type=tray_type, tray_color=tray_color
                 ).set(1.0)
 
+
+    @staticmethod
+    def _format_color(raw: str | None) -> str:
+        c = str(raw or "").strip().upper()
+        return f"#{c}" if c else "unknown"
 
     @staticmethod
     def _flag_to_float(value: bool | None) -> float | None:
