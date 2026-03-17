@@ -245,7 +245,6 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 | `bambulab_print_error` | Gauge | Raw `print_error` value from MQTT. |
 | `bambulab_ap_error_code` | Gauge | Raw `ap_err` value from MQTT. |
 | `bambulab_printer_gcode_state{state}` | One-hot Gauge | Current gcode state as one-hot labels. |
-| `bambulab_mc_print_stage_state{stage}` | One-hot Gauge | Current print stage as one-hot labels. |
 | `bambulab_subtask_name_info{subtask_name}` | Info Gauge | Current subtask name. |
 | `bambulab_fail_reason_info{fail_reason}` | Info Gauge | Current fail reason. |
 | `bambulab_printer_model_info{model}` | Info Gauge | Detected printer model. |
@@ -308,6 +307,11 @@ All metrics include stable labels:
 
 - `printer_name` (from `PRINTER_NAME_LABEL` or `BAMBULAB_PRINTER_NAME`)
 - `serial` (from `BAMBULAB_SERIAL`)
+
+## Migration note (stage metrics)
+
+- `bambulab_mc_print_stage_state{stage}` was removed.
+- Use `bambulab_print_stage_info{stage}` for stage labels and `bambulab_stg_cur` for numeric stage IDs.
 
 ## Testing
 
