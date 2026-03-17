@@ -11,10 +11,6 @@ bambulab_nozzle_temperature_celsius{printer_name="bambu",site="",location=""} 22
 # TYPE bambulab_ams_slot_remaining_percent gauge
 bambulab_ams_slot_remaining_percent{printer_name="bambu",site="",location="",ams_id="0",slot_id="2"} 70
 
-# HELP bambulab_ams_slot_tray_type_info AMS slot filament type as labeled one-hot info metric
-# TYPE bambulab_ams_slot_tray_type_info gauge
-bambulab_ams_slot_tray_type_info{printer_name="bambu",site="",location="",ams_id="0",slot_id="2",tray_type="PLA"} 1
-
-# HELP bambulab_ams_slot_tray_color_info AMS slot filament color as labeled one-hot info metric
-# TYPE bambulab_ams_slot_tray_color_info gauge
-bambulab_ams_slot_tray_color_info{printer_name="bambu",site="",location="",ams_id="0",slot_id="2",tray_color="F98C36FF"} 1
+# HELP bambulab_ams_slot_tray_info AMS slot filament type and color info metric
+# TYPE bambulab_ams_slot_tray_info gauge
+bambulab_ams_slot_tray_info{printer_name="bambu",site="",location="",ams_id="0",slot_id="2",tray_type="PLA",tray_color="F98C36FF"} 1

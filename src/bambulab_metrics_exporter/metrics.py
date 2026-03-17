@@ -111,16 +111,10 @@ class ExporterMetrics:
             [*label_names, "ams_id", "slot_id"],
             registry=self.registry,
         )
-        self.ams_slot_tray_type = Gauge(
-            "bambulab_ams_slot_tray_type_info",
-            "AMS slot filament type as labeled one-hot info metric",
-            [*label_names, "ams_id", "slot_id", "tray_type"],
-            registry=self.registry,
-        )
-        self.ams_slot_tray_color = Gauge(
-            "bambulab_ams_slot_tray_color_info",
-            "AMS slot filament color as labeled one-hot info metric",
-            [*label_names, "ams_id", "slot_id", "tray_color"],
+        self.ams_slot_tray_info = Gauge(
+            "bambulab_ams_slot_tray_info",
+            "AMS slot filament type and color info metric",
+            [*label_names, "ams_id", "slot_id", "tray_type", "tray_color"],
             registry=self.registry,
         )
         self.ams_unit_humidity = Gauge(
@@ -545,13 +539,9 @@ class ExporterMetrics:
 
                 tray_type_raw = tray.get("tray_type", tray.get("ctype", ""))
                 tray_type = str(tray_type_raw).strip() or "unknown"
-                self.ams_slot_tray_type.labels(
-                    **labels, ams_id=ams_id, slot_id=tray_id, tray_type=tray_type
-                ).set(1.0)
-
                 tray_color = str(tray.get("tray_color", "")).strip().upper() or "unknown"
-                self.ams_slot_tray_color.labels(
-                    **labels, ams_id=ams_id, slot_id=tray_id, tray_color=tray_color
+                self.ams_slot_tray_info.labels(
+                    **labels, ams_id=ams_id, slot_id=tray_id, tray_type=tray_type, tray_color=tray_color
                 ).set(1.0)
 
 
@@ -585,8 +575,7 @@ class ExporterMetrics:
         self.ams_unit_info.clear()
         self.ams_slot_active.clear()
         self.ams_slot_remaining_percent.clear()
-        self.ams_slot_tray_type.clear()
-        self.ams_slot_tray_color.clear()
+        self.ams_slot_tray_info.clear()
         self.ams_unit_humidity.clear()
         self.ams_unit_humidity_index.clear()
         self.ams_unit_temperature_celsius.clear()

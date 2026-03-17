@@ -169,9 +169,8 @@ def test_metrics_full_update_with_ams_lights_xcam() -> None:
     assert metrics.fail_reason_info.labels(**labels, fail_reason="filament runout")._value.get() == 1.0
     assert metrics.ams_unit_humidity.labels(**labels, ams_id="1")._value.get() == 56.0
     assert metrics.ams_unit_humidity_index.labels(**labels, ams_id="1")._value.get() == 4.0
-    assert metrics.ams_slot_tray_type.labels(**labels, ams_id="1", slot_id="2", tray_type="PLA")._value.get() == 1.0
-    assert metrics.ams_slot_tray_type.labels(**labels, ams_id="1", slot_id="3", tray_type="PETG")._value.get() == 1.0
-    assert metrics.ams_slot_tray_color.labels(**labels, ams_id="1", slot_id="2", tray_color="F98C36FF")._value.get() == 1.0
+    assert metrics.ams_slot_tray_info.labels(**labels, ams_id="1", slot_id="2", tray_type="PLA", tray_color="F98C36FF")._value.get() == 1.0
+    assert metrics.ams_slot_tray_info.labels(**labels, ams_id="1", slot_id="3", tray_type="PETG", tray_color="161616FF")._value.get() == 1.0
 
 
 def test_metrics_work_light_flashing_treated_as_on() -> None:
@@ -333,7 +332,7 @@ def test_ams_string_remain_and_tray_type_fallback() -> None:
     metrics.update_from_snapshot(snapshot)
     labels = {"printer_name": "p1", "serial": "SN123"}
     assert metrics.ams_slot_remaining_percent.labels(**labels, ams_id="0", slot_id="1")._value.get() == 77.5
-    assert metrics.ams_slot_tray_type.labels(**labels, ams_id="0", slot_id="1", tray_type="PLA")._value.get() == 1.0
+    assert metrics.ams_slot_tray_info.labels(**labels, ams_id="0", slot_id="1", tray_type="PLA", tray_color="FFFFFF")._value.get() == 1.0
 
 
 def test_ams_invalid_remain_is_ignored() -> None:
@@ -1221,18 +1220,11 @@ class TestAmsExistingMetricLabelRegressionComprehensive:
         v = m.ams_slot_remaining_percent.labels(**labels, ams_id="0", slot_id="0")._value.get()
         assert v == 80.0
 
-    def test_ams_slot_tray_type_only_needs_ams_id_slot_id_tray_type(self) -> None:
+    def test_ams_slot_tray_info_has_type_and_color(self) -> None:
         m = self._m()
         m.update_from_snapshot(self._snap_with_ams())
         labels = self._base_labels()
-        v = m.ams_slot_tray_type.labels(**labels, ams_id="0", slot_id="0", tray_type="PLA")._value.get()
-        assert v == 1.0
-
-    def test_ams_slot_tray_color_only_needs_ams_id_slot_id_tray_color(self) -> None:
-        m = self._m()
-        m.update_from_snapshot(self._snap_with_ams())
-        labels = self._base_labels()
-        v = m.ams_slot_tray_color.labels(**labels, ams_id="0", slot_id="0", tray_color="FFFFFFFF")._value.get()
+        v = m.ams_slot_tray_info.labels(**labels, ams_id="0", slot_id="0", tray_type="PLA", tray_color="FFFFFFFF")._value.get()
         assert v == 1.0
 
     def test_ams_status_id_only_base_labels(self) -> None:
