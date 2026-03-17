@@ -265,8 +265,7 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 | `bambulab_ams_unit_temperature_celsius{ams_id}` | Gauge | AMS temperature. |
 | `bambulab_ams_slot_active{ams_id,slot_id}` | Gauge | AMS slot active flag. |
 | `bambulab_ams_slot_remaining_percent{ams_id,slot_id}` | Gauge | AMS slot remaining filament %. |
-| `bambulab_ams_slot_tray_type_info{ams_id,slot_id,tray_type}` | Info Gauge | AMS slot filament type. |
-| `bambulab_ams_slot_tray_color_info{ams_id,slot_id,tray_color}` | Info Gauge | AMS slot filament color. |
+| `bambulab_ams_slot_tray_info{ams_id,slot_id,tray_type,tray_color}` | Info Gauge | AMS slot filament type and color. |
 | `bambulab_ams_heater_state_info{ams_id,ams_model,ams_series,state}` | Info Gauge | Gen2 AMS heater/dry state. |
 | `bambulab_ams_dry_fan_status{ams_id,ams_model,ams_series,fan_id}` | Gauge | Gen2 AMS drying fan status. |
 | `bambulab_ams_dry_sub_status_info{ams_id,ams_model,ams_series,state}` | Info Gauge | Gen2 AMS drying sub-status. |
