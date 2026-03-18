@@ -873,17 +873,117 @@ class TestAmsExistingMetricLabelsUnchanged:
 
     def test_ams_slot_active_labels_unchanged(self) -> None:
         m = self._m()
+        # tray_now=1 in top-level AMS dict: AMS 0 slot 1 active (1 >> 2 = 0, 1 & 0x3 = 1)
         snap = PrinterSnapshot(
             connected=True,
-            raw={"print": {"ams": {"ams": [
-                {"id": "0", "tray_now": "1", "sn": "19CABCDEF", "tray": [{"id": "1", "tray_type": "PLA"}]}
-            ]}}},
+            raw={"print": {"ams": {
+                "tray_now": 1,
+                "ams": [{"id": "0", "sn": "19CABCDEF", "tray": [{"id": "1", "tray_type": "PLA"}]}],
+            }}},
         )
         m.update_from_snapshot(snap)
         labels = {"printer_name": "test", "serial": "SN123"}
         # Must work with only ams_id + slot_id — no ams_model/ams_series
         v = m.ams_slot_active.labels(**labels, ams_id="0", slot_id="1")._value.get()
         assert v == 1.0
+
+    def test_ams_slot_active_tray_now_1_int(self) -> None:
+        """tray_now=1 (int) → AMS 0 slot 1 = 1.0, others 0.0"""
+        m = self._m()
+        # tray_now=1: ams_index = 1>>2 = 0, slot_index = 1&0x3 = 1
+        snap = PrinterSnapshot(
+            connected=True,
+            raw={"print": {"ams": {
+                "tray_now": 1,
+                "ams": [{"id": "0", "sn": "SN0", "tray": [
+                    {"id": "0", "tray_type": "PLA"},
+                    {"id": "1", "tray_type": "PLA"},
+                ]}],
+            }}},
+        )
+        m.update_from_snapshot(snap)
+        labels = {"printer_name": "test", "serial": "SN123"}
+        assert m.ams_slot_active.labels(**labels, ams_id="0", slot_id="0")._value.get() == 0.0
+        assert m.ams_slot_active.labels(**labels, ams_id="0", slot_id="1")._value.get() == 1.0
+
+    def test_ams_slot_active_tray_now_4_int(self) -> None:
+        """tray_now=4 (int) → AMS 1 slot 0 = 1.0"""
+        m = self._m()
+        # tray_now=4: ams_index = 4>>2 = 1, slot_index = 4&0x3 = 0
+        snap = PrinterSnapshot(
+            connected=True,
+            raw={"print": {"ams": {
+                "tray_now": 4,
+                "ams": [
+                    {"id": "0", "sn": "SN0", "tray": [{"id": "0", "tray_type": "PLA"}]},
+                    {"id": "1", "sn": "SN1", "tray": [{"id": "0", "tray_type": "PLA"}]},
+                ],
+            }}},
+        )
+        m.update_from_snapshot(snap)
+        labels = {"printer_name": "test", "serial": "SN123"}
+        assert m.ams_slot_active.labels(**labels, ams_id="0", slot_id="0")._value.get() == 0.0
+        assert m.ams_slot_active.labels(**labels, ams_id="1", slot_id="0")._value.get() == 1.0
+
+    def test_ams_slot_active_tray_now_0_int(self) -> None:
+        """tray_now=0 (int) → AMS 0 slot 0 = 1.0"""
+        m = self._m()
+        # tray_now=0: ams_index = 0>>2 = 0, slot_index = 0&0x3 = 0
+        snap = PrinterSnapshot(
+            connected=True,
+            raw={"print": {"ams": {
+                "tray_now": 0,
+                "ams": [{"id": "0", "sn": "SN0", "tray": [
+                    {"id": "0", "tray_type": "PLA"},
+                    {"id": "1", "tray_type": "PLA"},
+                ]}],
+            }}},
+        )
+        m.update_from_snapshot(snap)
+        labels = {"printer_name": "test", "serial": "SN123"}
+        assert m.ams_slot_active.labels(**labels, ams_id="0", slot_id="0")._value.get() == 1.0
+        assert m.ams_slot_active.labels(**labels, ams_id="0", slot_id="1")._value.get() == 0.0
+
+    def test_ams_slot_active_tray_now_255(self) -> None:
+        """tray_now=255 → all slots 0.0 (nothing active)"""
+        m = self._m()
+        snap = PrinterSnapshot(
+            connected=True,
+            raw={"print": {"ams": {
+                "tray_now": 255,
+                "ams": [{"id": "0", "sn": "SN0", "tray": [{"id": "0", "tray_type": "PLA"}]}],
+            }}},
+        )
+        m.update_from_snapshot(snap)
+        labels = {"printer_name": "test", "serial": "SN123"}
+        assert m.ams_slot_active.labels(**labels, ams_id="0", slot_id="0")._value.get() == 0.0
+
+    def test_ams_slot_active_tray_now_254(self) -> None:
+        """tray_now=254 → all slots 0.0 (external spool active)"""
+        m = self._m()
+        snap = PrinterSnapshot(
+            connected=True,
+            raw={"print": {"ams": {
+                "tray_now": 254,
+                "ams": [{"id": "0", "sn": "SN0", "tray": [{"id": "0", "tray_type": "PLA"}]}],
+            }}},
+        )
+        m.update_from_snapshot(snap)
+        labels = {"printer_name": "test", "serial": "SN123"}
+        assert m.ams_slot_active.labels(**labels, ams_id="0", slot_id="0")._value.get() == 0.0
+
+    def test_ams_slot_active_tray_now_missing(self) -> None:
+        """tray_now missing → all slots 0.0"""
+        m = self._m()
+        snap = PrinterSnapshot(
+            connected=True,
+            raw={"print": {"ams": {
+                "ams": [{"id": "0", "sn": "SN0", "tray": [{"id": "0", "tray_type": "PLA"}]}],
+            }}},
+        )
+        m.update_from_snapshot(snap)
+        labels = {"printer_name": "test", "serial": "SN123"}
+        assert m.ams_slot_active.labels(**labels, ams_id="0", slot_id="0")._value.get() == 0.0
 
 
 class TestAmsGen2DryingTelemetry:
@@ -1163,6 +1263,7 @@ class TestAmsExistingMetricLabelRegressionComprehensive:
             raw={
                 "print": {
                     "ams": {
+                        "tray_now": 1,  # top-level: AMS 0 slot 1 active (1>>2=0, 1&0x3=1)
                         "ams": [
                             {
                                 "id": "0",
@@ -1170,7 +1271,6 @@ class TestAmsExistingMetricLabelRegressionComprehensive:
                                 "humidity": "3",
                                 "humidity_raw": "55",
                                 "temp": "23",
-                                "tray_now": "1",  # active tray within this unit
                                 "tray": [
                                     {"id": "0", "remain": "80", "tray_type": "PLA", "tray_color": "FFFFFFFF"},
                                     {"id": "1", "remain": "60", "tray_type": "PETG", "tray_color": "000000FF"},
