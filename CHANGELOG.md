@@ -6,6 +6,11 @@ All notable changes to this project are documented in this file.
 
 ### Added
 - Root `/` GET endpoint that returns a modern HTML landing page showing the exporter version, health status (always "Live"), and readiness status ("Connected" or "Warming Up") with color-coded pill indicators.
+- Landing page now displays the BambuLab logo (served from `/static/bambulablogo.png`) above the app name heading.
+- Landing page includes a "View Metrics →" link below the status cards, pointing to `/metrics`.
+- Landing page shows the printer name (from `BAMBULAB_PRINTER_NAME` env var / `printer_name_label` config) next to the version badge (e.g. `v0.1.32 · My Printer`). Hidden when unset.
+- Static files mount at `/static` in `api.py` (FastAPI `StaticFiles`) serving assets from `src/bambulab_metrics_exporter/static/`.
+- `build_app()` now accepts an optional `settings: Settings` parameter used to inject printer name into the landing page.
 
 ### Changed
 - Moved the root `/` HTML template from inline Python string in `api.py` to a dedicated file at `src/bambulab_metrics_exporter/templates/index.html`, loaded once at startup via `pathlib`.
