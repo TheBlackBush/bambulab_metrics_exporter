@@ -4,6 +4,9 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- `tray_color` label in `bambulab_ams_slot_tray_info` now correctly strips the alpha channel from RGBA hex values sent by the printer (e.g. `FFFFFFFF` → `#FFFFFF`).
+
 ## [0.1.33] - 2026-03-18
 
 ### Added

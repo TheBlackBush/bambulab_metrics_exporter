@@ -169,8 +169,8 @@ def test_metrics_full_update_with_ams_lights_xcam() -> None:
     assert metrics.fail_reason_info.labels(**labels, fail_reason="filament runout")._value.get() == 1.0
     assert metrics.ams_unit_humidity.labels(**labels, ams_id="1")._value.get() == 56.0
     assert metrics.ams_unit_humidity_index.labels(**labels, ams_id="1")._value.get() == 4.0
-    assert metrics.ams_slot_tray_info.labels(**labels, ams_id="1", slot_id="2", tray_type="PLA", tray_color="#F98C36FF")._value.get() == 1.0
-    assert metrics.ams_slot_tray_info.labels(**labels, ams_id="1", slot_id="3", tray_type="PETG", tray_color="#161616FF")._value.get() == 1.0
+    assert metrics.ams_slot_tray_info.labels(**labels, ams_id="1", slot_id="2", tray_type="PLA", tray_color="#F98C36")._value.get() == 1.0
+    assert metrics.ams_slot_tray_info.labels(**labels, ams_id="1", slot_id="3", tray_type="PETG", tray_color="#161616")._value.get() == 1.0
 
 
 def test_metrics_work_light_flashing_treated_as_on() -> None:
@@ -488,14 +488,14 @@ class TestExternalSpoolMetrics:
             external_id="254",
             tray_type="PLA",
             tray_info_idx="GFA01",
-            tray_color="#76D9F4FF",
+            tray_color="#76D9F4",
         )._value.get() == 1.0
         assert m.external_spool_info.labels(
             **labels,
             external_id="255",
             tray_type="PETG",
             tray_info_idx="GFB99",
-            tray_color="#11223344",
+            tray_color="#112233",
         )._value.get() == 1.0
 
     def test_external_spool_info_clears_between_updates(self) -> None:
@@ -1224,7 +1224,7 @@ class TestAmsExistingMetricLabelRegressionComprehensive:
         m = self._m()
         m.update_from_snapshot(self._snap_with_ams())
         labels = self._base_labels()
-        v = m.ams_slot_tray_info.labels(**labels, ams_id="0", slot_id="0", tray_type="PLA", tray_color="#FFFFFFFF")._value.get()
+        v = m.ams_slot_tray_info.labels(**labels, ams_id="0", slot_id="0", tray_type="PLA", tray_color="#FFFFFF")._value.get()
         assert v == 1.0
 
     def test_ams_status_id_only_base_labels(self) -> None:
@@ -1240,3 +1240,24 @@ class TestAmsExistingMetricLabelRegressionComprehensive:
         labels = self._base_labels()
         v = m.ams_rfid_status_id.labels(**labels)._value.get()
         assert v == 3.0
+
+
+class TestFormatColor:
+    """Unit tests for ExporterMetrics._format_color."""
+
+    def test_8char_rgba_strips_alpha(self) -> None:
+        """8-char RGBA hex from printer becomes 6-char RGB."""
+        assert ExporterMetrics._format_color("FFFFFFFF") == "#FFFFFF"
+        assert ExporterMetrics._format_color("161616FF") == "#161616"
+        assert ExporterMetrics._format_color("76d9f4ff") == "#76D9F4"
+
+    def test_6char_rgb_unchanged(self) -> None:
+        """6-char RGB input is left as-is (just uppercased and prefixed)."""
+        assert ExporterMetrics._format_color("FFFFFF") == "#FFFFFF"
+        assert ExporterMetrics._format_color("ffffff") == "#FFFFFF"
+
+    def test_empty_returns_unknown(self) -> None:
+        assert ExporterMetrics._format_color("") == "unknown"
+
+    def test_none_returns_unknown(self) -> None:
+        assert ExporterMetrics._format_color(None) == "unknown"

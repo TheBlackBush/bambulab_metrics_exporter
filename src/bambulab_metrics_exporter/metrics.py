@@ -548,7 +548,12 @@ class ExporterMetrics:
     @staticmethod
     def _format_color(raw: str | None) -> str:
         c = str(raw or "").strip().upper()
-        return f"#{c}" if c else "unknown"
+        if not c:
+            return "unknown"
+        # Printer sends RRGGBBAA (8-char RGBA); strip alpha channel
+        if len(c) == 8:
+            c = c[:6]
+        return f"#{c}"
 
     @staticmethod
     def _flag_to_float(value: bool | None) -> float | None:
