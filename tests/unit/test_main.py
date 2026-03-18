@@ -170,7 +170,7 @@ def test_run_wires_components(monkeypatch) -> None:
                 return fn
             return deco
 
-    monkeypatch.setattr("bambulab_metrics_exporter.main.build_app", lambda metrics, collector: _AppStub())
+    monkeypatch.setattr("bambulab_metrics_exporter.main.build_app", lambda metrics, collector, settings=None: _AppStub())
     monkeypatch.setattr("bambulab_metrics_exporter.main.uvicorn.run", lambda *a, **k: None)
 
     main.run()
