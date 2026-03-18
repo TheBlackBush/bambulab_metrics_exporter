@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.33] - 2026-03-18
+
 ### Added
 - Root `/` GET endpoint that returns a modern HTML landing page showing the exporter version, health status (always "Live"), and readiness status ("Connected" or "Warming Up") with color-coded pill indicators.
 - Landing page now displays the BambuLab logo (served from `/static/bambulablogo.png`) above the app name heading.
