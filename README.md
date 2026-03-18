@@ -31,6 +31,7 @@ Production-oriented Prometheus exporter for Bambu Lab printers (homelab/self-hos
 - Periodically requests a full state snapshot (`pushall`)
 - Parses print state/telemetry into stable Prometheus metrics
 - Exposes:
+  - `GET /` — landing page with version and status
   - `GET /metrics`
   - `GET /health`
   - `GET /ready`
@@ -58,6 +59,7 @@ bambulab-exporter
 
 Then open:
 
+- <http://localhost:9109/> — landing page
 - <http://localhost:9109/metrics>
 - <http://localhost:9109/health>
 - <http://localhost:9109/ready>

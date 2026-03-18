@@ -4,6 +4,9 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Root `/` GET endpoint that returns a minimal HTML landing page showing the exporter version, health status (always "Live"), and readiness status ("Connected" or "Warming Up") with color-coded indicators.
+
 ## [0.1.32] - 2026-03-17
 
 ### Changed
