@@ -13,7 +13,7 @@ _TEMPLATE = _TEMPLATE_PATH.read_text(encoding="utf-8")
 
 
 def build_app(metrics: ExporterMetrics, collector: PollingCollector) -> FastAPI:
-    app = FastAPI(title="bambulab-metrics-exporter", version="0.1.0")
+    app = FastAPI(title="bambulab-metrics-exporter", version=__version__)
 
     @app.get("/", response_class=HTMLResponse)
     def root_handler() -> HTMLResponse:
