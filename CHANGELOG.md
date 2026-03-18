@@ -4,6 +4,17 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.34] - 2026-03-18
+
+### Fixed
+- `bambulab_ams_slot_active` metric now correctly identifies the active AMS slot.
+  Previously `tray_now` was read from the per-unit AMS dict (where it does not exist),
+  causing all slots to always report 0. The fix reads `tray_now` from the top-level
+  AMS wrapper in the MQTT payload and applies the correct bit-shift decoding
+  (`ams_index = tray_now >> 2`, `slot_index = tray_now & 0x3`).
+- `ams_tray_now` property in `models.py` now correctly handles integer values from
+  the printer (previously only `str` was accepted, causing it to always return `None`).
+
 ## [0.1.33] - 2026-03-18
 
 ### Added

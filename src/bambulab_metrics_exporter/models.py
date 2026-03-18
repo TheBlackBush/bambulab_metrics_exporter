@@ -663,12 +663,15 @@ class PrinterSnapshot:
         return _to_float(self.print_block.get("spd_mag"))
 
     @property
-    def ams_tray_now(self) -> str | None:
+    def ams_tray_now(self) -> int | None:
         ams = self.print_block.get("ams")
         if isinstance(ams, dict):
             value = ams.get("tray_now")
-            if isinstance(value, str):
-                return value
+            if isinstance(value, (int, str)):
+                try:
+                    return int(value)
+                except (ValueError, TypeError):
+                    pass
         return None
 
     @property

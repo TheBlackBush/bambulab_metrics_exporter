@@ -468,8 +468,23 @@ class ExporterMetrics:
             self.print_stage_info.labels(**labels, stage=snapshot.stg_cur_name).set(1.0)
 
         self._clear_ams(labels)
+
+        # Decode active slot from top-level tray_now (outside the per-unit loop)
+        raw_tray_now = snapshot.ams_tray_now  # int | None, from print_block["ams"]["tray_now"]
+        tray_now_int = raw_tray_now if raw_tray_now is not None else 255
+
+        if tray_now_int in (254, 255):
+            # 255 = nothing active, 254 = external spool active
+            _active_ams_id = -1
+            _active_slot_id = -1
+        else:
+            # Encoding: upper bits = AMS index, lower 2 bits = slot index
+            _active_ams_id = tray_now_int >> 2
+            _active_slot_id = tray_now_int & 0x3
+
         for ams in snapshot.ams_units_with_model:
             ams_id = str(ams.get("id", "0"))
+            ams_id_int = int(ams.get("id", 0))
             ams_model = str(ams.get("ams_model", "unknown"))
             ams_series = str(ams.get("ams_series", "unknown"))
             # AMS unit info metric
@@ -522,11 +537,12 @@ class ExporterMetrics:
 
             raw_trays = ams.get("tray")
             trays = [t for t in raw_trays if isinstance(t, dict)] if isinstance(raw_trays, list) else []
-            active_id = str(ams.get("tray_now", "-1"))
             for tray in trays:
                 tray_id = str(tray.get("id", "-1"))
+                tray_id_int = int(tray.get("id", -1))
+                is_active = (ams_id_int == _active_ams_id) and (tray_id_int == _active_slot_id)
                 self.ams_slot_active.labels(**labels, ams_id=ams_id, slot_id=tray_id).set(
-                    1.0 if tray_id == active_id else 0.0
+                    1.0 if is_active else 0.0
                 )
                 remain = tray.get("remain")
                 if isinstance(remain, (int, float, str)):
