@@ -57,6 +57,7 @@
     margin: 0 auto 0.75rem;
     max-height: 88px;
     width: auto;
+    object-fit: contain;
   }
 
   .logo-row {
@@ -98,6 +99,19 @@
   .printer-name {
     color: var(--text-secondary);
     font-weight: 400;
+  }
+
+  .printer-badge {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: #6b7280;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.2rem 0.65rem;
+    letter-spacing: 0.02em;
+    margin-top: 0.3rem;
   }
 
   /* ─── Metrics link ────────────────────────────────────── */
@@ -318,7 +332,8 @@
       </svg>
       <h1>Bambu Lab Metrics Exporter</h1>
     </div>
-    <span class="version-badge">v{{VERSION}}{{PRINTER_NAME}}</span>
+    <span class="version-badge">v{{VERSION}}</span>
+    {{PRINTER_BADGE}}
   </header>
 
   <div class="cards">

@@ -51,8 +51,12 @@ def build_app(metrics: ExporterMetrics, collector: PollingCollector, settings: S
         raw_printer_name = ""
         if settings is not None:
             raw_printer_name = settings.printer_name_label or settings.bambulab_printer_name or ""
-        # Render as " · Name" when set, or empty string when not set
-        printer_name_display = f" · {raw_printer_name}" if raw_printer_name else ""
+        # Render as a separate badge element when set, or empty string when not set
+        printer_badge = (
+            f'<span class="printer-badge">🖨 {raw_printer_name}</span>'
+            if raw_printer_name
+            else ""
+        )
 
         html = (
             _TEMPLATE
@@ -61,7 +65,7 @@ def build_app(metrics: ExporterMetrics, collector: PollingCollector, settings: S
             .replace("{{READY_CLASS}}", ready_class)
             .replace("{{HEALTH_STATUS}}", health_status)
             .replace("{{HEALTH_CLASS}}", health_class)
-            .replace("{{PRINTER_NAME}}", printer_name_display)
+            .replace("{{PRINTER_BADGE}}", printer_badge)
         )
         return HTMLResponse(content=html)
 
