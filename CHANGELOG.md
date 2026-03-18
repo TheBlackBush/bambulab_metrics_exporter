@@ -5,7 +5,11 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added
-- Root `/` GET endpoint that returns a minimal HTML landing page showing the exporter version, health status (always "Live"), and readiness status ("Connected" or "Warming Up") with color-coded indicators.
+- Root `/` GET endpoint that returns a modern HTML landing page showing the exporter version, health status (always "Live"), and readiness status ("Connected" or "Warming Up") with color-coded pill indicators.
+
+### Changed
+- Moved the root `/` HTML template from inline Python string in `api.py` to a dedicated file at `src/bambulab_metrics_exporter/templates/index.html`, loaded once at startup via `pathlib`.
+- Redesigned landing page with a modern minimalist dark-mode aesthetic (Vercel/Linear-inspired): dark `#0f0f0f` background, card-style status sections, animated pill/badge status indicators, responsive two-column layout, and inline GitHub SVG link. No external resources or additional dependencies required.
 
 ## [0.1.32] - 2026-03-17
 

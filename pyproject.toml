@@ -21,6 +21,9 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"bambulab_metrics_exporter" = ["templates/*.html"]
+
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
 
