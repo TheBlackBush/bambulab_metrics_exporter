@@ -30,3 +30,4 @@ tests/results/*
 
 # local analysis notes
 external-upstream-analysis.md
+uv.lock
