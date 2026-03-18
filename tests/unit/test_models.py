@@ -239,12 +239,27 @@ def test_model_ams_not_dict() -> None:
 
 def test_model_ams_tray_now_string() -> None:
     snap = PrinterSnapshot(connected=True, raw={"print": {"ams": {"tray_now": "255"}}})
-    assert snap.ams_tray_now == "255"
+    assert snap.ams_tray_now == 255
 
 
 def test_model_ams_tray_now_from_short_form() -> None:
     snap = PrinterSnapshot(connected=True, raw={"print": {"ams": {"tray_now": "1"}}})
-    assert snap.ams_tray_now == "1"
+    assert snap.ams_tray_now == 1
+
+
+def test_model_ams_tray_now_int() -> None:
+    snap = PrinterSnapshot(connected=True, raw={"print": {"ams": {"tray_now": 4}}})
+    assert snap.ams_tray_now == 4
+
+
+def test_model_ams_tray_now_int_zero() -> None:
+    snap = PrinterSnapshot(connected=True, raw={"print": {"ams": {"tray_now": 0}}})
+    assert snap.ams_tray_now == 0
+
+
+def test_model_ams_tray_now_missing() -> None:
+    snap = PrinterSnapshot(connected=True, raw={"print": {"ams": {}}})
+    assert snap.ams_tray_now is None
 
 
 def test_external_spool_active_from_tray_now() -> None:
