@@ -129,7 +129,7 @@ def run() -> None:
     collector = PollingCollector(client=client, metrics=metrics, settings=settings)
     collector.start()
 
-    app = build_app(metrics=metrics, collector=collector)
+    app = build_app(metrics=metrics, collector=collector, settings=settings)
 
     @app.on_event("shutdown")
     def _shutdown() -> None:
