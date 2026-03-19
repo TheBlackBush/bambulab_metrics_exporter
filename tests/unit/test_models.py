@@ -453,15 +453,27 @@ def test_model_name_none_when_absent() -> None:
 # ---------------------------------------------------------------------------
 
 def test_ams_status_name_known_codes() -> None:
-    from bambulab_metrics_exporter.models import AMS_STATUS_NAMES
-    for code, expected in AMS_STATUS_NAMES.items():
-        snap = PrinterSnapshot(connected=True, raw={"print": {"ams_status": code}})
-        assert snap.ams_status_name == expected, f"code {code}: expected {expected}, got {snap.ams_status_name}"
+    # The firmware encodes the status category in bits 15-8 of ams_status.
+    # Raw firmware values (category byte in upper position):
+    firmware_cases: list[tuple[int, str]] = [
+        (0x0000, "idle"),
+        (0x0100, "filament_change"),
+        (0x0200, "rfid_identifying"),
+        (0x0300, "assist"),
+        (0x0400, "calibration"),
+        (0x1000, "self_check"),
+        (0x2000, "debug"),
+        (0xFF00, "unknown_device"),
+    ]
+    for raw, expected in firmware_cases:
+        snap = PrinterSnapshot(connected=True, raw={"print": {"ams_status": raw}})
+        assert snap.ams_status_name == expected, f"raw {raw:#06x}: expected {expected!r}, got {snap.ams_status_name!r}"
 
 
 def test_ams_status_name_unknown_code() -> None:
-    snap = PrinterSnapshot(connected=True, raw={"print": {"ams_status": 999}})
-    assert snap.ams_status_name == "unknown_999"
+    # raw 0x0300 → category 0x03 → "assist"; 0x0700 is unknown (category 0x07)
+    snap = PrinterSnapshot(connected=True, raw={"print": {"ams_status": 0x0700}})
+    assert snap.ams_status_name == "unknown_0x700"
 
 
 def test_ams_status_name_none_when_missing() -> None:
@@ -470,13 +482,15 @@ def test_ams_status_name_none_when_missing() -> None:
 
 
 def test_ams_status_idle() -> None:
+    # raw 0x0000 → category 0x00 → "idle"
     snap = PrinterSnapshot(connected=True, raw={"print": {"ams_status": 0}})
     assert snap.ams_status == 0.0
     assert snap.ams_status_name == "idle"
 
 
 def test_ams_status_filament_change() -> None:
-    snap = PrinterSnapshot(connected=True, raw={"print": {"ams_status": 1}})
+    # raw 0x0100 → category 0x01 → "filament_change"
+    snap = PrinterSnapshot(connected=True, raw={"print": {"ams_status": 0x0100}})
     assert snap.ams_status_name == "filament_change"
 
 
@@ -510,6 +524,11 @@ def test_ams_rfid_status_idle() -> None:
 def test_ams_rfid_status_reading() -> None:
     snap = PrinterSnapshot(connected=True, raw={"print": {"ams_rfid_status": 1}})
     assert snap.ams_rfid_status_name == "reading"
+
+
+def test_ams_rfid_status_reading_stop() -> None:
+    snap = PrinterSnapshot(connected=True, raw={"print": {"ams_rfid_status": 6}})
+    assert snap.ams_rfid_status_name == "reading_stop"
 
 
 # ---------------------------------------------------------------------------

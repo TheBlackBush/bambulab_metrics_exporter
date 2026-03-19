@@ -211,19 +211,21 @@ def parse_ams_info(ams_info: int) -> dict[str, int]:
     }
 
 
-# AMS status code → human-readable name (from synman parseAMSStatus)
+# AMS status code → human-readable name.
+# The raw ams_status field encodes sub-state in bits 15-8; the status category
+# is extracted as (raw >> 8) & 0xFF before looking up in this table.
 AMS_STATUS_NAMES: dict[int, str] = {
-    0: "idle",
-    1: "filament_change",
-    2: "rfid_identifying",
-    3: "assist",
-    4: "calibration",
-    0x100: "self_check",
-    0x200: "debug",
-    0xFF00: "unknown_device",
+    0x00: "idle",
+    0x01: "filament_change",
+    0x02: "rfid_identifying",
+    0x03: "assist",
+    0x04: "calibration",
+    0x10: "self_check",
+    0x20: "debug",
+    0xFF: "unknown_device",
 }
 
-# AMS RFID status code → human-readable name (from synman parseRFIDStatus)
+# AMS RFID status code → human-readable name.
 AMS_RFID_STATUS_NAMES: dict[int, str] = {
     0: "idle",
     1: "reading",
@@ -231,18 +233,44 @@ AMS_RFID_STATUS_NAMES: dict[int, str] = {
     3: "identifying",
     4: "close",
     5: "unknown_rfid",
+    6: "reading_stop",
+}
+
+# AMS drying heater state code → human-readable name (bits 4-7 of ams_info).
+AMS_DRY_HEATER_STATE_NAMES: dict[int, str] = {
+    0: "off",
+    1: "drying",
+    2: "cooling",
+    3: "standby",
+}
+
+# AMS drying sub-status code → human-readable name (bits 22-25 of ams_info).
+AMS_DRY_SUB_STATUS_NAMES: dict[int, str] = {
+    0: "idle",
+    1: "pre_heat",
+    2: "drying",
+    3: "cooling",
+    4: "done",
+    5: "cancelled",
+    6: "error",
+    7: "paused",
 }
 
 
 def _ams_status_name(code: int) -> str:
-    """Return human-readable AMS status name or 'unknown_<hex>' fallback."""
-    if code in AMS_STATUS_NAMES:
-        return AMS_STATUS_NAMES[code]
-    return f"unknown_{code}"
+    """Return human-readable AMS status name or 'unknown_<hex>' fallback.
+
+    The raw ams_status field packs sub-state in the lower byte and the status
+    category in bits 15-8.  Extract the category byte before mapping.
+    """
+    category = (code >> 8) & 0xFF
+    if category in AMS_STATUS_NAMES:
+        return AMS_STATUS_NAMES[category]
+    return f"unknown_{code:#x}"
 
 
 def _ams_rfid_status_name(code: int) -> str:
-    """Return human-readable AMS RFID status name or 'unknown_<hex>' fallback."""
+    """Return human-readable AMS RFID status name or 'unknown_<code>' fallback."""
     if code in AMS_RFID_STATUS_NAMES:
         return AMS_RFID_STATUS_NAMES[code]
     return f"unknown_{code}"
