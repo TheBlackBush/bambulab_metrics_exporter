@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased]
+## [0.1.35] - 2026-03-20
 
 ### Fixed
 - `bambulab_ams_status_name` label now correctly decodes the firmware-encoded `ams_status` field.
