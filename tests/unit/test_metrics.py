@@ -727,22 +727,25 @@ class TestAmsStatusMetrics:
         assert m.ams_status_id.labels(**labels)._value.get() == 1.0
 
     def test_ams_status_name_info_metric(self) -> None:
+        # raw 0x0100 → category 0x01 → "filament_change"
         m = self._m()
-        m.update_from_snapshot(_snap({"ams_status": 1}))
+        m.update_from_snapshot(_snap({"ams_status": 0x0100}))
         labels = self._labels(m)
         assert m.ams_status_name_info.labels(**labels, status="filament_change")._value.get() == 1.0
 
     def test_ams_status_name_idle(self) -> None:
+        # raw 0x0000 → category 0x00 → "idle"
         m = self._m()
         m.update_from_snapshot(_snap({"ams_status": 0}))
         labels = self._labels(m)
         assert m.ams_status_name_info.labels(**labels, status="idle")._value.get() == 1.0
 
     def test_ams_status_name_unknown_code(self) -> None:
+        # raw 0x0700 → category 0x07 (unknown) → "unknown_0x700"
         m = self._m()
-        m.update_from_snapshot(_snap({"ams_status": 999}))
+        m.update_from_snapshot(_snap({"ams_status": 0x0700}))
         labels = self._labels(m)
-        assert m.ams_status_name_info.labels(**labels, status="unknown_999")._value.get() == 1.0
+        assert m.ams_status_name_info.labels(**labels, status="unknown_0x700")._value.get() == 1.0
 
     def test_ams_status_name_absent_clears(self) -> None:
         m = self._m()
