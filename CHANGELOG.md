@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- `bambulab_ams_status_name` label now correctly decodes the firmware-encoded `ams_status` field.
+  The raw value packs the status category in bits 15-8; decoding now extracts `(raw >> 8) & 0xFF`
+  before mapping.  Single-byte map keys (`0x00`–`0xFF`) replace the previous multi-byte keys.
+- `bambulab_ams_rfid_status_name` mapping extended with code `6 → reading_stop`.
+
+### Added
+- `AMS_DRY_HEATER_STATE_NAMES` and `AMS_DRY_SUB_STATUS_NAMES` reference tables in `models.py`
+  for human-readable AMS Gen2 drying state and sub-status codes.
+
 ## [0.1.34] - 2026-03-18
 
 ### Fixed
@@ -39,7 +49,6 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 - Merged `bambulab_ams_slot_tray_type_info` and `bambulab_ams_slot_tray_color_info` into a single `bambulab_ams_slot_tray_info` metric with both `tray_type` and `tray_color` labels (**breaking change**).
-
 ## [0.1.30] - 2026-03-17
 
 ### Changed
