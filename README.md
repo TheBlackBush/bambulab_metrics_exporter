@@ -423,6 +423,10 @@ Recording rules sample: `examples/prometheus/prometheus.recording.yml`
 
 Grafana sample dashboard: `examples/grafana/dashboard.sample.json`
 
+### Dashboard Preview
+
+![Grafana Dashboard Sample](examples/grafana/dashboard-sample.jpg)
+
 
 ## Unraid Docker template
 

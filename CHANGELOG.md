@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.36] - 2026-03-20
+
+### Changed
+- Refreshed Grafana dashboard sample (`examples/`) with updated layout, revised panels, and new screenshots in `docs/`.
+
 ## [0.1.35] - 2026-03-20
 
 ### Fixed
