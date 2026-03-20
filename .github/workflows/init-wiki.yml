@@ -7,20 +7,772 @@ permissions:
   contents: write
 
 jobs:
-  init-wiki:
+  push-wiki:
     runs-on: ubuntu-latest
     steps:
-      - name: Bootstrap wiki repo
+      - name: Clone wiki and push all pages
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
         run: |
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
-          mkdir wiki && cd wiki
-          git init
-          printf '# bambulab_metrics_exporter\n\nProduction-oriented Prometheus exporter for Bambu Lab printers.\n\nSee sidebar for wiki pages.\n' > Home.md
-          git add Home.md
-          git commit -m "init: bootstrap wiki"
-          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.wiki.git"
-          git push -u origin master
+
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.wiki.git" wiki
+          cd wiki
+
+          python3 - << 'PYEOF'
+import pathlib
+
+pages = {}
+
+pages["Home.md"] = """\
+# bambulab_metrics_exporter
+
+Production-oriented Prometheus exporter for Bambu Lab printers — homelab and self-hosted friendly.
+
+Connects to your printer via LAN MQTT or Cloud MQTT, requests periodic full-state snapshots, and exposes stable Prometheus metrics for print state, temperatures, AMS, fans, and more.
+
+> **Note:** Development and real-world validation are currently done on an X1C.  
+> If you want to help improve support for additional printer models, please open an issue on GitHub.
+
+---
+
+## Wiki Navigation
+
+| Page | Description |
+|------|-------------|
+| [Installation](Installation) | Prerequisites, quick start (local & Docker) |
+| [Configuration](Configuration) | All environment variables and options |
+| [Metrics Reference](Metrics-Reference) | Full metric list grouped by category |
+| [Grafana Dashboard](Grafana-Dashboard) | Dashboard import steps and sample |
+| [Troubleshooting](Troubleshooting) | Common issues and fixes |
+| [Release Process](Release-Process) | How releases are cut and published |
+
+---
+
+## Quick Links
+
+- **GitHub Repository:** https://github.com/TheBlackBush/bambulab_metrics_exporter
+- **Container Registry (GHCR):** https://github.com/TheBlackBush/bambulab_metrics_exporter/pkgs/container/bambulab_metrics_exporter
+- **Releases:** https://github.com/TheBlackBush/bambulab_metrics_exporter/releases
+
+---
+
+## Endpoints
+
+Once running, the exporter exposes:
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /` | Landing page — version, health, readiness |
+| `GET /metrics` | Prometheus metrics |
+| `GET /health` | Liveness check |
+| `GET /ready` | Readiness check |
+
+Default port: **9109**
+"""
+
+pages["Installation.md"] = """\
+# Installation
+
+## Prerequisites
+
+- Python 3.11+ (for local/virtualenv install)
+- Docker + Docker Compose (for container install)
+- Bambu Lab printer accessible via LAN or cloud MQTT
+- Printer serial number and LAN access code (or cloud credentials)
+
+---
+
+## Option 1: Local (virtualenv)
+
+```bash
+# 1. Copy and edit the environment file
+cp .env.example .env
+# edit .env — set BAMBULAB_HOST, BAMBULAB_SERIAL, BAMBULAB_ACCESS_CODE at minimum
+
+# 2. Create a virtual environment and install
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+# or editable install:
+# pip install -e .
+
+# 3. Run
+bambulab-exporter
+```
+
+Open http://localhost:9109/ to verify the exporter is running.
+
+---
+
+## Option 2: Docker
+
+```bash
+docker build -t bambulab-metrics-exporter:latest .
+docker run --rm -p 9109:9109 --env-file .env bambulab-metrics-exporter:latest
+```
+
+Or with Docker Compose:
+
+```bash
+docker compose up -d --build
+```
+
+The included `docker-compose.yml` is cloud-first and minimal. Required cloud fields are active; optional fields are commented.
+
+---
+
+## Option 3: Unraid
+
+A ready-to-import Unraid template is included: `unraid-bambulab-metrics-exporter.xml`
+
+1. Go to **Docker → Add Container → Template**
+2. Paste the XML content or use Template URL
+3. Fill in `BAMBULAB_SECRET_KEY` and required transport fields
+4. Start the container and verify `/metrics`
+
+---
+
+## Pre-built Container (GHCR)
+
+```bash
+docker pull ghcr.io/theblackbush/bambulab_metrics_exporter:latest
+```
+
+---
+
+## Cloud Mode: Getting Credentials
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -e .
+
+# Step 1: send verification code to email
+bambulab-cloud-auth --email you@example.com --send-code
+
+# Step 2: exchange code for access token and save encrypted credentials
+bambulab-cloud-auth --email you@example.com --code 123456 \\
+  --serial <printer_serial> --save --secret-key "$BAMBULAB_SECRET_KEY"
+```
+
+---
+
+## Prometheus Scrape Config
+
+```yaml
+scrape_configs:
+  - job_name: bambulab
+    scrape_interval: 15s
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["bambulab-metrics-exporter:9109"]
+```
+
+Sample also available at `examples/prometheus/prometheus.scrape.yml`.
+"""
+
+pages["Configuration.md"] = """\
+# Configuration
+
+All configuration is via environment variables. Copy `.env.example` to `.env` and fill in required values.
+
+---
+
+## Core Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `BAMBULAB_TRANSPORT` | no | `local_mqtt` | Transport: `local_mqtt` or `cloud_mqtt` |
+| `BAMBULAB_HOST` | yes (LAN) | — | Printer IP or hostname |
+| `BAMBULAB_PORT` | no | `8883` | Printer MQTT TLS port |
+| `BAMBULAB_SERIAL` | yes | — | Printer serial / device ID |
+| `BAMBULAB_ACCESS_CODE` | yes (LAN) | — | Printer LAN access code |
+| `BAMBULAB_USERNAME` | no | `bblp` | MQTT username |
+
+---
+
+## Cloud MQTT Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `BAMBULAB_CLOUD_USER_ID` | yes (cloud) | — | Cloud user ID |
+| `BAMBULAB_CLOUD_ACCESS_TOKEN` | yes (cloud) | — | Cloud access token |
+| `BAMBULAB_CLOUD_MQTT_HOST` | no | `us.mqtt.bambulab.com` | Cloud MQTT broker |
+| `BAMBULAB_CLOUD_MQTT_PORT` | no | `8883` | Cloud MQTT TLS port |
+| `BAMBULAB_CLOUD_EMAIL` | yes (re-auth) | — | Email for re-auth flow |
+| `BAMBULAB_CLOUD_CODE` | no | — | Verification code for re-auth |
+
+---
+
+## Credential Storage
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `BAMBULAB_SECRET_KEY` | yes (cloud) | — | Encryption key for local credentials |
+| `BAMBULAB_CONFIG_DIR` | no | `/config/bambulab-metrics-exporter` | Config directory |
+
+---
+
+## Polling & HTTP
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `BAMBULAB_REQUEST_PUSHALL` | no | `true` | Request full snapshot each poll |
+| `POLLING_INTERVAL_SECONDS` | no | `10` | Polling interval (seconds) |
+| `REQUEST_TIMEOUT_SECONDS` | no | `8` | Per-cycle timeout (seconds) |
+| `LISTEN_HOST` | no | `0.0.0.0` | HTTP bind host |
+| `LISTEN_PORT` | no | `9109` | HTTP port |
+
+---
+
+## Printer Name & Labels
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `PRINTER_NAME_LABEL` | no | empty | Custom printer name label (takes priority) |
+| `BAMBULAB_PRINTER_NAME` | no | `auto` | Discovered printer name (auto-persisted) |
+
+All metrics include `printer_name` and `serial` labels.
+
+---
+
+## Logging & Unraid
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LOG_LEVEL` | `INFO` | Python log level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
+| `PUID` | `99` | User ID for container runtime |
+| `PGID` | `100` | Group ID for container runtime |
+| `UMASK` | `002` | File creation mask |
+
+---
+
+## Minimal LAN `.env`
+
+```dotenv
+BAMBULAB_TRANSPORT=local_mqtt
+BAMBULAB_HOST=192.168.1.100
+BAMBULAB_SERIAL=01P00A000000000
+BAMBULAB_ACCESS_CODE=12345678
+```
+
+## Minimal Cloud `.env`
+
+```dotenv
+BAMBULAB_TRANSPORT=cloud_mqtt
+BAMBULAB_SERIAL=01P00A000000000
+BAMBULAB_SECRET_KEY=your-strong-key
+BAMBULAB_CLOUD_EMAIL=you@example.com
+BAMBULAB_CLOUD_USER_ID=<uid>
+BAMBULAB_CLOUD_ACCESS_TOKEN=<access_token>
+BAMBULAB_CLOUD_MQTT_HOST=us.mqtt.bambulab.com
+```
+
+---
+
+## Startup Preflight
+
+**LAN mode:** Missing vars → clear error. Connection failure → troubleshooting message.
+
+**Cloud mode:** Missing/invalid credentials → automatic re-auth triggered.
+- Requires `BAMBULAB_CLOUD_EMAIL`
+- If `BAMBULAB_CLOUD_CODE` missing → exporter sends code email and exits with restart instructions
+- On success → credentials saved encrypted, synced to `.env`
+"""
+
+pages["Metrics-Reference.md"] = """\
+# Metrics Reference
+
+All metrics include stable labels: `printer_name` (from `PRINTER_NAME_LABEL`/`BAMBULAB_PRINTER_NAME`) and `serial` (from `BAMBULAB_SERIAL`).
+
+---
+
+## Exporter Health
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `bambulab_printer_up` | Gauge | 1 if latest poll returned a valid payload |
+| `bambulab_printer_connected` | Gauge | 1 if MQTT connection is up |
+| `bambulab_exporter_scrape_duration_seconds` | Gauge | Duration of last scrape cycle |
+| `bambulab_exporter_scrape_success` | Gauge | 1 when last scrape succeeded |
+| `bambulab_exporter_last_success_unixtime` | Gauge | Unix timestamp of last successful scrape |
+
+---
+
+## Print Progress
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `bambulab_print_progress_percent` | Gauge | Print progress percent |
+| `bambulab_print_remaining_seconds` | Gauge | Estimated seconds remaining |
+| `bambulab_print_layer_current` | Gauge | Current print layer |
+| `bambulab_print_layer_total` | Gauge | Total print layers |
+| `bambulab_print_layer_progress_percent` | Gauge | Layer-based progress percent |
+
+---
+
+## Print State
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `bambulab_printer_gcode_state{state}` | One-hot Gauge | Current gcode state as one-hot label |
+| `bambulab_subtask_name_info{subtask_name}` | Info Gauge | Current subtask name |
+| `bambulab_fail_reason_info{fail_reason}` | Info Gauge | Current fail reason |
+| `bambulab_stg_cur` | Gauge | Current stage numeric ID |
+| `bambulab_print_stage_info{stage}` | Info Gauge | Current stage name label |
+| `bambulab_printer_model_info{model}` | Info Gauge | Detected printer model |
+
+---
+
+## Temperatures
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `bambulab_nozzle_temperature_celsius` | Gauge | Current nozzle temperature |
+| `bambulab_nozzle_target_temperature_celsius` | Gauge | Target nozzle temperature |
+| `bambulab_nozzle_diameter` | Gauge | Nozzle diameter from telemetry |
+| `bambulab_bed_temperature_celsius` | Gauge | Current bed temperature |
+| `bambulab_bed_target_temperature_celsius` | Gauge | Target bed temperature |
+| `bambulab_chamber_temperature_celsius` | Gauge | Chamber temperature |
+
+---
+
+## Fans
+
+Fan values use step-aware normalization: raw levels `0..15` → nearest-10 percent.
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `bambulab_fan_big_1_speed_percent` | Gauge | Big fan 1 speed percent |
+| `bambulab_fan_big_2_speed_percent` | Gauge | Big fan 2 speed percent |
+| `bambulab_fan_cooling_speed_percent` | Gauge | Cooling fan speed percent |
+| `bambulab_fan_heatbreak_speed_percent` | Gauge | Heatbreak fan speed percent |
+| `bambulab_fan_secondary_aux_speed_percent` | Gauge | Secondary auxiliary fan speed percent |
+
+---
+
+## Errors
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `bambulab_printer_error` | Gauge | 1 when printer error code is non-zero |
+| `bambulab_printer_error_code` | Gauge | Raw printer error code |
+| `bambulab_print_error` | Gauge | Raw print_error value from MQTT |
+| `bambulab_ap_error_code` | Gauge | Raw ap_err value from MQTT |
+
+---
+
+## AMS
+
+### Status
+| Metric | Type | Description |
+|--------|------|-------------|
+| `bambulab_ams_status_id` | Gauge | AMS status numeric code |
+| `bambulab_ams_status_name{status}` | Info Gauge | AMS status name |
+| `bambulab_ams_rfid_status_id` | Gauge | AMS RFID status numeric code |
+| `bambulab_ams_rfid_status_name{status}` | Info Gauge | AMS RFID status name |
+
+### Unit
+| Metric | Type | Description |
+|--------|------|-------------|
+| `bambulab_ams_unit_info{ams_id,ams_model,ams_series}` | Info Gauge | AMS unit identity labels |
+| `bambulab_ams_unit_humidity{ams_id}` | Gauge | AMS humidity raw value |
+| `bambulab_ams_unit_humidity_index{ams_id}` | Gauge | AMS humidity index (1–5) |
+| `bambulab_ams_unit_temperature_celsius{ams_id}` | Gauge | AMS temperature |
+
+### Slots
+| Metric | Type | Description |
+|--------|------|-------------|
+| `bambulab_ams_slot_active{ams_id,slot_id}` | Gauge | AMS slot active flag |
+| `bambulab_ams_slot_remaining_percent{ams_id,slot_id}` | Gauge | AMS slot remaining filament % |
+| `bambulab_ams_slot_tray_info{ams_id,slot_id,tray_type,tray_color}` | Info Gauge | Filament type and color |
+
+### Gen2 Drying (emitted only when `ams_info` present)
+| Metric | Type | Description |
+|--------|------|-------------|
+| `bambulab_ams_heater_state_info{...,state}` | Info Gauge | Gen2 AMS heater/dry state |
+| `bambulab_ams_dry_fan_status{...,fan_id}` | Gauge | Gen2 AMS drying fan status |
+| `bambulab_ams_dry_sub_status_info{...,state}` | Info Gauge | Gen2 AMS drying sub-status |
+
+---
+
+## External Spool
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `bambulab_external_spool_active` | Gauge | 1 when external spool is active |
+| `bambulab_external_spool_info{external_id,tray_type,tray_info_idx,tray_color}` | Info Gauge | External spool metadata |
+
+---
+
+## Multi-Extruder (H2D / H2D Pro)
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `bambulab_active_extruder_index` | Gauge | Active extruder index |
+| `bambulab_extruder_temperature_celsius{extruder_id}` | Gauge | Per-extruder current temperature |
+| `bambulab_extruder_target_temperature_celsius{extruder_id}` | Gauge | Per-extruder target temperature |
+| `bambulab_extruder_nozzle_info{extruder_id,nozzle_type,nozzle_diameter}` | Info Gauge | Per-extruder nozzle metadata |
+| `bambulab_active_nozzle_info{nozzle_type,nozzle_diameter}` | Info Gauge | Active nozzle metadata |
+
+---
+
+## Hotend Rack
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `bambulab_hotend_rack_holder_position_info{position}` | Info Gauge | Holder position |
+| `bambulab_hotend_rack_holder_state_info{state}` | Info Gauge | Holder state |
+| `bambulab_hotend_rack_slot_state_info{slot_id,state}` | Info Gauge | Slot state (mounted/docked/empty) |
+| `bambulab_hotend_rack_hotend_info{slot_id,nozzle_type,nozzle_diameter}` | Info Gauge | Slot nozzle metadata |
+| `bambulab_hotend_rack_hotend_wear_ratio{slot_id}` | Gauge | Nozzle wear ratio |
+| `bambulab_hotend_rack_hotend_runtime_minutes{slot_id}` | Gauge | Nozzle runtime minutes |
+
+---
+
+## Connectivity & Flags
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `bambulab_wifi_signal` | Gauge | Wi-Fi signal (dBm) |
+| `bambulab_wired_network` | Gauge | Wired network detected |
+| `bambulab_door_open` | Gauge | Door open flag |
+| `bambulab_sdcard_status_info{status}` | Info Gauge | SD card status |
+| `bambulab_chamber_light_on` | Gauge | Chamber light (1/0) |
+| `bambulab_work_light_on` | Gauge | Work light (1/0) |
+| `bambulab_camera_recording` | Gauge | Camera recording flag |
+| `bambulab_xcam_feature_enabled{feature}` | Gauge | XCam feature flags |
+| `bambulab_ams_auto_switch` | Gauge | AMS auto-switch flag |
+| `bambulab_filament_tangle_detected` | Gauge | Filament tangle detected |
+| `bambulab_filament_tangle_detect_supported` | Gauge | Filament tangle detection supported |
+
+---
+
+## Queue & Speed
+
+| Metric | Description |
+|--------|-------------|
+| `bambulab_queue_total` | Total queued jobs |
+| `bambulab_queue_estimated_seconds` | Estimated queue seconds |
+| `bambulab_queue_number` | Queue number |
+| `bambulab_queue_status` | Queue status code |
+| `bambulab_queue_position` | Queue position |
+| `bambulab_spd_lvl` | Speed level numeric value |
+| `bambulab_spd_mag` | Speed multiplier/percentage |
+| `bambulab_spd_lvl_state{mode}` | Speed mode one-hot |
+
+---
+
+## PromQL Examples
+
+```promql
+# Average AMS humidity index over 15 minutes
+avg_over_time(bambulab_ams_unit_humidity_index{printer_name="$printer"}[15m])
+
+# Lowest remaining filament % per printer
+min by (printer_name) (bambulab_ams_slot_remaining_percent)
+
+# Slots below 15% remaining
+bambulab_ams_slot_remaining_percent{printer_name="$printer"} < 15
+
+# Door open while printing (2 min sustained)
+bambulab_door_open{printer_name="$printer"} == 1
+and on(printer_name, serial)
+bambulab_printer_gcode_state{printer_name="$printer", state="RUNNING"} == 1
+
+# Stale exporter
+time() - bambulab_exporter_last_success_unixtime{printer_name="$printer"} > 300
+
+# SD card abnormal
+bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
+```
+
+---
+
+## Migration Notes
+
+- `bambulab_mc_print_stage_state{stage}` removed → use `bambulab_print_stage_info{stage}` + `bambulab_stg_cur`
+- `bambulab_ams_status` → `bambulab_ams_status_id`
+- `bambulab_ams_rfid_status` → `bambulab_ams_rfid_status_id`
+- `bambulab_ams_slot_tray_type_info` + `bambulab_ams_slot_tray_color_info` → `bambulab_ams_slot_tray_info`
+"""
+
+pages["Grafana-Dashboard.md"] = """\
+# Grafana Dashboard
+
+A ready-to-import sample dashboard is included in the repository.
+
+---
+
+## Dashboard Files
+
+| File | Description |
+|------|-------------|
+| `examples/grafana/dashboard.sample.json` | Grafana dashboard JSON — import directly |
+| `docs/` | Screenshots of the sample dashboard |
+
+---
+
+## Import Steps
+
+1. Open Grafana → **Dashboards → Import**
+2. Click **Upload JSON file** → select `examples/grafana/dashboard.sample.json`
+3. Select your **Prometheus data source**
+4. Click **Import**
+
+Set `$printer` variable to your `printer_name` label value.
+
+---
+
+## Dashboard Preview
+
+![Dashboard Sample](https://github.com/TheBlackBush/bambulab_metrics_exporter/blob/main/examples/grafana/dashboard-sample.jpg?raw=true)
+
+---
+
+## Included Panels
+
+- **Print status** — progress %, remaining time, layer, gcode state
+- **Temperatures** — nozzle, bed, chamber (current and target)
+- **Fans** — big1, big2, cooling, heatbreak, secondary aux
+- **AMS** — humidity index per unit, remaining % per slot, filament type/color
+- **Print stage** — current stage name
+- **Exporter health** — last success, scrape duration, connectivity
+
+---
+
+## Prometheus Assets
+
+| File | Description |
+|------|-------------|
+| `examples/prometheus/prometheus.scrape.yml` | Scrape config snippet |
+| `examples/prometheus/prometheus.alerts.yml` | Alert rules |
+| `examples/prometheus/prometheus.recording.yml` | Recording rules |
+
+---
+
+## Suggested Alert Rules
+
+```yaml
+- alert: BambuDoorOpenWhilePrinting
+  expr: |
+    bambulab_door_open == 1
+    and on(printer_name, serial)
+    bambulab_printer_gcode_state{state="RUNNING"} == 1
+  for: 2m
+  labels:
+    severity: warning
+
+- alert: BambuExporterStale
+  expr: time() - bambulab_exporter_last_success_unixtime > 300
+  for: 2m
+  labels:
+    severity: warning
+
+- alert: BambuSdCardAbnormal
+  expr: bambulab_sdcard_status_info{status="abnormal"} == 1
+  labels:
+    severity: warning
+```
+"""
+
+pages["Troubleshooting.md"] = """\
+# Troubleshooting
+
+---
+
+## Exporter Won't Start
+
+**Missing required env vars**
+- LAN: `BAMBULAB_HOST`, `BAMBULAB_SERIAL`, `BAMBULAB_ACCESS_CODE`
+- Cloud: `BAMBULAB_SERIAL`, `BAMBULAB_SECRET_KEY`, `BAMBULAB_CLOUD_EMAIL`, and credentials or encrypted file
+
+**Cloud re-auth loop**
+1. Check email for the verification code
+2. Add `BAMBULAB_CLOUD_CODE=<code>` to `.env` and restart
+3. On success, credentials are saved encrypted — code is no longer needed
+
+**LAN connection preflight fails**
+- Verify printer IP and LAN access code (Settings → Network on printer)
+- Check port 8883: `nc -zv <printer_ip> 8883`
+- TLS cert verification is intentionally disabled
+
+---
+
+## No Metrics / Empty /metrics
+
+- Check `/ready` — "Warming Up" means still connecting
+- Check `bambulab_exporter_scrape_success` — if 0, look at logs
+- Set `LOG_LEVEL=DEBUG` for verbose output
+- Verify `BAMBULAB_REQUEST_PUSHALL=true` (default)
+
+---
+
+## Stale Metrics
+
+- Check `bambulab_printer_connected` — if 0, MQTT session dropped
+- Cloud: access token may have expired; restart to trigger re-auth
+- Check `bambulab_exporter_last_success_unixtime` for staleness
+
+---
+
+## Wrong Printer Model
+
+`bambulab_printer_model_info` shows `unknown`:
+- Model is resolved from `product_name → hw_ver+project_name → SN prefix`
+- Open a GitHub issue with your model and serial prefix (first 3 chars)
+
+---
+
+## AMS Metrics Missing
+
+- Verify AMS is visible in Bambu Studio
+- Enable `LOG_LEVEL=DEBUG` and look for AMS parsing warnings
+- Gen2 drying metrics only emit when `ams_info` is present in the MQTT payload
+
+---
+
+## Docker / Unraid Permission Issues
+
+- Set `PUID`/`PGID` to match the host user owning the config directory
+- Defaults: `PUID=99`, `PGID=100` (Unraid `nobody`/`users`)
+
+---
+
+## Fan Metrics Look Wrong
+
+Fan values use step-aware normalization (raw `0..15` → nearest-10 %) — this is intentional.
+
+---
+
+## Debugging
+
+```bash
+# Verbose logging
+LOG_LEVEL=DEBUG bambulab-exporter
+
+# Quick checks
+curl http://localhost:9109/metrics | grep bambulab_printer
+curl http://localhost:9109/health
+curl http://localhost:9109/ready
+```
+
+---
+
+## Getting Help
+
+Open an issue: https://github.com/TheBlackBush/bambulab_metrics_exporter/issues
+
+Include: printer model + firmware, transport mode, logs with `LOG_LEVEL=DEBUG`, sanitized `.env`.
+"""
+
+pages["Release-Process.md"] = """\
+# Release Process
+
+Tag-based workflow. Docker images are published to GHCR when a GitHub Release is published.
+
+---
+
+## Version Format
+
+`v<major>.<minor>.<patch>` — e.g., `v0.1.36`. Tracked in `pyproject.toml`.
+
+---
+
+## CI/CD Summary
+
+| Trigger | What runs |
+|---------|-----------|
+| Pull Request | Essential checks (fast feedback) |
+| Push/merge to `main` | Full test suite |
+| GitHub Release published | Full tests + Docker build + push to GHCR |
+
+Docker: `ghcr.io/theblackbush/bambulab_metrics_exporter:<tag>`
+
+Release notes are updated automatically with Docker image paths after a successful publish.
+
+---
+
+## Step-by-Step
+
+### 1. Verify CI on main
+
+https://github.com/TheBlackBush/bambulab_metrics_exporter/actions
+
+### 2. Update CHANGELOG.md
+
+```markdown
+## [0.1.X] - YYYY-MM-DD
+
+### Added / Changed / Fixed
+- ...
+```
+
+```bash
+git add CHANGELOG.md && git commit -m "chore: update changelog for v0.1.X"
+git push origin main
+```
+
+### 3. Bump version in pyproject.toml
+
+```bash
+git add pyproject.toml && git commit -m "chore: bump version to v0.1.X"
+git push origin main
+```
+
+### 4. Tag and push
+
+```bash
+git tag v0.1.X
+git push origin v0.1.X
+```
+
+### 5. Publish GitHub Release
+
+1. https://github.com/TheBlackBush/bambulab_metrics_exporter/releases/new
+2. Select tag `v0.1.X`, set title `v0.1.X`
+3. Paste relevant CHANGELOG section as release notes
+4. Click **Publish release**
+
+### 6. Verify
+
+- Workflow: https://github.com/TheBlackBush/bambulab_metrics_exporter/actions/workflows/docker-publish.yml
+- Package: https://github.com/TheBlackBush/bambulab_metrics_exporter/pkgs/container/bambulab_metrics_exporter
+
+---
+
+## Running Tests Locally
+
+```bash
+make test           # full suite with coverage gate (>90%)
+make test-unit      # unit tests only
+make test-integration  # integration (no coverage gate)
+make test-e2e       # e2e (no coverage gate)
+make test-profile   # smoke profile (integration + e2e)
+```
+
+Or directly:
+```bash
+pip install -e .[dev]
+pytest --cov=src --cov-report=term-missing
+```
+
+---
+
+## Notes
+
+- Integration/e2e use `--no-cov` to avoid false negatives from the global coverage threshold
+- Coverage gate: >90% for core modules
+- Sample regression artifacts: `examples/sample_mqtt_message.json`, `examples/sample_metrics.prom`
+"""
+
+for filename, content in pages.items():
+    pathlib.Path(filename).write_text(content)
+    print(f"Written: {filename}")
+PYEOF
+
+          git add .
+          git commit -m "wiki: add all pages (Home, Installation, Configuration, Metrics Reference, Grafana Dashboard, Troubleshooting, Release Process)"
+          git push origin master
