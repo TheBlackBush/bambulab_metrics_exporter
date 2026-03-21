@@ -13,12 +13,13 @@ Connects to your printer via LAN MQTT or Cloud MQTT, requests periodic full-stat
 
 | Page | Description |
 |------|-------------|
-| [Installation](Installation) | Prerequisites, quick start (local & Docker) |
+| [Quick Start](Quick-Start) | Get up and running in minutes |
+| [Installation](Installation) | Prerequisites and install options (local, Docker, Unraid) |
 | [Configuration](Configuration) | All environment variables and options |
+| [Prometheus Setup](Prometheus-Setup) | Scrape config, alert rules, and recording rules |
+| [Grafana Dashboard](Grafana-Dashboard) | Dashboard import steps and sample panels |
 | [Metrics Reference](Metrics-Reference) | Full metric list grouped by category |
-| [Grafana Dashboard](Grafana-Dashboard) | Dashboard import steps and sample |
 | [Troubleshooting](Troubleshooting) | Common issues and fixes |
-| [Release Process](Release-Process) | How releases are cut and published |
 
 ---
 

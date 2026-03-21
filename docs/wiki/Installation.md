@@ -83,15 +83,6 @@ bambulab-cloud-auth --email you@example.com --code 123456 \
 
 ---
 
-## Prometheus Scrape Config
+## Next Steps
 
-```yaml
-scrape_configs:
-  - job_name: bambulab
-    scrape_interval: 15s
-    metrics_path: /metrics
-    static_configs:
-      - targets: ["bambulab-metrics-exporter:9109"]
-```
-
-Sample also available at `examples/prometheus/prometheus.scrape.yml`.
+Once the exporter is running, configure Prometheus to scrape it — see [Prometheus Setup](Prometheus-Setup).

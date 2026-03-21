@@ -1,9 +1,10 @@
 ## bambulab_metrics_exporter
 
 - [[Home]]
+- [[Quick-Start|Quick Start]]
 - [[Installation]]
 - [[Configuration]]
-- [[Metrics-Reference|Metrics Reference]]
+- [[Prometheus-Setup|Prometheus Setup]]
 - [[Grafana-Dashboard|Grafana Dashboard]]
+- [[Metrics-Reference|Metrics Reference]]
 - [[Troubleshooting]]
-- [[Release-Process|Release Process]]
