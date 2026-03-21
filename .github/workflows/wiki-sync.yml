@@ -1,0 +1,75 @@
+name: Sync Wiki
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/wiki/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync-wiki:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate wiki remote target
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          WIKI_REMOTE="https://github.com/${REPO}.wiki.git"
+          if [[ "$WIKI_REMOTE" != *.wiki.git ]]; then
+            echo "ERROR: Target remote does not end with .wiki.git: $WIKI_REMOTE"
+            exit 1
+          fi
+          echo "Wiki remote: $WIKI_REMOTE"
+
+      - name: Clone wiki repository
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          WIKI_REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.wiki.git"
+          git clone "$WIKI_REMOTE" wiki-clone
+
+      - name: Sync markdown files
+        run: |
+          SOURCE_SHA="${{ github.sha }}"
+          echo "Source SHA: $SOURCE_SHA"
+
+          # rsync docs/wiki/ into wiki clone (markdown files only, no deletions of untracked files)
+          rsync -av --checksum \
+            --include="*.md" \
+            --exclude="*" \
+            docs/wiki/ wiki-clone/
+
+      - name: Commit and push (no-op if no changes)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          cd wiki-clone
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No changes to wiki — skipping commit."
+            exit 0
+          fi
+
+          SOURCE_SHA="${{ github.sha }}"
+          git commit -m "wiki: sync from main@${SOURCE_SHA:0:7}
+
+          Source: https://github.com/${{ github.repository }}/commit/${{ github.sha }}"
+
+          WIKI_REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.wiki.git"
+          git push "$WIKI_REMOTE" HEAD
+          echo "Wiki synced successfully."
