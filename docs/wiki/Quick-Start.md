@@ -49,14 +49,21 @@ You should see `bambulab_printer_connected 1` in the metrics output.
 
 If your printer is only accessible via the Bambu Cloud:
 
-1. Obtain cloud credentials:
+1. Clone the repo and install the package:
    ```bash
-   pip install bambulab-metrics-exporter
+   git clone https://github.com/TheBlackBush/bambulab_metrics_exporter.git
+   cd bambulab_metrics_exporter
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -e .
+   ```
+2. Obtain cloud credentials:
+   ```bash
    bambulab-cloud-auth --email you@example.com --send-code
    bambulab-cloud-auth --email you@example.com --code 123456 \
      --serial <serial> --save --secret-key your-strong-key
    ```
-2. See [Configuration](Configuration) for the full cloud variable reference.
+3. See [Configuration](Configuration) for the full cloud variable reference.
 
 ---
 

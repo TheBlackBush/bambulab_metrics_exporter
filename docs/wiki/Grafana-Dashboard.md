@@ -9,7 +9,7 @@ A ready-to-import sample dashboard is included in the repository.
 | File | Description |
 |------|-------------|
 | `examples/grafana/dashboard.sample.json` | Grafana dashboard JSON — import directly |
-| `docs/` | Screenshots of the sample dashboard |
+| `examples/grafana/dashboard-sample.jpg` | Screenshot of the sample dashboard |
 
 ---
 

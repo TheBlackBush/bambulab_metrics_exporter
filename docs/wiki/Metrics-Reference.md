@@ -171,16 +171,22 @@ Fan values: raw levels 0–15 → nearest-10 percent normalization.
 
 ## Queue & Speed
 
-| Metric | Description |
-|--------|-------------|
-| `bambulab_queue_total` | Total queued jobs |
-| `bambulab_queue_estimated_seconds` | Estimated queue seconds |
-| `bambulab_queue_number` | Queue number |
-| `bambulab_queue_status` | Queue status code |
-| `bambulab_queue_position` | Queue position |
-| `bambulab_spd_lvl` | Speed level numeric value |
-| `bambulab_spd_mag` | Speed multiplier/percentage |
-| `bambulab_spd_lvl_state{mode}` | Speed mode one-hot |
+| Metric | Type | Description |
+|--------|------|-------------|
+| `bambulab_queue_total` | Gauge | Total queued jobs |
+| `bambulab_queue_estimated_seconds` | Gauge | Estimated queue seconds |
+| `bambulab_queue_number` | Gauge | Queue number |
+| `bambulab_queue_status` | Gauge | Queue status code |
+| `bambulab_queue_position` | Gauge | Queue position |
+| `bambulab_spd_lvl` | Gauge | Speed level numeric value |
+| `bambulab_spd_mag` | Gauge | Speed multiplier/percentage |
+| `bambulab_spd_lvl_state{mode}` | One-hot Gauge | Speed mode one-hot |
+
+---
+
+## Internal / Diagnostic Metrics
+
+> **Note:** The exporter may expose additional low-level or diagnostic gauges sourced directly from raw MQTT telemetry (e.g. raw status codes, internal counters). These metrics are not listed above because they reflect internal printer state, may change between firmware versions, and are not intended for production alerting. If you observe unlisted `bambulab_*` metrics in your Prometheus instance, treat them as diagnostic/informational only.
 
 ---
 

@@ -42,6 +42,8 @@ After reloading Prometheus:
 
 ## Alert Rules
 
+> **Canonical thresholds:** The production-ready alert definitions with tuned thresholds are in `examples/prometheus/prometheus.alerts.yml`. If the inline examples below differ, prefer the file in the repository.
+
 Import `examples/prometheus/prometheus.alerts.yml` or add inline:
 
 ```yaml

@@ -25,7 +25,7 @@ All configuration is via environment variables. Copy `.env.example` to `.env` an
 | `BAMBULAB_CLOUD_ACCESS_TOKEN` | yes (cloud) | — | Cloud access token |
 | `BAMBULAB_CLOUD_MQTT_HOST` | no | `us.mqtt.bambulab.com` | Cloud MQTT broker |
 | `BAMBULAB_CLOUD_MQTT_PORT` | no | `8883` | Cloud MQTT TLS port |
-| `BAMBULAB_CLOUD_EMAIL` | yes (re-auth) | — | Email for re-auth flow |
+| `BAMBULAB_CLOUD_EMAIL` | conditional | — | Required only when cloud credentials are missing or expired (triggers re-auth flow) |
 | `BAMBULAB_CLOUD_CODE` | no | — | Verification code for re-auth |
 
 ---
@@ -55,8 +55,12 @@ All configuration is via environment variables. Copy `.env.example` to `.env` an
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `PRINTER_NAME_LABEL` | no | empty | Custom printer name label (takes priority) |
+| `PRINTER_NAME_LABEL` | no | empty | **Canonical** custom printer name label; takes priority over all other sources |
 | `BAMBULAB_PRINTER_NAME` | no | `auto` | Discovered printer name (auto-persisted) |
+
+> **Note:** `PRINTER_NAME_LABEL` is the current canonical variable for setting a stable printer label. Older examples or documentation may reference `PRINTER_NAME` — that name is no longer used. Use `PRINTER_NAME_LABEL` in all new configurations.
+
+> **Deprecated — no effect:** `SITE` and `LOCATION` variables appeared in older configurations but are **inactive** and have no effect. Do not set them; they are ignored by the exporter.
 
 All metrics include `printer_name` and `serial` labels.
 
