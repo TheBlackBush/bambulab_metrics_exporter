@@ -33,7 +33,7 @@ Full operator documentation lives in the [GitHub Wiki](https://github.com/TheBla
 
 - [What this does](#what-this-does)
 - [Quick start](#quick-start)
-- [Local vs Cloud mode](#local-vs-cloud-mode)
+- [Local mode vs Cloud mode](#local-mode-vs-cloud-mode)
 - [Cloud authentication](#cloud-authentication)
 - [Environment variables](#environment-variables)
 - [Docker](#docker)
@@ -95,14 +95,14 @@ curl http://localhost:9109/metrics | grep bambulab_printer_connected
 
 > For a step-by-step walkthrough see [Quick Start](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Quick-Start) in the Wiki.
 
-## Local vs Cloud mode
+## Local mode vs Cloud mode
 
 The exporter supports two transport modes. **`local_mqtt` is the default** — no extra configuration needed if your printer is on the same LAN.
 
 | Mode | `BAMBULAB_TRANSPORT` | When to use |
 |------|----------------------|-------------|
-| **Local** (default) | `local_mqtt` (or omit) | Printer is on your LAN and LAN Mode is enabled |
-| **Cloud** | `cloud_mqtt` | Printer is not directly reachable (remote, CGNAT, etc.) |
+| **Local mode** (default) | `local_mqtt` (or omit) | Printer is on your LAN and LAN Mode is enabled |
+| **Cloud mode** | `cloud_mqtt` | Printer is not directly reachable (remote, CGNAT, etc.) |
 
 **Local mode — required vars:**
 
@@ -153,7 +153,7 @@ In any of these cases, start the container without `BAMBULAB_CLOUD_CODE` to trig
 ## Environment variables
 
 | Variable | Required | Default | Description |
-|---|---:|---|---|
+|---|---|---|---|
 | `BAMBULAB_TRANSPORT` | no | `local_mqtt` | Transport backend (`local_mqtt` or `cloud_mqtt`) |
 | `BAMBULAB_HOST` | yes (local) | - | Printer IP/hostname |
 | `BAMBULAB_PORT` | no | `8883` | Printer MQTT TLS port |
@@ -307,11 +307,11 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 | `bambulab_bed_temperature_celsius` | Gauge | Current bed temperature. |
 | `bambulab_bed_target_temperature_celsius` | Gauge | Target bed temperature. |
 | `bambulab_chamber_temperature_celsius` | Gauge | Chamber temperature. |
-| `bambulab_fan_big_1_speed_percent` | Gauge | Big fan 1 speed percent . |
-| `bambulab_fan_big_2_speed_percent` | Gauge | Big fan 2 speed percent . |
-| `bambulab_fan_cooling_speed_percent` | Gauge | Cooling fan speed percent . |
-| `bambulab_fan_heatbreak_speed_percent` | Gauge | Heatbreak fan speed percent . |
-| `bambulab_fan_secondary_aux_speed_percent` | Gauge | Secondary auxiliary fan speed percent from `print.device.airduct.parts[id=160]` . |
+| `bambulab_fan_big_1_speed_percent` | Gauge | Big fan 1 speed percent. |
+| `bambulab_fan_big_2_speed_percent` | Gauge | Big fan 2 speed percent. |
+| `bambulab_fan_cooling_speed_percent` | Gauge | Cooling fan speed percent. |
+| `bambulab_fan_heatbreak_speed_percent` | Gauge | Heatbreak fan speed percent. |
+| `bambulab_fan_secondary_aux_speed_percent` | Gauge | Secondary auxiliary fan speed percent from `print.device.airduct.parts[id=160]`. |
 | `bambulab_printer_error` | Gauge | 1 when printer error code is non-zero. |
 | `bambulab_printer_error_code` | Gauge | Raw printer error code (`mc_print_error_code`). |
 | `bambulab_print_error_code` | Gauge | Raw `print_error` value from MQTT (legacy alias). |
@@ -417,7 +417,7 @@ These are useful for quick regression checks and dashboard/query validation.
 
 ## Known limitations
 
-1. Cloud mode currently expects a valid access token (helper tool included for obtaining it).
+1. Cloud mode requires a valid access token (a helper tool is included for obtaining it).
 2. TLS cert verification is disabled in both LAN/cloud MQTT paths for compatibility with current broker behavior.
 3. Some firmware fields can be missing or model-specific; exporter degrades gracefully (`NaN` for missing scalar values).
 
