@@ -37,6 +37,26 @@ All configuration is via environment variables. Copy `.env.example` to `.env` an
 | `BAMBULAB_SECRET_KEY` | yes (cloud) | — | Encryption key for local credentials |
 | `BAMBULAB_CONFIG_DIR` | no | `/config/bambulab-metrics-exporter` | Config directory |
 
+### Generating `BAMBULAB_SECRET_KEY`
+
+`BAMBULAB_SECRET_KEY` is used to encrypt your Bambu Cloud credentials (token, user ID) before they are saved to the config volume. Without it, cloud mode cannot persist credentials locally.
+
+Generate a strong key with:
+
+```bash
+openssl rand -hex 32
+```
+
+Add the output to your `.env`:
+
+```dotenv
+BAMBULAB_SECRET_KEY=a3f1c8e2d4b7901234567890abcdef1234567890abcdef1234567890abcdef12
+```
+
+> **Safety notes:**
+> - **Never commit or share this key.** Add `.env` to `.gitignore`.
+> - **Keep the key stable.** Changing it will invalidate any encrypted credentials on the config volume — you will need to re-run `bambulab-cloud-auth` to re-authenticate.
+
 ---
 
 ## Polling & HTTP

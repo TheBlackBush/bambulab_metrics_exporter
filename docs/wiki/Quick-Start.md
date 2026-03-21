@@ -47,6 +47,24 @@ You should see `bambulab_printer_connected 1` in the metrics output.
 
 If your printer is only accessible via the Bambu Cloud, use the `bambulab-cloud-auth` tool bundled in the container image to obtain credentials — no local Python installation required.
 
+### Generate a secret key
+
+`BAMBULAB_SECRET_KEY` encrypts your cloud credentials on the config volume. Generate one before proceeding:
+
+```bash
+openssl rand -hex 32
+```
+
+Add it to your `.env` (and keep it out of version control):
+
+```dotenv
+BAMBULAB_SECRET_KEY=<output from above>
+```
+
+> **Keep this key stable.** Changing it invalidates stored credentials and requires re-authentication.
+
+### Authenticate
+
 ```bash
 # 1. Send a verification code to your email
 docker run --rm -it \
@@ -62,7 +80,7 @@ docker run --rm -it \
     --serial <serial> --save --secret-key "$BAMBULAB_SECRET_KEY"
 ```
 
-See [Configuration](Configuration) for the full cloud variable reference.
+See [Configuration](Configuration) for the full cloud variable reference and key generation details.
 
 ---
 
