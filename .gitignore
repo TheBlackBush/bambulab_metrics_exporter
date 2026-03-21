@@ -31,3 +31,6 @@ tests/results/*
 # local analysis notes
 external-upstream-analysis.md
 uv.lock
+
+# private workflow checklist (local only)
+PR_CHECKLIST.md
