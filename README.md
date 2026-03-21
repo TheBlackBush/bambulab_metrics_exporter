@@ -11,12 +11,30 @@ Production-oriented Prometheus exporter for Bambu Lab printers (homelab/self-hos
 > **Note:** Development and real-world validation of this exporter are currently done only on an **X1C** printer.
 > If you want to help improve support for additional printer models, please get in touch with me via GitHub.
 
+---
+
+## Docs / Wiki
+
+Full operator documentation lives in the [GitHub Wiki](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki).
+
+| Page | Description |
+|------|-------------|
+| [Quick Start](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Quick-Start) | Get up and running in under 5 minutes |
+| [Installation](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Installation) | Docker, Docker Compose, Unraid, GHCR |
+| [Configuration](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Configuration) | Full environment variable reference |
+| [Prometheus Setup](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Prometheus-Setup) | Scrape config, job examples |
+| [Metrics Reference](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Metrics-Reference) | All metrics, PromQL examples |
+| [Grafana Dashboard](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Grafana-Dashboard) | Import steps, panel list, alert rules |
+| [Troubleshooting](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Troubleshooting) | Common issues and debugging steps |
+
+---
 
 ## Table of contents
 
 - [What this does](#what-this-does)
-- [Quick start (local)](#quick-start-local)
-- [Cloud connection (email + 2FA code)](#cloud-connection-email--2fa-code)
+- [Quick start](#quick-start)
+- [Local mode vs Cloud mode](#local-mode-vs-cloud-mode)
+- [Cloud authentication](#cloud-authentication)
 - [Environment variables](#environment-variables)
 - [Docker](#docker)
 - [Prometheus integration](#prometheus-integration)
@@ -27,7 +45,7 @@ Production-oriented Prometheus exporter for Bambu Lab printers (homelab/self-hos
 
 ## What this does
 
-- Connects to Bambu printer over **LAN MQTT** or **Cloud MQTT**
+- Connects to Bambu printer over **LAN MQTT** (default) or **Cloud MQTT**
 - Periodically requests a full state snapshot (`pushall`)
 - Parses print state/telemetry into stable Prometheus metrics
 - Exposes:
@@ -43,71 +61,113 @@ Production-oriented Prometheus exporter for Bambu Lab printers (homelab/self-hos
 - Requests full snapshots with `pushall` and maps stable telemetry fields to Prometheus metrics.
 - Printer model detection uses a table-driven resolver pipeline (`product_name` → `hw_ver+project_name` → `SN prefix` → legacy fallbacks), including newer SN prefixes such as `22E` (P2S), `093` (H2S), and `094` (H2D).
 
-For exporter scope, local MQTT is preferred by default, but cloud MQTT is also supported.
+> **Deployment:** This project is deployed via Docker. There is no pip/PyPI distribution.
+> See [Installation](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Installation) for full setup instructions.
 
-## Quick start (local)
+## Quick start
+
+```bash
+# Pull and run (Local mode — printer must be on same LAN)
+docker run -d \
+  --name bambulab-exporter \
+  -p 9109:9109 \
+  -e BAMBULAB_HOST=192.168.1.100 \
+  -e BAMBULAB_SERIAL=01P00A000000000 \
+  -e BAMBULAB_ACCESS_CODE=12345678 \
+  ghcr.io/theblackbush/bambulab_metrics_exporter:latest
+```
+
+Or with an env file:
 
 ```bash
 cp .env.example .env
-# edit .env values
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-# or: pip install -e .
-bambulab-exporter
+# edit .env with your values
+docker run -d --name bambulab-exporter -p 9109:9109 --env-file .env \
+  ghcr.io/theblackbush/bambulab_metrics_exporter:latest
 ```
 
-Then open:
-
-- <http://localhost:9109/> — landing page
-- <http://localhost:9109/metrics>
-- <http://localhost:9109/health>
-- <http://localhost:9109/ready>
-
-## Cloud connection (email + 2FA code)
-
-Use the included helper CLI to get cloud credentials:
+Then verify:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .
-
-# Step 1: send verification code to email
-bambulab-cloud-auth --email you@example.com --send-code
-
-# Step 2: exchange code for access token + user id
-bambulab-cloud-auth --email you@example.com --code 123456
+curl http://localhost:9109/health
+curl http://localhost:9109/metrics | grep bambulab_printer_connected
 ```
 
-Then put the output values in `.env`:
+> For a step-by-step walkthrough see [Quick Start](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Quick-Start) in the Wiki.
+
+## Local mode vs Cloud mode
+
+The exporter supports two transport modes. **`local_mqtt` is the default** — no extra configuration needed if your printer is on the same LAN.
+
+| Mode | `BAMBULAB_TRANSPORT` | When to use |
+|------|----------------------|-------------|
+| **Local mode** (default) | `local_mqtt` (or omit) | Printer is on your LAN and LAN Mode is enabled |
+| **Cloud mode** | `cloud_mqtt` | Printer is not directly reachable (remote, CGNAT, etc.) |
+
+**Local mode — required vars:**
+
+```dotenv
+BAMBULAB_HOST=192.168.1.100
+BAMBULAB_SERIAL=01P00A000000000
+BAMBULAB_ACCESS_CODE=12345678
+```
+
+**Cloud mode — required vars:**
 
 ```dotenv
 BAMBULAB_TRANSPORT=cloud_mqtt
-BAMBULAB_SERIAL=<printer_serial>
-BAMBULAB_CLOUD_USER_ID=<uid>
-BAMBULAB_CLOUD_ACCESS_TOKEN=<access_token>
-BAMBULAB_CLOUD_MQTT_HOST=us.mqtt.bambulab.com
-BAMBULAB_CLOUD_MQTT_PORT=8883
+BAMBULAB_SERIAL=01P00A000000000
+BAMBULAB_SECRET_KEY=<openssl rand -hex 32>
+BAMBULAB_CLOUD_EMAIL=you@example.com
 ```
 
-And run as usual:
+> See [Configuration](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Configuration) for the full variable reference.
 
-```bash
-bambulab-exporter
-```
+## Cloud authentication
+
+Cloud credentials are obtained via the `bambulab-cloud-auth` CLI bundled in the container image. No local Python installation is required.
+
+### Container-native OTP flow (recommended)
+
+1. Set `BAMBULAB_CLOUD_EMAIL` in your `.env`. **Do not set `BAMBULAB_CLOUD_CODE` yet.**
+2. Start the container. It detects no valid credentials, sends a verification code to your Bambu account email, and exits.
+3. Check your email for the code.
+4. Add `BAMBULAB_CLOUD_CODE=<code>` to `.env` and restart the container.
+5. The container authenticates, stores encrypted credentials to the config volume, and starts normally.
+6. **Remove `BAMBULAB_CLOUD_CODE` from `.env`** — codes are single-use; it is not needed for normal operation.
+
+On every subsequent restart, stored credentials are loaded automatically.
+
+### BAMBULAB_CLOUD_CODE lifecycle
+
+`BAMBULAB_CLOUD_CODE` is a **one-time bootstrap variable**. It is needed again only if:
+
+- Stored credentials are missing or cleared (fresh config volume, accidental deletion).
+- The Bambu Cloud session expired or account password changed.
+- `BAMBULAB_SECRET_KEY` was changed — the encrypted credential file can no longer be decrypted.
+
+In any of these cases, start the container without `BAMBULAB_CLOUD_CODE` to trigger a new code delivery, then follow steps 3–6 above.
+
+> For the manual `bambulab-cloud-auth` flow and full credential lifecycle details, see [Installation](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Installation) and [Quick Start](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Quick-Start).
 
 ## Environment variables
 
 | Variable | Required | Default | Description |
-|---|---:|---|---|
+|---|---|---|---|
 | `BAMBULAB_TRANSPORT` | no | `local_mqtt` | Transport backend (`local_mqtt` or `cloud_mqtt`) |
-| `BAMBULAB_HOST` | yes | - | Printer IP/hostname |
+| `BAMBULAB_HOST` | yes (local) | - | Printer IP/hostname |
 | `BAMBULAB_PORT` | no | `8883` | Printer MQTT TLS port |
 | `BAMBULAB_SERIAL` | yes | - | Printer serial/device id |
-| `BAMBULAB_ACCESS_CODE` | yes | - | Printer LAN access code |
+| `BAMBULAB_ACCESS_CODE` | yes (local) | - | Printer LAN access code |
 | `BAMBULAB_USERNAME` | no | `bblp` | MQTT username |
 | `BAMBULAB_REQUEST_PUSHALL` | no | `true` | Request full snapshot every poll |
+| `BAMBULAB_SECRET_KEY` | yes (cloud) | - | Encrypts stored cloud credentials — keep stable |
+| `BAMBULAB_CLOUD_EMAIL` | yes (cloud) | - | Bambu account email for OTP flow |
+| `BAMBULAB_CLOUD_CODE` | bootstrap only | - | One-time OTP code; remove after first auth |
+| `BAMBULAB_CLOUD_USER_ID` | no | - | Cloud user id (if already obtained) |
+| `BAMBULAB_CLOUD_ACCESS_TOKEN` | no | - | Cloud access token (if already obtained) |
+| `BAMBULAB_CLOUD_MQTT_HOST` | no | `us.mqtt.bambulab.com` | Cloud MQTT broker |
+| `BAMBULAB_CLOUD_MQTT_PORT` | no | `8883` | Cloud MQTT port |
 | `PRINTER_NAME_LABEL` | no | empty | Custom printer name label (falls back to `BAMBULAB_PRINTER_NAME`) |
 | `BAMBULAB_PRINTER_NAME` | no | auto | Real printer name discovered from machine (auto-persisted) |
 | `POLLING_INTERVAL_SECONDS` | no | `10` | Polling interval |
@@ -116,35 +176,42 @@ bambulab-exporter
 | `LISTEN_PORT` | no | `9109` | HTTP port |
 | `LOG_LEVEL` | no | `INFO` | Python log level |
 
+> Full reference including PUID/PGID/UMASK and advanced options: [Configuration](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Configuration).
+
 ## Docker
+
+### GHCR pre-built image (recommended)
+
+```bash
+docker run -d --name bambulab-exporter -p 9109:9109 --env-file .env \
+  ghcr.io/theblackbush/bambulab_metrics_exporter:latest
+```
+
+### Docker Compose
+
+```bash
+docker compose up -d
+```
+
+The included `docker-compose.yml` is cloud-first and minimal by default. Required cloud fields are active; optional fields are commented with inline hints. Works for Linux hosts and Unraid (`PUID/PGID/UMASK` optional).
+
+### Build locally
 
 ```bash
 docker build -t bambulab-metrics-exporter:latest .
-docker run --rm -p 9109:9109 --env-file .env bambulab-metrics-exporter:latest
+docker run -d --name bambulab-exporter -p 9109:9109 --env-file .env \
+  bambulab-metrics-exporter:latest
 ```
 
-or:
+### Unraid
 
-```bash
-docker compose up -d --build
-```
+A ready-to-import template is included: `unraid-bambulab-metrics-exporter.xml`
 
-### Docker Compose (recommended)
+1. **Docker → Add Container → Template** — paste XML content or use Template URL.
+2. Fill in `BAMBULAB_SECRET_KEY` and required transport fields.
+3. Start container and verify `/metrics`.
 
-`docker-compose.yml` is cloud-first and minimal by default.
-
-- Required cloud fields are active by default.
-- Optional fields stay commented with short inline hints.
-- Works for regular Linux hosts and Unraid (`PUID/PGID/UMASK` optional).
-
-Minimal required values before first run (cloud mode):
-
-- `BAMBULAB_TRANSPORT=cloud_mqtt`
-- `BAMBULAB_SERIAL=<printer_serial>`
-- `BAMBULAB_SECRET_KEY=<strong_random_key>`
-- `BAMBULAB_CLOUD_EMAIL=<your_email>`
-
-If `BAMBULAB_CLOUD_USER_ID`/`BAMBULAB_CLOUD_ACCESS_TOKEN` are missing, startup re-auth flow can trigger automatically.
+> See [Installation](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Installation) for full Unraid and PUID/PGID setup.
 
 ## Prometheus integration
 
@@ -158,6 +225,8 @@ scrape_configs:
     static_configs:
       - targets: ["bambulab-metrics-exporter:9109"]
 ```
+
+> See [Prometheus Setup](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Prometheus-Setup) for full scrape config, alerting rules, and recording rules.
 
 ## Operator PromQL examples
 
@@ -219,6 +288,7 @@ labels:
 bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 ```
 
+> More PromQL examples and alert rules: [Metrics Reference](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Metrics-Reference) and [Grafana Dashboard](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Grafana-Dashboard).
 
 ## Exported metrics (core)
 
@@ -237,11 +307,11 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 | `bambulab_bed_temperature_celsius` | Gauge | Current bed temperature. |
 | `bambulab_bed_target_temperature_celsius` | Gauge | Target bed temperature. |
 | `bambulab_chamber_temperature_celsius` | Gauge | Chamber temperature. |
-| `bambulab_fan_big_1_speed_percent` | Gauge | Big fan 1 speed percent . |
-| `bambulab_fan_big_2_speed_percent` | Gauge | Big fan 2 speed percent . |
-| `bambulab_fan_cooling_speed_percent` | Gauge | Cooling fan speed percent . |
-| `bambulab_fan_heatbreak_speed_percent` | Gauge | Heatbreak fan speed percent . |
-| `bambulab_fan_secondary_aux_speed_percent` | Gauge | Secondary auxiliary fan speed percent from `print.device.airduct.parts[id=160]` . |
+| `bambulab_fan_big_1_speed_percent` | Gauge | Big fan 1 speed percent. |
+| `bambulab_fan_big_2_speed_percent` | Gauge | Big fan 2 speed percent. |
+| `bambulab_fan_cooling_speed_percent` | Gauge | Cooling fan speed percent. |
+| `bambulab_fan_heatbreak_speed_percent` | Gauge | Heatbreak fan speed percent. |
+| `bambulab_fan_secondary_aux_speed_percent` | Gauge | Secondary auxiliary fan speed percent from `print.device.airduct.parts[id=160]`. |
 | `bambulab_printer_error` | Gauge | 1 when printer error code is non-zero. |
 | `bambulab_printer_error_code` | Gauge | Raw printer error code (`mc_print_error_code`). |
 | `bambulab_print_error_code` | Gauge | Raw `print_error` value from MQTT (legacy alias). |
@@ -347,7 +417,7 @@ These are useful for quick regression checks and dashboard/query validation.
 
 ## Known limitations
 
-1. Cloud mode currently expects a valid access token (helper tool included for obtaining it).
+1. Cloud mode requires a valid access token (a helper tool is included for obtaining it).
 2. TLS cert verification is disabled in both LAN/cloud MQTT paths for compatibility with current broker behavior.
 3. Some firmware fields can be missing or model-specific; exporter degrades gracefully (`NaN` for missing scalar values).
 
@@ -358,110 +428,6 @@ These are useful for quick regression checks and dashboard/query validation.
 - Better fan mapping per model/firmware
 - Integration tests with recorded MQTT fixtures
 
-
-## Secure local credential storage (Option 1)
-
-The project now supports encrypted local credential storage for cloud auth:
-
-- Encrypted file: `${BAMBULAB_CONFIG_DIR}/${BAMBULAB_CREDENTIALS_FILE}`
-- Shared with host via Docker volume
-- Encrypted using `BAMBULAB_SECRET_KEY`
-
-### Docker example
-
-```yaml
-services:
-  bambulab-metrics-exporter:
-    image: bambulab-metrics-exporter:latest
-    env_file:
-      - .env
-    environment:
-      - BAMBULAB_SECRET_KEY=${BAMBULAB_SECRET_KEY}
-    volumes:
-      - ./config:/config/bambulab-metrics-exporter
-```
-
-### Cloud auth + save
-
-```bash
-bambulab-cloud-auth --email you@example.com --code 123456 \
-  --serial <printer_serial> \
-  --save \
-  --secret-key "$BAMBULAB_SECRET_KEY"
-```
-
-This command will:
-1. Fetch cloud token/user id
-2. Save encrypted credentials to config volume
-3. Update `.env` automatically
-
-At exporter startup:
-- If `BAMBULAB_TRANSPORT=cloud_mqtt` and env tokens are missing, exporter auto-loads credentials from encrypted file.
-- Runtime-provided env vars are synced back into `.env` (whitelisted keys).
-
-
-## Startup behavior (connection preflight)
-
-On container startup, exporter performs a connection preflight:
-
-- **local_mqtt**
-  - If required env vars are missing: startup fails with clear error.
-  - If connection test fails: startup fails with troubleshooting message.
-
-- **cloud_mqtt**
-  - If credentials are missing/invalid: exporter tries automatic re-auth.
-  - Re-auth requires `BAMBULAB_CLOUD_EMAIL`.
-  - If `BAMBULAB_CLOUD_CODE` is missing, exporter sends a new code email and exits with instruction to restart with the code.
-  - On success, new credentials are saved encrypted to config dir and synced to `.env`, so next startup won't require re-entry.
-
-
-Prometheus scrape config sample: `examples/prometheus/prometheus.scrape.yml`
-
-Alert rules sample: `examples/prometheus/prometheus.alerts.yml`
-
-Recording rules sample: `examples/prometheus/prometheus.recording.yml`
-
-Grafana sample dashboard: `examples/grafana/dashboard.sample.json`
-
 ### Dashboard Preview
 
 ![Grafana Dashboard Sample](examples/grafana/dashboard-sample.jpg)
-
-
-## Unraid Docker template
-
-A ready-to-import Unraid template is included:
-
-- `unraid-bambulab-metrics-exporter.xml`
-
-In Unraid:
-1. Docker -> Add Container -> Template: use XML file content (or host it and use Template URL).
-2. Fill `BAMBULAB_SECRET_KEY` and required transport fields.
-3. Start container and verify `/metrics`.
-
-> Note: Replace repository/template/icon URLs in XML with your actual GitHub/registry paths before publishing.
-
-
-### Unraid clean setup (PUID/PGID)
-
-Unraid support is integrated into the main runtime files:
-
-- `Dockerfile`
-- `entrypoint.sh`
-- `docker-compose.yml`
-- `unraid-bambulab-metrics-exporter.xml`
-
-The container starts with bootstrap privileges to align UID/GID, then drops to `PUID:PGID` using `gosu`.
-
-Default values are:
-- `PUID=99`
-- `PGID=100`
-- `UMASK=002`
-
-Build/run example:
-
-```bash
-cd /path/to/bambulab-metrics-exporter
-export BAMBULAB_SECRET_KEY='your-strong-key'
-docker compose up --build -d
-```
