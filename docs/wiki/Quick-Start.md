@@ -133,21 +133,30 @@ docker run -d \
   ghcr.io/theblackbush/bambulab_metrics_exporter:latest
 ```
 
-### OTP re-authentication — when it's needed
+### BAMBULAB_CLOUD_CODE lifecycle
 
-The container can also trigger a re-auth flow automatically on startup, without running `bambulab-cloud-auth` manually. To use this:
+The container handles cloud authentication natively on startup — no manual `bambulab-cloud-auth` runs required if you use this flow.
 
-1. Set `BAMBULAB_CLOUD_EMAIL` in your `.env`.
-2. Omit (or leave blank) `BAMBULAB_CLOUD_CODE` on first start — the container will send a code to your email and then exit with instructions.
-3. Add `BAMBULAB_CLOUD_CODE=<code from email>` to your `.env` and restart the container. It will log in, persist credentials, and continue running.
-4. **Remove `BAMBULAB_CLOUD_CODE`** from `.env` after a successful start — codes are single-use.
+**Initial authentication (container-native OTP flow):**
 
-**Re-authentication may be required again if:**
-- The container is restarted and stored credentials are missing or expired.
-- `BAMBULAB_SECRET_KEY` was changed (invalidates the encrypted credential file).
-- The Bambu Cloud session expires or the account password was changed.
+1. Set `BAMBULAB_CLOUD_EMAIL` in your `.env`. **Do not set `BAMBULAB_CLOUD_CODE`.**
+2. Start the container. Because no valid credentials exist yet, it sends a verification code to your Bambu account email, then exits.
+3. Check your email for the code.
+4. Add `BAMBULAB_CLOUD_CODE=<code from email>` to your `.env` and restart the container.
+5. The container authenticates, persists encrypted credentials to the config volume, and continues running normally.
+6. **Remove `BAMBULAB_CLOUD_CODE` from `.env`** — codes are single-use. It is not needed for steady-state operation.
 
-In all these cases, repeat the OTP flow above.
+After step 6, the exporter loads stored credentials automatically on every restart.
+
+**When BAMBULAB_CLOUD_CODE is needed again:**
+
+Repeat the flow above if any of the following occur:
+
+- Stored credentials are missing or cleared (fresh config volume, accidental deletion).
+- The Bambu Cloud session has expired or the account password was changed.
+- `BAMBULAB_SECRET_KEY` was changed — the encrypted credential file can no longer be decrypted.
+
+In all these cases, start the container without `BAMBULAB_CLOUD_CODE` to trigger a new code delivery, then follow steps 3–6 above.
 
 ---
 

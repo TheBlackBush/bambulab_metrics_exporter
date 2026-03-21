@@ -125,21 +125,30 @@ docker run --rm -it \
 
 Mount `/path/to/config` to the same location used by the running exporter so the saved credentials are accessible.
 
-### OTP lifecycle — when re-authentication is required
+### BAMBULAB_CLOUD_CODE lifecycle
 
-Once credentials are saved, the exporter reuses them on every restart without prompting for a new code. Re-authentication is required only when:
+`BAMBULAB_CLOUD_CODE` is a **one-time bootstrap variable**. It is only needed during initial authentication and must be removed from steady-state config afterward.
 
-- Stored credentials are missing (e.g., fresh config volume, no prior `--save` run).
-- Stored credentials are expired or invalidated (e.g., Bambu Cloud session ended, password changed).
+**First-time setup (container-native OTP flow):**
+
+1. Set `BAMBULAB_CLOUD_EMAIL` in your `.env`. **Do not set `BAMBULAB_CLOUD_CODE`.**
+2. Start the container. It detects no valid credentials, sends a verification code to your Bambu account email, and exits.
+3. Check your email for the code.
+4. Add `BAMBULAB_CLOUD_CODE=<code from email>` to your `.env` and restart the container.
+5. The container authenticates, persists encrypted credentials to the config volume, and continues running normally.
+6. **Remove `BAMBULAB_CLOUD_CODE` from `.env`** — it is not needed again for normal operation.
+
+After this, the exporter reuses stored credentials automatically on every restart.
+
+**When BAMBULAB_CLOUD_CODE is needed again:**
+
+Repeat the flow above if any of the following occur:
+
+- Stored credentials are missing or cleared (fresh config volume, accidental deletion).
+- The Bambu Cloud session has expired or the account password was changed.
 - `BAMBULAB_SECRET_KEY` was changed — the encrypted credential file can no longer be decrypted.
 
-In these cases, the container can trigger re-auth automatically on startup:
-
-1. Set `BAMBULAB_CLOUD_EMAIL` in your `.env`.
-2. Start the container — if credentials are absent/invalid, it sends a code to your email and exits with instructions.
-3. Add `BAMBULAB_CLOUD_CODE=<code from email>` to `.env` and restart.
-4. The container logs in, persists credentials, and continues running normally.
-5. **Remove `BAMBULAB_CLOUD_CODE`** after a successful start — codes are single-use.
+In all cases: start the container without `BAMBULAB_CLOUD_CODE` to trigger a new code delivery, then follow steps 3–6 above.
 
 ---
 
