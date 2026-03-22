@@ -164,6 +164,7 @@ class ExporterMetrics:
             registry=self.registry,
         )
         self.door_open = Gauge("bambulab_door_open", "1 if printer door is open", label_names, registry=self.registry)
+        self.lid_open = Gauge("bambulab_lid_open", "1 if printer lid is open", label_names, registry=self.registry)
         self.wired_network = Gauge("bambulab_wired_network", "1 if wired network flag is set", label_names, registry=self.registry)
         self.external_spool_active = Gauge("bambulab_external_spool_active", "1 if external spool is currently active", label_names, registry=self.registry)
         self.external_spool_info = Gauge(
@@ -372,6 +373,7 @@ class ExporterMetrics:
 
         # Phase 1 metrics
         self._set_optional(self.door_open, snapshot.door_open)
+        self._set_optional(self.lid_open, snapshot.lid_open)
         self._set_optional(self.wired_network, snapshot.wired_network)
         self._set_optional(self.external_spool_active, snapshot.external_spool_active)
         self.external_spool_info.clear()

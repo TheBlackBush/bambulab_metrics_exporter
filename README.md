@@ -356,6 +356,7 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 | `bambulab_hotend_rack_hotend_runtime_minutes{slot_id}` | Gauge | Hotend rack nozzle runtime minutes. |
 | `bambulab_sdcard_status_info{status}` | Info Gauge | SD-card status (`present/abnormal/absent`). |
 | `bambulab_door_open` | Gauge | Door open flag. |
+| `bambulab_lid_open` | Gauge | Lid open flag (H2 family via `stat` bit 24, or direct `lid_open`). |
 | `bambulab_wired_network` | Gauge | Wired network detected flag. |
 | `bambulab_camera_recording` | Gauge | Camera recording flag. |
 | `bambulab_ams_auto_switch` | Gauge | AMS auto-switch flag. |

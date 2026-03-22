@@ -27,6 +27,7 @@ HOME_FLAG_MASKS: dict[str, int] = {
 # Stat flag masks.
 STAT_FLAG_MASKS: dict[str, int] = {
     "door_open": 0x00800000,
+    "lid_open": 0x01000000,
 }
 
 
