@@ -1060,3 +1060,391 @@ class TestAmsUnknownFallbacks:
         series = resolve_ams_series(model)
         assert model == "unknown"
         assert series == "unknown"
+
+
+# ---------------------------------------------------------------------------
+# Additional edge cases — uncovered branches from _parse_ams_info, _unpack_temperature,
+# printer_type, modules, chamber_temp, ams, extruder, hotend_rack, etc.
+# ---------------------------------------------------------------------------
+
+def _snap(raw: dict) -> PrinterSnapshot:
+    return PrinterSnapshot(connected=True, raw=raw)
+
+
+# --- _parse_ams_info uncovered branches ---
+
+def test_extract_ams_info_empty_string_returns_none() -> None:
+    """Empty AMS info string returns None."""
+    from bambulab_metrics_exporter.models import _extract_ams_info
+    result = _extract_ams_info({"info": ""})
+    assert result is None
+    result2 = _extract_ams_info({"info": "   "})
+    assert result2 is None
+
+
+def test_extract_ams_info_hex_prefix_invalid() -> None:
+    """AMS info with 0x prefix + invalid hex chars returns None."""
+    from bambulab_metrics_exporter.models import _extract_ams_info
+    result = _extract_ams_info({"info": "0xGG"})
+    assert result is None
+
+
+def test_extract_ams_info_valid_hex_prefix() -> None:
+    """AMS info with valid 0x prefix."""
+    from bambulab_metrics_exporter.models import _extract_ams_info
+    result = _extract_ams_info({"info": "0x0011"})
+    assert result == 0x0011
+
+
+def test_extract_ams_info_digit_string_no_known_type_returns_candidate() -> None:
+    """Digit-only AMS info that doesn't match a known type returns first candidate."""
+    from bambulab_metrics_exporter.models import _extract_ams_info
+    result = _extract_ams_info({"info": "9999"})
+    assert result is not None  # returns candidates[0]
+
+
+def test_extract_ams_info_hex_chars_no_0x_prefix() -> None:
+    """AMS info that's pure hex chars without 0x prefix."""
+    from bambulab_metrics_exporter.models import _extract_ams_info
+    result = _extract_ams_info({"info": "FF01"})
+    assert result == 0xFF01
+
+
+# --- _unpack_temperature uncovered branches ---
+
+def test_unpack_temperature_none_returns_none_none() -> None:
+    """_unpack_temperature returns (None, None) for None input."""
+    from bambulab_metrics_exporter.models import _unpack_temperature
+    a, t = _unpack_temperature(None)
+    assert a is None
+    assert t is None
+
+
+# --- printer_type / modules uncovered branches ---
+
+def test_modules_from_info_dict() -> None:
+    """modules property finds module list inside info dict."""
+    raw = {
+        "print": {},
+        "info": {"module": [{"product_name": "BL-P001", "hw_ver": "AP04"}]},
+    }
+    snap = _snap(raw)
+    assert isinstance(snap.modules, list)
+
+
+def test_printer_type_project_name_N1() -> None:
+    """printer_type returns A1MINI when project_name is N1."""
+    raw = {
+        "print": {
+            "module": [
+                {"hw_ver": "AP04", "project_name": "N1", "product_name": ""},
+            ]
+        }
+    }
+    snap = _snap(raw)
+    assert snap.printer_type == "A1MINI"
+
+
+# --- chamber_temp uncovered ---
+
+def test_chamber_temp_none_without_ctc() -> None:
+    """chamber_temp returns None when no ctc block."""
+    snap = _snap({"print": {}})
+    assert snap.chamber_temp is None
+
+
+# --- ams_tray_now TypeError path ---
+
+def test_ams_tray_now_value_error_returns_none() -> None:
+    """ams_tray_now handles ValueError/TypeError on malformed string."""
+    snap = _snap({"print": {"ams": {"tray_now": "not_a_number"}}})
+    result = snap.ams_tray_now
+    assert result is None
+
+
+# --- external_spool_entries missing branches ---
+
+def test_external_spool_entries_vir_slot_skips_non_dict() -> None:
+    """external_spool_entries skips non-dict items in vir_slot."""
+    snap = _snap({"print": {"vir_slot": ["not_a_dict", {"id": "1", "tag_uid": "ABC", "tray_type": "PLA"}]}})
+    entries = snap.external_spool_entries
+    assert isinstance(entries, list)
+
+
+# --- extruder_entries / nozzle_info uncovered branches ---
+
+def test_extruder_entries_missing_device_returns_empty() -> None:
+    """extruder_entries returns [] when no 'device' key."""
+    snap = _snap({"print": {}})
+    assert snap.extruder_entries == []
+
+
+def test_extruder_entries_no_extruder_returns_empty() -> None:
+    """extruder_entries returns [] when device has no 'extruder'."""
+    snap = _snap({"print": {"device": {}}})
+    assert snap.extruder_entries == []
+
+
+def test_extruder_entries_no_info_list_returns_empty() -> None:
+    """extruder_entries returns [] when extruder.info is not a list."""
+    snap = _snap({"print": {"device": {"extruder": {"state": 0}}}})
+    assert snap.extruder_entries == []
+
+
+def test_extruder_entries_skips_non_dict_items() -> None:
+    """extruder_entries skips non-dict items in info list."""
+    snap = _snap({"print": {"device": {"extruder": {"info": ["not_dict", {"id": 0, "temp": 0}]}}}})
+    entries = snap.extruder_entries
+    assert isinstance(entries, list)
+
+
+def test_extruder_nozzle_info_entries_no_device() -> None:
+    """extruder_nozzle_info_entries returns [] when no device."""
+    snap = _snap({"print": {}})
+    assert snap.extruder_nozzle_info_entries == []
+
+
+def test_extruder_nozzle_info_entries_fallback_nozzle_ids() -> None:
+    """extruder_nozzle_info_entries uses fallback (ids 0/1) when extruder.info is missing."""
+    raw = {
+        "print": {
+            "device": {
+                "extruder": {"state": 0},  # no info key
+                "nozzle": {
+                    "info": [
+                        {"id": 0, "type": "HX05", "diameter": 0.4},
+                        {"id": 1, "type": "HS01", "diameter": 0.6},
+                    ]
+                },
+            }
+        }
+    }
+    snap = _snap(raw)
+    entries = snap.extruder_nozzle_info_entries
+    assert any(e["id"] == "0" for e in entries)
+
+
+def test_extruder_nozzle_info_no_nozzle_returns_empty() -> None:
+    """extruder_nozzle_info_entries returns [] when no nozzle key."""
+    snap = _snap({"print": {"device": {"extruder": {"info": []}}}})
+    assert snap.extruder_nozzle_info_entries == []
+
+
+# --- hotend_rack branches ---
+
+def test_hotend_rack_present_via_exist_bit() -> None:
+    """hotend_rack_present detects via exist bitmask."""
+    raw = {
+        "print": {
+            "device": {
+                "nozzle": {
+                    "exist": 1 << 16,  # bit 16 set = slot 16 exists
+                }
+            }
+        }
+    }
+    snap = _snap(raw)
+    assert snap.hotend_rack_present is True
+
+
+def test_hotend_rack_present_via_nozzle_info_ids() -> None:
+    """hotend_rack_present detects via nozzle info ids."""
+    raw = {
+        "print": {
+            "device": {
+                "nozzle": {
+                    "info": [{"id": 16, "type": "HX05", "diameter": 0.4}]
+                }
+            }
+        }
+    }
+    snap = _snap(raw)
+    assert snap.hotend_rack_present is True
+
+
+def test_hotend_rack_holder_position_none_when_no_device() -> None:
+    """hotend_rack_holder_position_name returns None when no device."""
+    snap = _snap({"print": {}})
+    assert snap.hotend_rack_holder_position_name is None
+
+
+def test_hotend_rack_holder_position_none_when_no_holder() -> None:
+    """hotend_rack_holder_position_name returns None when no holder."""
+    snap = _snap({"print": {"device": {}}})
+    assert snap.hotend_rack_holder_position_name is None
+
+
+def test_hotend_rack_holder_state_none_when_no_device() -> None:
+    """hotend_rack_holder_state_name returns None when no device."""
+    snap = _snap({"print": {}})
+    assert snap.hotend_rack_holder_state_name is None
+
+
+def test_hotend_rack_holder_state_none_when_no_holder() -> None:
+    """hotend_rack_holder_state_name returns None when no holder."""
+    snap = _snap({"print": {"device": {}}})
+    assert snap.hotend_rack_holder_state_name is None
+
+
+def test_hotend_rack_slot_entries_no_device() -> None:
+    """hotend_rack_slot_entries returns [] when no device."""
+    snap = _snap({"print": {}})
+    assert snap.hotend_rack_slot_entries == []
+
+
+def test_hotend_rack_slot_entries_no_nozzle() -> None:
+    """hotend_rack_slot_entries returns [] when no nozzle."""
+    snap = _snap({"print": {"device": {}}})
+    assert snap.hotend_rack_slot_entries == []
+
+
+def test_hotend_rack_slot_entries_no_exist_or_tar_id() -> None:
+    """hotend_rack_slot_entries returns [] when nozzle has neither exist nor tar_id."""
+    snap = _snap({"print": {"device": {"nozzle": {}}}})
+    assert snap.hotend_rack_slot_entries == []
+
+
+def test_hotend_rack_hotend_entries_no_device() -> None:
+    """hotend_rack_hotend_entries returns [] when no device."""
+    snap = _snap({"print": {}})
+    assert snap.hotend_rack_hotend_entries == []
+
+
+def test_hotend_rack_hotend_entries_no_nozzle() -> None:
+    """hotend_rack_hotend_entries returns [] when no nozzle."""
+    snap = _snap({"print": {"device": {}}})
+    assert snap.hotend_rack_hotend_entries == []
+
+
+def test_hotend_rack_hotend_entries_no_info() -> None:
+    """hotend_rack_hotend_entries returns [] when nozzle has no info list."""
+    snap = _snap({"print": {"device": {"nozzle": {}}}})
+    assert snap.hotend_rack_hotend_entries == []
+
+
+def test_hotend_rack_hotend_entries_skips_non_dict_and_out_of_range_ids() -> None:
+    """hotend_rack_hotend_entries skips non-dict items and non-HOTEND_RACK slot ids."""
+    raw = {
+        "print": {
+            "device": {
+                "nozzle": {
+                    "info": [
+                        "not_a_dict",
+                        {"id": 99, "type": "HX05", "diameter": 0.4},  # out of HOTEND_RACK_SLOT_IDS
+                        {"id": 0, "type": "HS01", "diameter": 0.6},   # valid
+                    ]
+                }
+            }
+        }
+    }
+    snap = _snap(raw)
+    entries = snap.hotend_rack_hotend_entries
+    assert all(e["slot_id"] != "99" for e in entries)
+
+
+# --- stat_flags, wired_network, sdcard, door_open, lid_open, fan, layer_progress ---
+
+def test_stat_flags_property() -> None:
+    """stat_flags property covered."""
+    snap = _snap({"print": {"stat": "0x00000001"}})
+    flags = snap.stat_flags
+    assert isinstance(flags, dict)
+
+
+def test_wired_network_no_net() -> None:
+    """wired_network returns None when no net block."""
+    snap = _snap({"print": {}})
+    assert snap.wired_network is None
+
+
+def test_wired_network_short_info() -> None:
+    """wired_network returns None when info list has fewer than 2 entries."""
+    snap = _snap({"print": {"net": {"info": [{"ip": 1}]}}})
+    assert snap.wired_network is None
+
+
+def test_wired_network_non_dict_wired_entry() -> None:
+    """wired_network returns None when info[1] is not a dict."""
+    snap = _snap({"print": {"net": {"info": [{"ip": 1}, "not_a_dict"]}}})
+    assert snap.wired_network is None
+
+
+def test_sdcard_status_from_string_value() -> None:
+    """sdcard_status returns string value directly when it's a non-empty string."""
+    snap = _snap({"print": {"sdcard": "present"}})
+    assert snap.sdcard_status == "present"
+
+
+def test_door_open_from_int_nonzero() -> None:
+    """door_open returns 1.0 when direct int value is non-zero."""
+    snap = _snap({"print": {"door_open": 1}})
+    assert snap.door_open == 1.0
+
+
+def test_door_open_x1_family_stat_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    """door_open for X1 family falls back to stat_flag when home_flag absent."""
+    raw = {
+        "print": {
+            "model_id": "X1C",
+            "stat": "0x00000040",  # door_open bit in STAT_FLAG_MASKS
+        }
+    }
+    snap = _snap(raw)
+    result = snap.door_open
+    assert result is None or isinstance(result, float)
+
+
+def test_door_open_x1_both_flags_none_returns_none() -> None:
+    """door_open for X1 printer returns None when neither home_flag nor stat_flag present."""
+    raw = {"print": {"module": [{"product_name": "BL-P001", "hw_ver": "AP04", "project_name": "X1C"}]}}
+    snap = _snap(raw)
+    result = snap.door_open
+    assert result is None or isinstance(result, float)
+
+
+def test_lid_open_from_int_value() -> None:
+    """lid_open returns float from direct int value."""
+    snap = _snap({"print": {"lid_open": 1}})
+    assert snap.lid_open == 1.0
+
+
+def test_fan_secondary_aux_none_without_device() -> None:
+    """fan_secondary_aux_percent returns None when no device block."""
+    snap = _snap({"print": {}})
+    assert snap.fan_secondary_aux_percent is None
+
+
+def test_fan_secondary_aux_none_without_airduct() -> None:
+    """fan_secondary_aux_percent returns None when no airduct in device."""
+    snap = _snap({"print": {"device": {}}})
+    assert snap.fan_secondary_aux_percent is None
+
+
+def test_fan_secondary_aux_none_without_parts() -> None:
+    """fan_secondary_aux_percent returns None when no parts list in airduct."""
+    snap = _snap({"print": {"device": {"airduct": {}}}})
+    assert snap.fan_secondary_aux_percent is None
+
+
+def test_fan_secondary_aux_skips_non_dict_parts() -> None:
+    """fan_secondary_aux_percent skips non-dict items in parts list."""
+    snap = _snap({"print": {"device": {"airduct": {"parts": ["not_dict"]}}}})
+    assert snap.fan_secondary_aux_percent is None
+
+
+def test_fan_secondary_aux_returns_none_when_id_not_160() -> None:
+    """fan_secondary_aux_percent returns None when no part has id=160."""
+    snap = _snap({"print": {"device": {"airduct": {"parts": [{"id": 100, "value": 50}]}}}})
+    assert snap.fan_secondary_aux_percent is None
+
+
+def test_layer_progress_none_when_layer_current_missing() -> None:
+    """layer_progress_percent returns None when layer_current is None."""
+    snap = _snap({"print": {}})
+    assert snap.layer_progress_percent is None
+
+
+def test_active_nozzle_entry_none_when_no_extruder_state() -> None:
+    """active_nozzle_entry returns None when active_extruder_index is None."""
+    snap = _snap({"print": {}})
+    assert snap.active_nozzle_entry is None

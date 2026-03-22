@@ -374,3 +374,144 @@ def test_startup_validate_dispatch(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert calls["local"] == 1
     assert calls["cloud"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Additional edge cases — startup token refresh and reauth branches
+# ---------------------------------------------------------------------------
+
+def test_try_token_refresh_no_secret_key_warns(monkeypatch: pytest.MonkeyPatch) -> None:
+    """_try_token_refresh: when no secret key, skips persistence but doesn't crash."""
+    import os
+    from bambulab_metrics_exporter.cloud_auth import LoginResult
+
+    result = LoginResult(
+        access_token="new_tok",
+        refresh_token="new_ref",
+        expires_in=3600,
+        user_id="uid1",
+    )
+
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.startup.refresh_access_token",
+        lambda rt, **kw: result,
+    )
+    monkeypatch.delenv("BAMBULAB_SECRET_KEY", raising=False)
+    monkeypatch.setenv("BAMBULAB_CLOUD_ACCESS_TOKEN", "old")
+    monkeypatch.setenv("BAMBULAB_CLOUD_REFRESH_TOKEN", "old_ref")
+
+    settings = Settings(
+        bambulab_transport="cloud_mqtt",
+        bambulab_serial="S1",
+        bambulab_cloud_user_id="u",
+        bambulab_cloud_access_token="old",
+        bambulab_cloud_refresh_token="old_ref",
+    )
+    # Should not raise even without secret key
+    _try_token_refresh(settings, "old_ref")
+    # Env should be updated
+    assert os.environ.get("BAMBULAB_CLOUD_ACCESS_TOKEN") == "new_tok"
+
+
+def test_validate_cloud_refresh_probe_fails_falls_back_to_reauth(monkeypatch: pytest.MonkeyPatch) -> None:
+    """After refresh, if probe still fails, falls back to reauth (covers token-refresh flow)."""
+    settings = Settings(
+        bambulab_transport="cloud_mqtt",
+        bambulab_serial="S",
+        bambulab_cloud_user_id="u",
+        bambulab_cloud_access_token="bad",
+        bambulab_cloud_refresh_token="valid_ref",
+    )
+
+    probe_calls = {"n": 0}
+    def fake_probe(s):
+        probe_calls["n"] += 1
+        return probe_calls["n"] >= 3  # fail twice, succeed on third
+
+    reauth_called = {"called": False}
+    def fake_reauth(s):
+        reauth_called["called"] = True
+
+    monkeypatch.setattr("bambulab_metrics_exporter.startup._probe_connection", fake_probe)
+    monkeypatch.setattr("bambulab_metrics_exporter.startup._try_token_refresh", lambda s, rt: None)
+    monkeypatch.setattr("bambulab_metrics_exporter.startup._try_cloud_reauth", fake_reauth)
+    monkeypatch.setattr("bambulab_metrics_exporter.startup.Settings", lambda: settings)
+
+    _validate_cloud(settings)
+    assert reauth_called["called"] is True
+
+
+def test_validate_cloud_no_refresh_token_goes_to_reauth(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When no refresh token, skips refresh and proceeds to reauth."""
+    monkeypatch.delenv("BAMBULAB_CLOUD_REFRESH_TOKEN", raising=False)
+
+    settings = Settings(
+        bambulab_transport="cloud_mqtt",
+        bambulab_serial="S",
+        bambulab_cloud_user_id="u",
+        bambulab_cloud_access_token="bad",
+        bambulab_cloud_refresh_token="",
+    )
+
+    probe_calls = {"n": 0}
+    def fake_probe(s):
+        probe_calls["n"] += 1
+        return probe_calls["n"] > 1
+
+    reauth_called = {"called": False}
+    def fake_reauth(s):
+        reauth_called["called"] = True
+
+    monkeypatch.setattr("bambulab_metrics_exporter.startup._probe_connection", fake_probe)
+    monkeypatch.setattr("bambulab_metrics_exporter.startup._try_cloud_reauth", fake_reauth)
+    monkeypatch.setattr("bambulab_metrics_exporter.startup.Settings", lambda: settings)
+
+    _validate_cloud(settings)
+    assert reauth_called["called"] is True
+
+
+def test_try_cloud_reauth_no_code_sends_code(monkeypatch: pytest.MonkeyPatch) -> None:
+    """_try_cloud_reauth: when code missing, calls send_code and raises."""
+    monkeypatch.setenv("BAMBULAB_CLOUD_EMAIL", "user@example.com")
+    monkeypatch.delenv("BAMBULAB_CLOUD_CODE", raising=False)
+
+    send_called = {"called": False}
+    def fake_send_code(email):
+        send_called["called"] = True
+
+    monkeypatch.setattr("bambulab_metrics_exporter.startup.send_code", fake_send_code)
+
+    settings = Settings(
+        bambulab_transport="cloud_mqtt",
+        bambulab_serial="S1",
+    )
+
+    with pytest.raises(RuntimeError, match="2FA code was sent"):
+        _try_cloud_reauth(settings)
+
+    assert send_called["called"] is True
+
+
+def test_try_cloud_reauth_no_secret_key_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    """_try_cloud_reauth: when secret key missing after login, raises."""
+    from bambulab_metrics_exporter.cloud_auth import LoginResult as _LR
+
+    monkeypatch.setenv("BAMBULAB_CLOUD_EMAIL", "user@example.com")
+    monkeypatch.setenv("BAMBULAB_CLOUD_CODE", "123456")
+    monkeypatch.delenv("BAMBULAB_SECRET_KEY", raising=False)
+
+    result = _LR(
+        access_token="new_tok",
+        refresh_token="new_ref",
+        expires_in=3600,
+        user_id="uid1",
+    )
+    monkeypatch.setattr("bambulab_metrics_exporter.startup.login_with_code", lambda email, code: result)
+
+    settings = Settings(
+        bambulab_transport="cloud_mqtt",
+        bambulab_serial="S1",
+    )
+
+    with pytest.raises(RuntimeError, match="BAMBULAB_SECRET_KEY is required"):
+        _try_cloud_reauth(settings)

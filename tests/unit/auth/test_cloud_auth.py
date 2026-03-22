@@ -408,3 +408,166 @@ def test_refresh_access_token_503_raises_transient(monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr("bambulab_metrics_exporter.cloud_auth.time.sleep", lambda *_: None)
     with pytest.raises(CloudAuthTransientError):
         refresh_access_token("ok_refresh", timeout_seconds=1, retries=0, api_bases=["https://a"])
+
+
+# ---------------------------------------------------------------------------
+# Additional edge cases — retry paths and missing key branches
+# ---------------------------------------------------------------------------
+
+def test_as_int_float_input() -> None:
+    """_as_int should convert float input."""
+    assert cloud_auth._as_int(3.7) == 3
+
+
+def test_as_int_empty_string() -> None:
+    """_as_int should return default for empty string."""
+    assert cloud_auth._as_int("", default=42) == 42
+    assert cloud_auth._as_int("   ", default=99) == 99
+
+
+def test_post_json_retries_transient_then_succeeds(monkeypatch: pytest.MonkeyPatch) -> None:
+    """_post_json retries on transient HTTP 503 error and eventually succeeds."""
+    import io as _io
+    import json as _json
+    from urllib import error as _error
+
+    call_count = {"n": 0}
+
+    class _FakeResp:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def read(self): return _json.dumps({"ok": True}).encode("utf-8")
+
+    def fake_urlopen(req, timeout):
+        call_count["n"] += 1
+        if call_count["n"] < 2:
+            raise _error.HTTPError("url", 503, "Service Unavailable", hdrs=None, fp=_io.BytesIO(b"retry"))
+        return _FakeResp()
+
+    monkeypatch.setattr("bambulab_metrics_exporter.cloud_auth.time.sleep", lambda _: None)
+    monkeypatch.setattr("bambulab_metrics_exporter.cloud_auth.request.urlopen", fake_urlopen)
+
+    result = cloud_auth._post_json("https://x", "/path", {}, timeout_seconds=1, retries=2)
+    assert result == {"ok": True}
+    assert call_count["n"] == 2
+
+
+def test_post_json_retries_exhausted_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    """_post_json raises CloudAuthError after retries exhausted on URLError."""
+    from urllib import error as _error
+
+    def fail(*args, **kwargs):
+        raise _error.URLError("network down")
+
+    monkeypatch.setattr("bambulab_metrics_exporter.cloud_auth.time.sleep", lambda _: None)
+    monkeypatch.setattr("bambulab_metrics_exporter.cloud_auth.request.urlopen", fail)
+
+    with pytest.raises(CloudAuthError, match="Network error"):
+        cloud_auth._post_json("https://x", "/p", {}, timeout_seconds=1, retries=1)
+
+
+def test_post_json_non_transient_http_error_raises_immediately(monkeypatch: pytest.MonkeyPatch) -> None:
+    """_post_json raises immediately on non-retryable HTTP error (e.g. 400)."""
+    import io as _io
+    from urllib import error as _error
+
+    def fail(*args, **kwargs):
+        raise _error.HTTPError("u", 400, "Bad Request", hdrs=None, fp=_io.BytesIO(b"bad request"))
+
+    monkeypatch.setattr("bambulab_metrics_exporter.cloud_auth.request.urlopen", fail)
+
+    with pytest.raises(CloudAuthError, match="HTTP 400"):
+        cloud_auth._post_json("https://x", "/p", {}, timeout_seconds=1, retries=3)
+
+
+def test_post_json_multi_base_all_fail_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    """_post_json_multi_base raises when all api_bases fail."""
+    import io as _io
+    from urllib import error as _error
+
+    def fail(*args, **kwargs):
+        raise _error.HTTPError("u", 400, "Bad Request", hdrs=None, fp=_io.BytesIO(b"bad"))
+
+    monkeypatch.setattr("bambulab_metrics_exporter.cloud_auth.request.urlopen", fail)
+
+    with pytest.raises(CloudAuthError, match="All cloud API bases failed"):
+        cloud_auth._post_json_multi_base(
+            "/path", {}, timeout_seconds=1, retries=0,
+            api_bases=["https://a", "https://b"],
+        )
+
+
+def test_get_json_retries_urlerror_then_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    """_get_json raises CloudAuthError after URLError exhausts retries."""
+    from urllib import error as _error
+
+    def fail(*args, **kwargs):
+        raise _error.URLError("network down")
+
+    monkeypatch.setattr("bambulab_metrics_exporter.cloud_auth.time.sleep", lambda _: None)
+    monkeypatch.setattr("bambulab_metrics_exporter.cloud_auth.request.urlopen", fail)
+
+    with pytest.raises(CloudAuthError, match="Network error"):
+        cloud_auth._get_json("https://x", "/p", timeout_seconds=1, retries=1, access_token="tok")
+
+
+def test_get_json_retries_transient_then_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    """_get_json raises after retries exhausted on retryable HTTP error."""
+    import io as _io
+    from urllib import error as _error
+
+    def fail(*args, **kwargs):
+        raise _error.HTTPError("u", 503, "Unavailable", hdrs=None, fp=_io.BytesIO(b"retry"))
+
+    monkeypatch.setattr("bambulab_metrics_exporter.cloud_auth.time.sleep", lambda _: None)
+    monkeypatch.setattr("bambulab_metrics_exporter.cloud_auth.request.urlopen", fail)
+
+    with pytest.raises(CloudAuthError, match="HTTP 503"):
+        cloud_auth._get_json("https://x", "/p", timeout_seconds=1, retries=1, access_token="tok")
+
+
+def test_resolve_user_id_from_profile_continues_on_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """_resolve_user_id_from_profile skips failing api_bases and returns None when all fail."""
+    def fail(*args, **kwargs):
+        raise CloudAuthError("fail")
+
+    monkeypatch.setattr("bambulab_metrics_exporter.cloud_auth._get_json", fail)
+
+    result = cloud_auth._resolve_user_id_from_profile(
+        access_token="tok", timeout_seconds=1, retries=0, api_bases=["https://a", "https://b"]
+    )
+    assert result is None
+
+
+def test_extract_user_id_from_nested_user_dict() -> None:
+    """_extract_user_id can find uid in a nested 'user' dict."""
+    data = {"user": {"uid": 999, "id": 888}}
+    uid = _extract_user_id(data, "x.y.z", timeout_seconds=1, retries=0, api_bases=[])
+    assert uid in ("999", "888")
+
+
+def test_extract_user_id_from_user_dict_id_key() -> None:
+    """_extract_user_id falls back to user.id when user.uid absent."""
+    data = {"user": {"id": 777}}
+    uid = _extract_user_id(data, "x.y.z", timeout_seconds=1, retries=0, api_bases=[])
+    assert uid == "777"
+
+
+def test_extract_user_id_missing_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    """_extract_user_id raises CloudAuthError when no uid found anywhere."""
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.cloud_auth._resolve_user_id_from_profile",
+        lambda **_: None,
+    )
+    with pytest.raises(CloudAuthError, match="Missing user id"):
+        _extract_user_id({}, "x.y.z", timeout_seconds=1, retries=0, api_bases=["https://a"])
+
+
+def test_login_with_code_missing_key_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    """login_with_code raises CloudAuthError when response is missing expected key."""
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.cloud_auth._post_json_multi_base",
+        lambda *a, **kw: {"message": "ok"},  # no accessToken key
+    )
+    with pytest.raises(CloudAuthError, match="Missing expected response key"):
+        cloud_auth.login_with_code(email="a@b.com", code="123456")
