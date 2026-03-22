@@ -6,10 +6,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from bambulab_metrics_exporter.cloud_auth import CloudAuthInvalidError, CloudAuthTransientError
 from bambulab_metrics_exporter.config import Settings
 from bambulab_metrics_exporter.startup import (
     _probe_connection,
     _try_cloud_reauth,
+    _try_token_refresh,
     _validate_cloud,
     _validate_local,
     startup_validate,
@@ -215,6 +217,153 @@ def test_startup_validate_local_calls_probe(monkeypatch) -> None:
     )
     monkeypatch.setattr("bambulab_metrics_exporter.startup._probe_connection", lambda _s: True)
     startup_validate(settings)
+
+
+# ---------------------------------------------------------------------------
+# _try_token_refresh
+# ---------------------------------------------------------------------------
+
+def test_try_token_refresh_persists_credentials(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Successful refresh updates env vars and persists encrypted credentials."""
+    from bambulab_metrics_exporter.cloud_auth import LoginResult
+
+    monkeypatch.setenv("BAMBULAB_SECRET_KEY", "my-secret")
+
+    refreshed_result = LoginResult(
+        access_token="new_access",
+        refresh_token="new_refresh",
+        expires_in=3600,
+        user_id="uid99",
+    )
+
+    called = {"saved": False, "synced": False}
+
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.startup.refresh_access_token",
+        lambda rt, **kw: refreshed_result,
+    )
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.startup.save_encrypted_credentials",
+        lambda path, secret, payload: called.__setitem__("saved", True),
+    )
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.startup.sync_env_file",
+        lambda path: called.__setitem__("synced", True),
+    )
+
+    settings = Settings(
+        bambulab_transport="cloud_mqtt",
+        bambulab_serial="S1",
+        bambulab_cloud_user_id="uid_old",
+        bambulab_cloud_access_token="old_access",
+        bambulab_cloud_refresh_token="old_refresh",
+        bambulab_config_dir=str(tmp_path),
+        bambulab_credentials_file="credentials.enc.json",
+        bambulab_cloud_mqtt_host="us.mqtt.bambulab.com",
+        bambulab_cloud_mqtt_port=8883,
+    )
+    import os
+    _try_token_refresh(settings, "old_refresh")
+
+    assert os.environ.get("BAMBULAB_CLOUD_ACCESS_TOKEN") == "new_access"
+    assert os.environ.get("BAMBULAB_CLOUD_REFRESH_TOKEN") == "new_refresh"
+    assert called["saved"] is True
+    assert called["synced"] is True
+
+
+# ---------------------------------------------------------------------------
+# _validate_cloud — refresh token scenarios
+# ---------------------------------------------------------------------------
+
+def test_validate_cloud_invalid_access_valid_refresh_skips_2fa(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When access token is invalid but refresh succeeds, no 2FA is triggered."""
+    from bambulab_metrics_exporter.cloud_auth import LoginResult
+
+    settings = Settings(
+        bambulab_transport="cloud_mqtt",
+        bambulab_serial="S",
+        bambulab_cloud_user_id="u",
+        bambulab_cloud_access_token="bad_token",
+        bambulab_cloud_refresh_token="valid_refresh",
+    )
+
+    # First probe (with bad token) => False; second probe (after refresh) => True
+    probe_calls = {"count": 0}
+    def fake_probe(s):
+        probe_calls["count"] += 1
+        return probe_calls["count"] > 1
+
+    reauth_called = {"called": False}
+
+    monkeypatch.setattr("bambulab_metrics_exporter.startup._probe_connection", fake_probe)
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.startup._try_token_refresh",
+        lambda s, rt: None,  # success, no-op
+    )
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.startup._try_cloud_reauth",
+        lambda s: reauth_called.__setitem__("called", True),
+    )
+
+    _validate_cloud(settings)
+
+    assert reauth_called["called"] is False, "2FA re-auth should NOT be triggered when refresh succeeds"
+
+
+def test_validate_cloud_invalid_refresh_falls_back_to_2fa(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When refresh token is invalid, fallback to email/code re-auth occurs."""
+    settings = Settings(
+        bambulab_transport="cloud_mqtt",
+        bambulab_serial="S",
+        bambulab_cloud_user_id="u",
+        bambulab_cloud_access_token="bad_token",
+        bambulab_cloud_refresh_token="expired_refresh",
+    )
+
+    reauth_called = {"called": False}
+
+    monkeypatch.setattr("bambulab_metrics_exporter.startup._probe_connection", lambda s: False)
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.startup._try_token_refresh",
+        lambda s, rt: (_ for _ in ()).throw(CloudAuthInvalidError("refresh rejected")),
+    )
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.startup._try_cloud_reauth",
+        lambda s: reauth_called.__setitem__("called", True),
+    )
+
+    with pytest.raises(RuntimeError):
+        _validate_cloud(settings)
+
+    assert reauth_called["called"] is True, "Fallback to 2FA re-auth should occur after invalid refresh"
+
+
+def test_validate_cloud_transient_refresh_error_no_2fa(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Transient network error during refresh raises RuntimeError but does NOT trigger 2FA."""
+    settings = Settings(
+        bambulab_transport="cloud_mqtt",
+        bambulab_serial="S",
+        bambulab_cloud_user_id="u",
+        bambulab_cloud_access_token="bad_token",
+        bambulab_cloud_refresh_token="some_refresh",
+    )
+
+    reauth_called = {"called": False}
+
+    monkeypatch.setattr("bambulab_metrics_exporter.startup._probe_connection", lambda s: False)
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.startup._try_token_refresh",
+        lambda s, rt: (_ for _ in ()).throw(CloudAuthTransientError("connection refused")),
+    )
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.startup._try_cloud_reauth",
+        lambda s: reauth_called.__setitem__("called", True),
+    )
+
+    with pytest.raises(RuntimeError, match="transient"):
+        _validate_cloud(settings)
+
+    assert reauth_called["called"] is False, "2FA re-auth must NOT be triggered on transient network errors"
 
 
 def test_startup_validate_dispatch(monkeypatch: pytest.MonkeyPatch) -> None:

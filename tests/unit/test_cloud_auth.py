@@ -15,8 +15,12 @@ import pytest
 from bambulab_metrics_exporter import cloud_auth
 from bambulab_metrics_exporter.cloud_auth import (
     CloudAuthError,
+    CloudAuthInvalidError,
+    CloudAuthTransientError,
+    LoginResult,
     _extract_user_id,
     login_with_code,
+    refresh_access_token,
     send_code,
 )
 
@@ -340,3 +344,68 @@ def test_main_cloud_auth_error(monkeypatch: pytest.MonkeyPatch, capsys: pytest.C
     err = capsys.readouterr().err
     assert rc == 1
     assert "Cloud auth failed" in err
+
+
+# ---------------------------------------------------------------------------
+# refresh_access_token
+# ---------------------------------------------------------------------------
+
+def test_refresh_access_token_success(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Successful refresh returns updated LoginResult."""
+    response_data = {
+        "accessToken": "new_access",
+        "refreshToken": "new_refresh",
+        "expiresIn": 7200,
+        "uid": 42,
+    }
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.cloud_auth.request.urlopen",
+        lambda *a, **k: _Resp(response_data),
+    )
+    result = refresh_access_token("old_refresh", timeout_seconds=1, retries=0)
+    assert result.access_token == "new_access"
+    assert result.refresh_token == "new_refresh"
+    assert result.expires_in == 7200
+    assert result.user_id == "42"
+
+
+def test_refresh_access_token_invalid_raises_cloud_auth_invalid(monkeypatch: pytest.MonkeyPatch) -> None:
+    """HTTP 401 from all bases raises CloudAuthInvalidError."""
+    def fail(*args, **kwargs):
+        raise error.HTTPError("u", 401, "Unauthorized", hdrs=None, fp=io.BytesIO(b"token expired"))
+
+    monkeypatch.setattr("bambulab_metrics_exporter.cloud_auth.request.urlopen", fail)
+    with pytest.raises(CloudAuthInvalidError):
+        refresh_access_token("bad_refresh", timeout_seconds=1, retries=0, api_bases=["https://a"])
+
+
+def test_refresh_access_token_server_error_body_invalid(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Server returns 200 with error body => CloudAuthInvalidError."""
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.cloud_auth.request.urlopen",
+        lambda *a, **k: _Resp({"error": "invalid_grant"}),
+    )
+    with pytest.raises(CloudAuthInvalidError):
+        refresh_access_token("bad_refresh", timeout_seconds=1, retries=0)
+
+
+def test_refresh_access_token_transient_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Network failure raises CloudAuthTransientError."""
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.cloud_auth.request.urlopen",
+        lambda *a, **k: (_ for _ in ()).throw(error.URLError("connection refused")),
+    )
+    monkeypatch.setattr("bambulab_metrics_exporter.cloud_auth.time.sleep", lambda *_: None)
+    with pytest.raises(CloudAuthTransientError):
+        refresh_access_token("some_refresh", timeout_seconds=1, retries=0, api_bases=["https://a"])
+
+
+def test_refresh_access_token_503_raises_transient(monkeypatch: pytest.MonkeyPatch) -> None:
+    """HTTP 503 from all bases raises CloudAuthTransientError, not CloudAuthInvalidError."""
+    def fail(*args, **kwargs):
+        raise error.HTTPError("u", 503, "Service Unavailable", hdrs=None, fp=io.BytesIO(b""))
+
+    monkeypatch.setattr("bambulab_metrics_exporter.cloud_auth.request.urlopen", fail)
+    monkeypatch.setattr("bambulab_metrics_exporter.cloud_auth.time.sleep", lambda *_: None)
+    with pytest.raises(CloudAuthTransientError):
+        refresh_access_token("ok_refresh", timeout_seconds=1, retries=0, api_bases=["https://a"])
