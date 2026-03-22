@@ -1,75 +1,64 @@
 # RELEASE_RULES.md
 
-Release checklist for `bambulab-metrics-exporter`.
+Release and PR rules for `bambulab-metrics-exporter`.
 
-## Important user intent rule
+## Important intent rule
 
-If the user asks to "raise/bump/update version", it **always** and **without exception** means:
-- update changelog,
-- create/push a Git tag for that version,
-- create a GitHub Release with notes matching the changelog.
+If the user asks to bump/update version, the task is **not done** at "commit + push".
+It is complete only when version files, changelog, tag, and GitHub Release are all updated and consistent.
 
-Never stop after "commit + push". The task is incomplete until tag + release both exist remotely.
+## 1) PR workflow (required)
 
-## Mandatory sync points (always)
+1. Branch from latest `main`:
+   - `git checkout main && git pull --ff-only`
+   - `git checkout -b <branch-name>`
+2. Implement changes and add/update tests.
+3. Open a PR with a high-quality description:
+   - what changed,
+   - why,
+   - validation performed,
+   - release intent (if this PR is meant to ship a release).
+4. Wait for CI to pass (green).
+5. Perform the code review checklist (scope, tests, docs/changelog/version consistency as relevant).
+6. Merge only after all required checks and review items pass.
 
-1. `pyproject.toml`
-   - Update `project.version`.
+## 2) Version bump workflow (for release-intended PRs)
 
-2. `CHANGELOG.md`
-   - Add a new top section for the target version.
-   - Keep concise user-facing bullets.
+1. Bump **patch** version in required files:
+   - `pyproject.toml` (`project.version`)
+   - `src/bambulab_metrics_exporter/__init__.py` (if version is defined there)
+2. Update `CHANGELOG.md` with a release-ready entry for that version.
+3. Ensure the PR includes both version bump and changelog updates.
+4. Ensure version values are consistent across files and with planned tag/release.
 
-3. GitHub Release
-   - Create release/tag for the same version (`vX.Y.Z`).
-   - Release notes should summarize the same changes.
+## 3) Release workflow
 
-## Standard release flow
+1. Create or update tag `vX.Y.Z`.
+2. Ensure the tag points to the merge commit on `main`.
+3. Create or edit GitHub Release for that tag.
+4. Release title must follow repo convention: same as tag (for example `v0.1.37`).
+5. Release notes quality guidelines:
+   - concise sections: **Added**, **Behavior**, **Quality**,
+   - technically accurate,
+   - mention compatibility/unchanged behavior where relevant.
 
-1. Bump version in `pyproject.toml`.
-2. Update `CHANGELOG.md`.
-3. Commit and push to `main`.
-4. Create tag `vX.Y.Z` and push it.
-5. Create GitHub Release `vX.Y.Z` with notes.
+## 4) Operational checklist (quick run)
 
-## PR creation checklist (always use this)
+- [ ] Working branch started from latest `main`.
+- [ ] Implementation + tests complete.
+- [ ] PR description is complete and clear.
+- [ ] CI is green.
+- [ ] Review checklist completed; only then merge.
+- [ ] `pyproject.toml` version updated.
+- [ ] `src/.../__init__.py` version updated (if applicable).
+- [ ] `CHANGELOG.md` updated for release version.
+- [ ] Tag `vX.Y.Z` exists and points to merge commit on `main`.
+- [ ] GitHub Release exists/updated, title matches tag, notes are well-formatted.
 
-When preparing a change for review, follow this exact sequence:
+## Common pitfalls to avoid
 
-1. Create a **new branch from `main`**
-   - Never open release/fix PRs from another feature branch.
-   - Example: `git checkout main && git pull --ff-only && git checkout -b <branch-name>`
-
-2. Prepare release docs before opening PR
-   - Update `CHANGELOG.md` with the relevant version section and concise bullets.
-   - Update `README.md` if metrics/labels/behavior changed.
-
-3. Open PR with a title that matches the real change
-   - Title must describe the user-facing fix/feature (not generic wording).
-   - Prefer format: `<scope>: <what changed>` or `Release X.Y.Z: <summary>`.
-
-4. Add PR description with:
-   - What changed (bullet list)
-   - Why it changed (short context)
-   - Version to be released (e.g. `0.1.25`)
-   - Validation proof (tests/live checks if relevant)
-
-## Validation guard
-
-Before tag/release, ensure:
-- CI-critical files are consistent (workflow/config/docs touched as needed).
-- No version mismatch between `pyproject.toml`, changelog section, tag, and release title.
-
-## Definition of Done (version request)
-
-A version request is complete only when all are true:
-- [ ] `pyproject.toml` updated to the target version.
-- [ ] `CHANGELOG.md` includes the new version section.
-- [ ] Changes are committed and pushed to remote.
-- [ ] Git tag `vX.Y.Z` is created and pushed.
-- [ ] GitHub Release `vX.Y.Z` is created with notes matching changelog.
-- [ ] Verification passed:
-  - `git ls-remote --tags origin | grep "refs/tags/vX.Y.Z"`
-  - `gh release view vX.Y.Z --repo <owner/repo>`
-
-If verification fails, continue fixing in the same task until both checks pass.
+- Tag points to the wrong commit (not merged `main`).
+- Version mismatch between `pyproject.toml`, `__init__.py`, changelog, tag, or release title.
+- PR merged before CI/review checklist is complete.
+- Release notes with broken Markdown formatting or missing required sections.
+- Changelog text and release notes diverge in meaning.
