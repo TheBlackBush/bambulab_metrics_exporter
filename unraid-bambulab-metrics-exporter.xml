@@ -49,7 +49,5 @@
   <Config Name="Polling Interval" Target="POLLING_INTERVAL_SECONDS" Default="10" Mode="" Description="Polling interval in seconds" Type="Variable" Display="advanced" Required="false" Mask="false">10</Config>
   <Config Name="Request Timeout" Target="REQUEST_TIMEOUT_SECONDS" Default="8" Mode="" Description="Request timeout in seconds" Type="Variable" Display="advanced" Required="false" Mask="false">8</Config>
   <Config Name="Log Level" Target="LOG_LEVEL" Default="INFO" Mode="" Description="DEBUG/INFO/WARNING/ERROR" Type="Variable" Display="advanced" Required="false" Mask="false">INFO</Config>
-  <Config Name="Printer Name Label" Target="PRINTER_NAME" Default="bambu" Mode="" Description="Prometheus label value" Type="Variable" Display="advanced" Required="false" Mask="false">bambu</Config>
-  <Config Name="Site Label" Target="SITE" Default="" Mode="" Description="Prometheus site label" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
-  <Config Name="Location Label" Target="LOCATION" Default="" Mode="" Description="Prometheus location label" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="Printer Name Label" Target="PRINTER_NAME" Default="" Mode="" Description="Prometheus label value; leave empty to auto-fill from printer serial" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
 </Container>
