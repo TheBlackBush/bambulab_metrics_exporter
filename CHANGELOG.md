@@ -4,6 +4,17 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.38] - 2026-03-22
+
+### Fixed
+- Unraid template `WebUI` URL now opens the exporter landing page root (`/`) instead of `/metrics`, fixing the default click-through behavior in Unraid.
+
+### Changed
+- Simplified and clarified the Unraid template `Overview` copy with concise setup and operational guidance.
+- Landing page status cards now center health/readiness content for cleaner visual alignment.
+- Added footer credit on the landing page: "Created by TheBlackBush".
+- `RELEASE_RULES.md` was removed from repository tracking and is now local-only workflow guidance.
+
 ## [0.1.37] - 2026-03-22
 
 ### Added
