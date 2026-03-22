@@ -1040,6 +1040,24 @@ class PrinterSnapshot:
             if isinstance(val, bool):
                 out[key] = 1.0 if val else 0.0
         return out
+
+    @property
+    def xcam_halt_print_sensitivity(self) -> str | None:
+        """Return the halt_print_sensitivity value from xcam block.
+
+        Normalizes to lowercase. Returns None when missing, not a string,
+        or not one of the expected values (low/medium/high).
+        """
+        xcam = self.print_block.get("xcam")
+        if not isinstance(xcam, dict):
+            return None
+        raw = xcam.get("halt_print_sensitivity")
+        if not isinstance(raw, str):
+            return None
+        normalized = raw.strip().lower()
+        if normalized not in {"low", "medium", "high"}:
+            return None
+        return normalized
     @property
     def home_flags(self) -> dict[str, bool | None]:
         return decode_home_flags(self.print_block.get("home_flag"))

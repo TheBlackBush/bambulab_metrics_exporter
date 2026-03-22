@@ -1379,3 +1379,90 @@ class TestAmsExistingMetricLabelRegressionComprehensive:
         labels = self._base_labels()
         v = m.ams_rfid_status_id.labels(**labels)._value.get()
         assert v == 3.0
+
+
+# ---------------------------------------------------------------------------
+# xcam_halt_print_sensitivity_info
+# ---------------------------------------------------------------------------
+
+class TestXcamHaltPrintSensitivity:
+    """Tests for the bambulab_xcam_halt_print_sensitivity_info metric."""
+
+    def _m(self) -> "ExporterMetrics":
+        return _metrics("test", "SN_XCAM")
+
+    def _base_labels(self) -> dict:
+        return {"printer_name": "test", "serial": "SN_XCAM"}
+
+    def _snap_with_sensitivity(self, level: str) -> "PrinterSnapshot":
+        return _snap({"xcam": {"halt_print_sensitivity": level}})
+
+    def test_sensitivity_low_emits_info_metric(self) -> None:
+        m = self._m()
+        m.update_from_snapshot(self._snap_with_sensitivity("low"))
+        labels = {**self._base_labels(), "level": "low"}
+        v = m.xcam_halt_print_sensitivity_info.labels(**labels)._value.get()
+        assert v == 1.0
+
+    def test_sensitivity_medium_emits_info_metric(self) -> None:
+        m = self._m()
+        m.update_from_snapshot(self._snap_with_sensitivity("medium"))
+        labels = {**self._base_labels(), "level": "medium"}
+        v = m.xcam_halt_print_sensitivity_info.labels(**labels)._value.get()
+        assert v == 1.0
+
+    def test_sensitivity_high_emits_info_metric(self) -> None:
+        m = self._m()
+        m.update_from_snapshot(self._snap_with_sensitivity("high"))
+        labels = {**self._base_labels(), "level": "high"}
+        v = m.xcam_halt_print_sensitivity_info.labels(**labels)._value.get()
+        assert v == 1.0
+
+    def test_sensitivity_missing_clears_metric(self) -> None:
+        m = self._m()
+        # First set to "low"
+        m.update_from_snapshot(self._snap_with_sensitivity("low"))
+        # Then update with no sensitivity
+        m.update_from_snapshot(_snap({"xcam": {"print_halt": True}}))
+        # Metric should be cleared (no children)
+        assert len(m.xcam_halt_print_sensitivity_info._metrics) == 0
+
+    def test_sensitivity_unknown_value_clears_metric(self) -> None:
+        m = self._m()
+        m.update_from_snapshot(self._snap_with_sensitivity("low"))
+        m.update_from_snapshot(_snap({"xcam": {"halt_print_sensitivity": "extreme"}}))
+        assert len(m.xcam_halt_print_sensitivity_info._metrics) == 0
+
+    def test_sensitivity_no_xcam_block_clears_metric(self) -> None:
+        m = self._m()
+        m.update_from_snapshot(self._snap_with_sensitivity("medium"))
+        m.update_from_snapshot(_snap({}))
+        assert len(m.xcam_halt_print_sensitivity_info._metrics) == 0
+
+    def test_sensitivity_switches_level_clears_previous(self) -> None:
+        """When sensitivity changes from low to high, only high should be set."""
+        m = self._m()
+        m.update_from_snapshot(self._snap_with_sensitivity("low"))
+        m.update_from_snapshot(self._snap_with_sensitivity("high"))
+        # Only "high" should be active
+        assert len(m.xcam_halt_print_sensitivity_info._metrics) == 1
+        labels = {**self._base_labels(), "level": "high"}
+        v = m.xcam_halt_print_sensitivity_info.labels(**labels)._value.get()
+        assert v == 1.0
+
+    def test_existing_xcam_boolean_flags_unchanged(self) -> None:
+        """xcam_feature_enabled still works alongside the new metric."""
+        m = self._m()
+        snap = _snap({
+            "xcam": {
+                "halt_print_sensitivity": "medium",
+                "print_halt": True,
+                "spaghetti_detector": False,
+            }
+        })
+        m.update_from_snapshot(snap)
+        base = self._base_labels()
+        assert m.xcam_feature_enabled.labels(**base, feature="print_halt")._value.get() == 1.0
+        assert m.xcam_feature_enabled.labels(**base, feature="spaghetti_detector")._value.get() == 0.0
+        labels = {**base, "level": "medium"}
+        assert m.xcam_halt_print_sensitivity_info.labels(**labels)._value.get() == 1.0

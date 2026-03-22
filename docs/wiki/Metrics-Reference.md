@@ -163,6 +163,7 @@ Fan values: raw levels 0–15 → nearest-10 percent normalization.
 | `bambulab_work_light_on` | Gauge | Work light (1/0) |
 | `bambulab_camera_recording` | Gauge | Camera recording flag |
 | `bambulab_xcam_feature_enabled{feature}` | Gauge | XCam feature flags |
+| `bambulab_xcam_halt_print_sensitivity_info{level}` | Info Gauge | XCam halt-print sensitivity level (`low`/`medium`/`high`) |
 | `bambulab_ams_auto_switch` | Gauge | AMS auto-switch flag |
 | `bambulab_filament_tangle_detected` | Gauge | Filament tangle detected |
 | `bambulab_filament_tangle_detect_supported` | Gauge | Filament tangle detection supported |

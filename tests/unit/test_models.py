@@ -1450,3 +1450,60 @@ def test_active_nozzle_entry_none_when_no_extruder_state() -> None:
     """active_nozzle_entry returns None when active_extruder_index is None."""
     snap = _snap({"print": {}})
     assert snap.active_nozzle_entry is None
+
+
+# ---------------------------------------------------------------------------
+# xcam_halt_print_sensitivity
+# ---------------------------------------------------------------------------
+
+def _snap(raw: dict) -> "PrinterSnapshot":  # type: ignore[misc]
+    from bambulab_metrics_exporter.models import PrinterSnapshot
+    return PrinterSnapshot(connected=True, raw=raw)
+
+
+def test_xcam_halt_print_sensitivity_low() -> None:
+    """Returns 'low' when xcam.halt_print_sensitivity is 'low'."""
+    snap = _snap({"print": {"xcam": {"halt_print_sensitivity": "low"}}})
+    assert snap.xcam_halt_print_sensitivity == "low"
+
+
+def test_xcam_halt_print_sensitivity_medium() -> None:
+    """Returns 'medium' when value is 'medium'."""
+    snap = _snap({"print": {"xcam": {"halt_print_sensitivity": "medium"}}})
+    assert snap.xcam_halt_print_sensitivity == "medium"
+
+
+def test_xcam_halt_print_sensitivity_high() -> None:
+    """Returns 'high' when value is 'high'."""
+    snap = _snap({"print": {"xcam": {"halt_print_sensitivity": "high"}}})
+    assert snap.xcam_halt_print_sensitivity == "high"
+
+
+def test_xcam_halt_print_sensitivity_normalizes_case() -> None:
+    """Normalizes 'Medium' → 'medium'."""
+    snap = _snap({"print": {"xcam": {"halt_print_sensitivity": "Medium"}}})
+    assert snap.xcam_halt_print_sensitivity == "medium"
+
+
+def test_xcam_halt_print_sensitivity_missing_key() -> None:
+    """Returns None when xcam block has no halt_print_sensitivity key."""
+    snap = _snap({"print": {"xcam": {"print_halt": True}}})
+    assert snap.xcam_halt_print_sensitivity is None
+
+
+def test_xcam_halt_print_sensitivity_unknown_value() -> None:
+    """Returns None for unrecognised values."""
+    snap = _snap({"print": {"xcam": {"halt_print_sensitivity": "extreme"}}})
+    assert snap.xcam_halt_print_sensitivity is None
+
+
+def test_xcam_halt_print_sensitivity_no_xcam_block() -> None:
+    """Returns None when xcam block is absent."""
+    snap = _snap({"print": {}})
+    assert snap.xcam_halt_print_sensitivity is None
+
+
+def test_xcam_halt_print_sensitivity_non_string_value() -> None:
+    """Returns None when halt_print_sensitivity is not a string (e.g. int)."""
+    snap = _snap({"print": {"xcam": {"halt_print_sensitivity": 1}}})
+    assert snap.xcam_halt_print_sensitivity is None

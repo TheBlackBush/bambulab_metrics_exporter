@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **`bambulab_xcam_halt_print_sensitivity_info`** metric: exposes the
+  `print.xcam.halt_print_sensitivity` MQTT field as an info-labeled gauge with a `level`
+  label (`low`, `medium`, or `high`). The gauge is set to `1` for the current level and
+  cleared on each update cycle. Unrecognised or missing values produce no metric.
+  - New `xcam_halt_print_sensitivity` property on `PrinterSnapshot` (normalises to
+    lowercase; returns `None` for missing/invalid values).
+  - 17 new unit tests across `test_models.py` and `test_metrics.py` covering all three
+    levels, case normalisation, missing/unknown handling, and clear-on-update behaviour.
+
 ## [0.1.39] - 2026-03-22
 
 ### Added
