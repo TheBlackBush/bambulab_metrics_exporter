@@ -4,11 +4,17 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.37] - 2026-03-22
+
 ### Added
-- New `bambulab_lid_open` gauge metric. For H2-family printers, lid state is decoded from `print.stat` bit 24 (`0x01000000`) when direct `print.lid_open` is absent.
+- Added `bambulab_lid_open` gauge metric. For H2-family printers, lid state is inferred from `print.stat` bit 24 (`0x01000000`) when direct `print.lid_open` is not present.
 
 ### Changed
-- `PrinterSnapshot.lid_open` now prefers direct `print.lid_open`, falls back to H2 `stat` bit 24, and returns `None` for non-H2 models without direct lid state.
+- `PrinterSnapshot.lid_open` now prefers direct `print.lid_open` when available, falls back to H2 `print.stat` bit 24, and remains `None` on non-H2 models when no direct lid state exists.
+- Existing door state behavior is unchanged.
+
+### Tests
+- Added unit tests covering H2 stat-bit fallback, direct `print.lid_open` override precedence, non-H2 behavior, and unchanged door-state logic.
 
 ## [0.1.36] - 2026-03-20
 
