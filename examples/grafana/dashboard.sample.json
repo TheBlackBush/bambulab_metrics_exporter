@@ -776,12 +776,372 @@
       "type": "stat"
     },
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "yellow",
+                  "index": 1,
+                  "text": "Disabled"
+                },
+                "1": {
+                  "color": "green",
+                  "index": 0,
+                  "text": "Active"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "#EAB839",
+                "value": 0
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 0,
+        "y": 9
+      },
+      "id": 64,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "showPercentChange": false,
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.4.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "bambulab_xcam_feature_enabled{job=\"$job\", printer_name=\"$printer\", feature=\"first_layer_inspector\"}",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "First Layer Inspection",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "yellow",
+                  "index": 1,
+                  "text": "Disabled"
+                },
+                "1": {
+                  "color": "green",
+                  "index": 0,
+                  "text": "Active"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "#EAB839",
+                "value": 0
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 3,
+        "y": 9
+      },
+      "id": 65,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "showPercentChange": false,
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.4.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "bambulab_xcam_feature_enabled{job=\"$job\", printer_name=\"$printer\", feature=\"buildplate_marker_detector\"}",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Buildplate Detector",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Spaghetti Detector",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "yellow",
+                  "index": 1,
+                  "text": "Disabled"
+                },
+                "1": {
+                  "color": "green",
+                  "index": 0,
+                  "text": "Active"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "#EAB839",
+                "value": 0
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 6,
+        "y": 9
+      },
+      "id": 66,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "showPercentChange": false,
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.4.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "bambulab_xcam_feature_enabled{job=\"$job\", printer_name=\"$printer\", feature=\"printing_monitor\"}",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Ai Monitor",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Halt printing sensitivity",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 9,
+        "y": 9
+      },
+      "id": 67,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "showPercentChange": false,
+        "textMode": "name",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.4.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "bambulab_xcam_halt_print_sensitivity_info{job=\"$job\", printer_name=\"$printer\"} == 1",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Ai Monitor Sensitivity",
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "keepLabels": [
+              "state",
+              "level"
+            ]
+          }
+        },
+        {
+          "id": "formatString",
+          "options": {
+            "outputFormat": "Title Case",
+            "stringField": "level"
+          }
+        }
+      ],
+      "type": "stat"
+    },
+    {
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 9
+        "y": 13
       },
       "id": 35,
       "panels": [],
@@ -819,7 +1179,7 @@
         "h": 4,
         "w": 3,
         "x": 0,
-        "y": 10
+        "y": 14
       },
       "id": 39,
       "options": {
@@ -908,7 +1268,7 @@
         "h": 4,
         "w": 3,
         "x": 3,
-        "y": 10
+        "y": 14
       },
       "id": 29,
       "options": {
@@ -980,7 +1340,7 @@
         "h": 4,
         "w": 3,
         "x": 6,
-        "y": 10
+        "y": 14
       },
       "id": 14,
       "options": {
@@ -1041,7 +1401,7 @@
         "h": 4,
         "w": 3,
         "x": 9,
-        "y": 10
+        "y": 14
       },
       "id": 36,
       "options": {
@@ -1122,7 +1482,7 @@
         "h": 4,
         "w": 3,
         "x": 0,
-        "y": 14
+        "y": 18
       },
       "id": 44,
       "options": {
@@ -1208,9 +1568,9 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 6,
+        "w": 9,
         "x": 3,
-        "y": 14
+        "y": 18
       },
       "id": 41,
       "options": {
@@ -1276,7 +1636,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 18
+        "y": 22
       },
       "id": 54,
       "panels": [],
@@ -1317,7 +1677,7 @@
         "h": 4,
         "w": 3,
         "x": 0,
-        "y": 19
+        "y": 23
       },
       "id": 21,
       "options": {
@@ -1421,7 +1781,7 @@
         "h": 4,
         "w": 3,
         "x": 3,
-        "y": 19
+        "y": 23
       },
       "id": 33,
       "options": {
@@ -1524,7 +1884,7 @@
         "h": 4,
         "w": 3,
         "x": 6,
-        "y": 19
+        "y": 23
       },
       "id": 40,
       "options": {
@@ -1596,7 +1956,7 @@
         "h": 4,
         "w": 6,
         "x": 9,
-        "y": 19
+        "y": 23
       },
       "id": 42,
       "options": {
@@ -1738,7 +2098,7 @@
         "h": 9,
         "w": 9,
         "x": 0,
-        "y": 23
+        "y": 27
       },
       "id": 4,
       "options": {
@@ -1793,7 +2153,7 @@
           "refId": "C"
         }
       ],
-      "title": "AMS, Bed, & Chamber Temp",
+      "title": "Nozzle, Bed, & Chamber Temp",
       "type": "timeseries"
     },
     {
@@ -1882,7 +2242,7 @@
         "h": 9,
         "w": 6,
         "x": 9,
-        "y": 23
+        "y": 27
       },
       "id": 55,
       "options": {
@@ -1962,7 +2322,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 32
+        "y": 36
       },
       "id": 26,
       "panels": [],
@@ -2020,7 +2380,7 @@
         "h": 4,
         "w": 3,
         "x": 0,
-        "y": 33
+        "y": 37
       },
       "id": 47,
       "options": {
@@ -2107,9 +2467,9 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 3,
+        "w": 4,
         "x": 3,
-        "y": 33
+        "y": 37
       },
       "id": 59,
       "options": {
@@ -2173,42 +2533,69 @@
       },
       "fieldConfig": {
         "defaults": {
-          "mappings": [],
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "red",
+                  "index": 1,
+                  "text": "Off"
+                },
+                "1": {
+                  "color": "green",
+                  "index": 0,
+                  "text": "On"
+                }
+              },
+              "type": "value"
+            }
+          ],
           "thresholds": {
-            "mode": "percentage",
+            "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "transparent",
                 "value": 0
+              },
+              {
+                "color": "red",
+                "value": 0
+              },
+              {
+                "color": "green",
+                "value": 1
               }
             ]
-          },
-          "unit": "celsius"
+          }
         },
         "overrides": []
       },
       "gridPos": {
         "h": 4,
         "w": 4,
-        "x": 6,
-        "y": 33
+        "x": 7,
+        "y": 37
       },
-      "id": 28,
+      "id": 62,
       "options": {
-        "minVizHeight": 75,
-        "minVizWidth": 75,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
           ],
           "fields": "",
-          "limit": 1,
           "values": false
         },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true,
-        "sizing": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
       "pluginVersion": "12.4.1",
       "targets": [
@@ -2218,16 +2605,15 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
-          "exemplar": false,
-          "expr": "abs(max(bambulab_ams_unit_temperature_celsius{job=\"$job\", printer_name=\"$printer\"}))",
-          "instant": true,
-          "legendFormat": "AMS {{ ams_id }}",
-          "range": false,
+          "expr": "bambulab_ams_auto_switch{job=\"$job\", printer_name=\"$printer\"}",
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
           "refId": "A"
         }
       ],
-      "title": "AMS Temp",
-      "type": "gauge"
+      "title": "Auto Refill",
+      "type": "stat"
     },
     {
       "datasource": {
@@ -2236,50 +2622,69 @@
       },
       "fieldConfig": {
         "defaults": {
-          "mappings": [],
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "green",
+                  "index": 1,
+                  "text": "No"
+                },
+                "1": {
+                  "color": "red",
+                  "index": 0,
+                  "text": "Yes"
+                }
+              },
+              "type": "value"
+            }
+          ],
           "thresholds": {
-            "mode": "percentage",
+            "mode": "absolute",
             "steps": [
+              {
+                "color": "transparent",
+                "value": 0
+              },
               {
                 "color": "green",
                 "value": 0
               },
               {
-                "color": "orange",
-                "value": 20
-              },
-              {
                 "color": "red",
-                "value": 30
+                "value": 1
               }
             ]
-          },
-          "unit": "percent"
+          }
         },
         "overrides": []
       },
       "gridPos": {
         "h": 4,
         "w": 4,
-        "x": 10,
-        "y": 33
+        "x": 11,
+        "y": 37
       },
-      "id": 34,
+      "id": 63,
       "options": {
-        "minVizHeight": 75,
-        "minVizWidth": 75,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
           ],
           "fields": "",
-          "limit": 1,
           "values": false
         },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true,
-        "sizing": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
       "pluginVersion": "12.4.1",
       "targets": [
@@ -2289,16 +2694,15 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
-          "exemplar": false,
-          "expr": "abs(max(bambulab_ams_unit_humidity{job=\"$job\", printer_name=\"$printer\"}))",
-          "instant": true,
-          "legendFormat": "AMS {{ ams_id }}",
-          "range": false,
+          "expr": "bambulab_filament_tangle_detected{job=\"$job\", printer_name=\"$printer\"}",
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
           "refId": "A"
         }
       ],
-      "title": "AMS Humidity",
-      "type": "gauge"
+      "title": "Filament Tangled?",
+      "type": "stat"
     },
     {
       "datasource": {
@@ -2324,10 +2728,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 14,
-        "w": 6,
+        "h": 15,
+        "w": 7,
         "x": 0,
-        "y": 37
+        "y": 41
       },
       "id": 53,
       "options": {
@@ -2452,12 +2856,253 @@
       "type": "marcusolsson-dynamictext-panel"
     },
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "percentage",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "celsius"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 7,
+        "y": 41
+      },
+      "id": 28,
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "limit": 1,
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "sizing": "auto"
+      },
+      "pluginVersion": "12.4.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "abs(max(bambulab_ams_unit_temperature_celsius{job=\"$job\", printer_name=\"$printer\"}))",
+          "instant": true,
+          "legendFormat": "AMS {{ ams_id }}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "AMS Temp",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "percentage",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 20
+              },
+              {
+                "color": "red",
+                "value": 30
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 11,
+        "y": 41
+      },
+      "id": 34,
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "limit": 1,
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "sizing": "auto"
+      },
+      "pluginVersion": "12.4.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "abs(max(bambulab_ams_unit_humidity{job=\"$job\", printer_name=\"$printer\"}))",
+          "instant": true,
+          "legendFormat": "AMS {{ ams_id }}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "AMS Humidity",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "scheme",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineStyle": {
+              "fill": "solid"
+            },
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 30
+              },
+              {
+                "color": "red",
+                "value": 40
+              }
+            ]
+          },
+          "unit": "celsius"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 8,
+        "x": 7,
+        "y": 46
+      },
+      "id": 60,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.4.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "builder",
+          "expr": "abs(max(bambulab_ams_unit_temperature_celsius{job=\"$job\", printer_name=\"$printer\"}))",
+          "instant": false,
+          "legendFormat": "AMS {{ ams_id }}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "AMS Temperature",
+      "type": "timeseries"
+    },
+    {
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 51
+        "y": 56
       },
       "id": 24,
       "panels": [],
@@ -2527,9 +3172,9 @@
       },
       "gridPos": {
         "h": 6,
-        "w": 4,
+        "w": 5,
         "x": 0,
-        "y": 52
+        "y": 57
       },
       "id": 11,
       "options": {
@@ -2554,114 +3199,14 @@
           },
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "max(bambulab_printer_up{job=\"$job\", printer_name=\"$printer\"})",
+          "expr": "bambulab_printer_up{job=\"$job\", printer_name=\"$printer\"}",
           "instant": false,
-          "legendFormat": "__auto",
+          "legendFormat": "{{printer_name}}",
           "range": true,
           "refId": "A"
         }
       ],
       "title": "Up",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "continuous-GrYlRd"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 20,
-            "gradientMode": "scheme",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "smooth",
-            "lineWidth": 3,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "m"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 4,
-        "x": 4,
-        "y": 52
-      },
-      "id": 18,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.4.1",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "editorMode": "builder",
-          "expr": "max(bambulab_print_remaining_seconds{job=\"$job\", printer_name=\"$printer\"})",
-          "instant": false,
-          "legendFormat": "Print Job Timer",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Remaining Time on Print",
       "type": "timeseries"
     },
     {
@@ -2729,8 +3274,8 @@
       "gridPos": {
         "h": 6,
         "w": 5,
-        "x": 8,
-        "y": 52
+        "x": 5,
+        "y": 57
       },
       "id": 10,
       "options": {
@@ -2754,14 +3299,114 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
-          "expr": "max(bambulab_wifi_signal{job=\"$job\", printer_name=\"$printer\"})",
+          "expr": "bambulab_wifi_signal{job=\"$job\", printer_name=\"$printer\"}",
           "instant": false,
-          "legendFormat": "__auto",
+          "legendFormat": "{{printer_name}}",
           "range": true,
           "refId": "A"
         }
       ],
       "title": "WiFi SIgnal",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-GrYlRd"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "scheme",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 3,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "m"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 5,
+        "x": 10,
+        "y": 57
+      },
+      "id": 18,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.4.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "builder",
+          "expr": "max(bambulab_print_remaining_seconds{job=\"$job\", printer_name=\"$printer\"})",
+          "instant": false,
+          "legendFormat": "Print Job Timer",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Remaining Time on Print",
       "type": "timeseries"
     },
     {
@@ -2828,9 +3473,9 @@
       },
       "gridPos": {
         "h": 6,
-        "w": 6,
+        "w": 5,
         "x": 0,
-        "y": 58
+        "y": 63
       },
       "id": 20,
       "options": {
@@ -2939,9 +3584,120 @@
       },
       "gridPos": {
         "h": 6,
-        "w": 7,
-        "x": 6,
-        "y": 58
+        "w": 5,
+        "x": 5,
+        "y": 63
+      },
+      "id": 17,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.4.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "builder",
+          "expr": "max(bambulab_mc_print_sub_stage{job=\"$job\", printer_name=\"$printer\"})",
+          "instant": false,
+          "legendFormat": "Print Sub Stage",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "builder",
+          "expr": "max(bambulab_mc_stage{job=\"$job\"})",
+          "instant": false,
+          "legendFormat": "Print Stage",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "MC Print Stage",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 5,
+        "x": 10,
+        "y": 63
       },
       "id": 9,
       "options": {
@@ -3063,7 +3819,7 @@
   "timepicker": {},
   "timezone": "browser",
   "title": "Bambulab Metrics",
-  "uid": "30Dv92b4k",
-  "version": 28,
+  "uid": "idfdksr",
+  "version": 4,
   "weekStart": ""
 }
