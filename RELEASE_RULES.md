@@ -22,6 +22,11 @@ It is complete only when version files, changelog, tag, and GitHub Release are a
 
 ## 1) PR workflow (required)
 
+**Policy enforcement (main branch protection intent):**
+- Do **not** push feature/content changes directly to `main`.
+- All non-emergency changes must go through a branch + PR.
+- Direct commits to `main` are allowed only for an explicitly approved emergency hotfix.
+
 1. Branch from latest `main`:
    - `git checkout main && git pull --ff-only`
    - `git checkout -b <branch-name>`
