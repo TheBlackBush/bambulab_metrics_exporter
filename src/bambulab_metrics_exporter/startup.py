@@ -5,7 +5,13 @@ import os
 from pathlib import Path
 
 from bambulab_metrics_exporter.client.factory import build_client
-from bambulab_metrics_exporter.cloud_auth import login_with_code, send_code
+from bambulab_metrics_exporter.cloud_auth import (
+    CloudAuthInvalidError,
+    CloudAuthTransientError,
+    login_with_code,
+    refresh_access_token,
+    send_code,
+)
 from bambulab_metrics_exporter.config import Settings
 from bambulab_metrics_exporter.credentials_store import save_encrypted_credentials
 from bambulab_metrics_exporter.env_sync import sync_env_file
@@ -69,6 +75,29 @@ def _validate_cloud(settings: Settings) -> None:
     if has_uid and has_token and _probe_connection(settings):
         return
 
+    # Probe failed (or credentials missing). Try refresh token before 2FA reauth.
+    refresh_token = settings.bambulab_cloud_refresh_token
+    if refresh_token:
+        logger.info("Access token invalid; attempting refresh using BAMBULAB_CLOUD_REFRESH_TOKEN")
+        try:
+            _try_token_refresh(settings, refresh_token)
+            refreshed = Settings()
+            if _probe_connection(refreshed):
+                logger.info("Token refresh succeeded; cloud connection restored")
+                return
+            logger.warning("Refresh produced new tokens but probe still failed; falling back to re-auth")
+        except CloudAuthTransientError as exc:
+            # Network/server issue — don't force 2FA; surface the transient error clearly
+            raise RuntimeError(
+                f"Cloud token refresh failed due to a transient network or API issue: {exc}. "
+                "Will not force 2FA. Check network connectivity and retry."
+            ) from exc
+        except CloudAuthInvalidError:
+            logger.warning("Refresh token is invalid or expired; falling back to email/code re-auth")
+        # CloudAuthInvalidError => fall through to email/code reauth below
+    else:
+        logger.warning("No refresh token available; skipping refresh and attempting cloud re-auth")
+
     logger.warning("Cloud credentials missing or invalid, attempting cloud re-auth")
     _try_cloud_reauth(settings)
 
@@ -77,6 +106,42 @@ def _validate_cloud(settings: Settings) -> None:
     if not _probe_connection(refreshed):
         raise RuntimeError(
             "Cloud connection failed after re-auth. Verify BAMBULAB_SERIAL and that 2FA code is fresh."
+        )
+
+
+def _try_token_refresh(settings: Settings, refresh_token: str) -> None:
+    """Exchange ``refresh_token`` for new credentials and persist them.
+
+    Raises:
+        CloudAuthInvalidError: Token definitively rejected — caller should fall back to 2FA.
+        CloudAuthTransientError: Network/API issue — caller should NOT force 2FA.
+    """
+    result = refresh_access_token(refresh_token)  # may raise CloudAuthInvalidError / CloudAuthTransientError
+
+    os.environ["BAMBULAB_CLOUD_ACCESS_TOKEN"] = result.access_token
+    os.environ["BAMBULAB_CLOUD_REFRESH_TOKEN"] = result.refresh_token
+    if result.user_id:
+        os.environ["BAMBULAB_CLOUD_USER_ID"] = result.user_id
+
+    secret_key = os.getenv("BAMBULAB_SECRET_KEY", settings.bambulab_secret_key)
+    if secret_key:
+        cred_path = Path(settings.bambulab_config_dir) / settings.bambulab_credentials_file
+        save_encrypted_credentials(
+            path=cred_path,
+            secret=secret_key,
+            payload={
+                "BAMBULAB_CLOUD_USER_ID": result.user_id or settings.bambulab_cloud_user_id,
+                "BAMBULAB_CLOUD_ACCESS_TOKEN": result.access_token,
+                "BAMBULAB_CLOUD_REFRESH_TOKEN": result.refresh_token,
+                "BAMBULAB_CLOUD_MQTT_HOST": settings.bambulab_cloud_mqtt_host,
+                "BAMBULAB_CLOUD_MQTT_PORT": str(settings.bambulab_cloud_mqtt_port),
+            },
+        )
+        sync_env_file(Path(".env"))
+        logger.info("Refreshed cloud credentials persisted to encrypted store")
+    else:
+        logger.warning(
+            "BAMBULAB_SECRET_KEY not set; refreshed tokens applied to env only (not persisted to disk)"
         )
 
 

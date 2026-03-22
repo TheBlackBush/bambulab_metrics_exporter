@@ -46,6 +46,22 @@ class CloudAuthError(RuntimeError):
     pass
 
 
+class CloudAuthInvalidError(CloudAuthError):
+    """Raised when credentials are definitively invalid (expired/revoked token).
+
+    Signals callers to attempt re-authentication rather than waiting or retrying.
+    """
+    pass
+
+
+class CloudAuthTransientError(CloudAuthError):
+    """Raised when the refresh attempt failed due to a transient network/API issue.
+
+    Signals callers NOT to force immediate re-authentication; the error is recoverable.
+    """
+    pass
+
+
 def _as_int(value: object, default: int = 0) -> int:
     if isinstance(value, bool):
         return int(value)
@@ -174,6 +190,127 @@ def _resolve_user_id_from_profile(
         except CloudAuthError:
             continue
     return None
+
+
+_REFRESH_PATH = "/v1/user-service/user/refreshtoken"
+
+# HTTP status codes that indicate a transient server-side issue (worth retrying)
+_TRANSIENT_HTTP_CODES = {408, 409, 425, 429, 500, 502, 503, 504}
+# HTTP status codes that indicate the refresh token is definitively invalid
+_INVALID_AUTH_HTTP_CODES = {401, 403}
+
+
+def refresh_access_token(
+    refresh_token: str,
+    timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
+    retries: int = DEFAULT_RETRIES,
+    api_bases: list[str] | None = None,
+) -> LoginResult:
+    """Exchange a refresh token for a new access+refresh token pair.
+
+    Args:
+        refresh_token: The current refresh token from a previous login or refresh.
+        timeout_seconds: HTTP request timeout per attempt.
+        retries: Number of retries for transient failures per API base.
+        api_bases: API base URL list for fallback.  Defaults to ``DEFAULT_API_BASES``.
+
+    Returns:
+        A :class:`LoginResult` with updated ``access_token`` and ``refresh_token``.
+
+    Raises:
+        CloudAuthInvalidError: When the refresh token is definitively rejected (401/403).
+            Callers should fall back to email/code re-authentication.
+        CloudAuthTransientError: When the refresh failed due to network or server issues.
+            Callers should NOT force immediate 2FA; the failure is likely transient.
+    """
+    bases = api_bases or DEFAULT_API_BASES
+    payload = {"refreshToken": refresh_token}
+
+    transient_errors: list[str] = []
+    invalid_errors: list[str] = []
+
+    for api_base in bases:
+        req = request.Request(
+            f"{api_base}{_REFRESH_PATH}",
+            data=json.dumps(payload).encode("utf-8"),
+            headers=DEFAULT_HEADERS,
+            method="POST",
+        )
+
+        attempt = 0
+        while True:
+            try:
+                with request.urlopen(req, timeout=timeout_seconds) as res:
+                    body = res.read().decode("utf-8")
+                    data: dict[str, object] = json.loads(body) if body else {}
+
+                if "error" in data:
+                    # Server returned 200 but with an error body — treat as invalid
+                    raise CloudAuthInvalidError(
+                        f"Refresh token rejected by {api_base}: {data['error']}"
+                    )
+
+                try:
+                    access_token = str(data["accessToken"])
+                    new_refresh = str(data.get("refreshToken", refresh_token))
+                    expires_in = _as_int(data.get("expiresIn", 0))
+                    # user_id is not always returned in refresh response — extract best-effort
+                    user_id = _extract_user_id(
+                        data,
+                        access_token,
+                        timeout_seconds=timeout_seconds,
+                        retries=0,  # don't retry profile fetch during refresh
+                        api_bases=bases,
+                    )
+                except (KeyError, CloudAuthError) as exc:
+                    raise CloudAuthInvalidError(
+                        f"Unexpected refresh response from {api_base}: {exc}"
+                    ) from exc
+
+                return LoginResult(
+                    access_token=access_token,
+                    refresh_token=new_refresh,
+                    expires_in=expires_in,
+                    user_id=user_id,
+                )
+
+            except CloudAuthInvalidError:
+                raise  # propagate immediately; no point trying other bases
+
+            except error.HTTPError as exc:
+                body = exc.read().decode("utf-8", errors="ignore")
+                if exc.code in _INVALID_AUTH_HTTP_CODES:
+                    invalid_errors.append(f"{api_base} -> HTTP {exc.code}: {body}")
+                    break  # try next base
+                if attempt >= retries or exc.code not in _TRANSIENT_HTTP_CODES:
+                    transient_errors.append(f"{api_base} -> HTTP {exc.code}: {body}")
+                    break  # try next base
+
+            except error.URLError as exc:
+                if attempt >= retries:
+                    transient_errors.append(f"{api_base} -> Network error: {exc}")
+                    break  # try next base
+
+            attempt += 1
+            backoff = min(2**attempt, 8) + random.uniform(0, 0.5)
+            time.sleep(backoff)
+
+    if invalid_errors and not transient_errors:
+        raise CloudAuthInvalidError(
+            "Refresh token is invalid or expired. Tried: "
+            + ", ".join(bases)
+            + " | errors: "
+            + " || ".join(invalid_errors)
+        )
+
+    # Mix of transient + invalid, or purely transient — don't force 2FA
+    all_errors = transient_errors + invalid_errors
+    raise CloudAuthTransientError(
+        "Token refresh failed due to transient issues. Tried: "
+        + ", ".join(bases)
+        + " | errors: "
+        + " || ".join(all_errors)
+    )
 
 
 def send_code(

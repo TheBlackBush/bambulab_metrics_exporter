@@ -4,6 +4,30 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.39] - 2026-03-22
+
+### Added
+- **Automatic cloud token refresh** (`cloud_auth.py`, `startup.py`): When the cloud access
+  token is invalid at startup, the exporter now silently refreshes it via
+  `BAMBULAB_CLOUD_REFRESH_TOKEN` before falling back to email/2FA re-authentication.
+  - `refresh_access_token()` in `cloud_auth.py` uses the existing multi-base request pattern
+    and returns an updated `LoginResult` with new `access_token` + `refresh_token`.
+  - Two new exception types for precise error classification:
+    - `CloudAuthInvalidError` — credentials definitively rejected (HTTP 401/403 or error
+      body); triggers 2FA fallback.
+    - `CloudAuthTransientError` — network/server issue (connection error, 5xx); does **not**
+      force 2FA, surfaces a clear transient error instead.
+  - On successful refresh, updated credentials are persisted to the encrypted store (when
+    `BAMBULAB_SECRET_KEY` is set) and synced to `.env`.
+
+### Tests
+- 9 new unit tests covering the full refresh-token decision tree: happy-path bypass, invalid
+  refresh → 2FA fallback, transient error → no forced 2FA, credential persistence, and HTTP
+  4xx/5xx classification.
+- Reverted test layout to flat `tests/unit/` structure (no process-domain subdirectories) for
+  consistency with the existing test suite.
+- Coverage raised to **97.22%** (401 tests, threshold: 90%).
+
 ## [0.1.38] - 2026-03-22
 
 ### Fixed
