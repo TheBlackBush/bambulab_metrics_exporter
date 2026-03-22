@@ -9,9 +9,9 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/TheBlackBush/bambulab_metrics_exporter</Support>
   <Project>https://github.com/TheBlackBush/bambulab_metrics_exporter</Project>
-  <Overview>Prometheus exporter for Bambu Lab printers on Unraid. Exposes /metrics, /health, and /ready.&#10;&#10;Quick setup:&#10;1) Set required values: BAMBULAB_TRANSPORT, BAMBULAB_SERIAL, BAMBULAB_SECRET_KEY (example: openssl rand -base64 48).&#10;2) cloud_mqtt: set BAMBULAB_CLOUD_EMAIL (code/token fields can be left empty for first run and may auto-populate).&#10;3) local_mqtt: set BAMBULAB_HOST and BAMBULAB_ACCESS_CODE.&#10;&#10;Then start the container and open WebUI for status. Scrape /metrics from Prometheus.</Overview>
+  <Overview>Prometheus exporter for Bambu Lab printers (local/cloud MQTT) exposing /metrics, /health, /ready.&#10;&#10;Setup guide (important):&#10;1) Always fill these required fields:&#10;   - BAMBULAB_TRANSPORT&#10;   - BAMBULAB_SERIAL&#10;   - BAMBULAB_SECRET_KEY (generate: openssl rand -base64 48)&#10;&#10;2) If Transport = cloud_mqtt (recommended default):&#10;   - Fill BAMBULAB_CLOUD_EMAIL&#10;   - Optional: fill BAMBULAB_CLOUD_CODE (email verification code)&#10;   - Usually leave Cloud User ID / Access Token / Refresh Token empty on first run.&#10;   - These cloud credential fields can be auto-populated by the startup auth process and then saved to config/.env.&#10;&#10;3) If Transport = local_mqtt:&#10;   - Fill BAMBULAB_HOST and BAMBULAB_ACCESS_CODE&#10;   - Keep username/port defaults unless you know you need changes.&#10;&#10;Startup behavior:&#10;- Preflight validates required fields + connectivity.&#10;- cloud_mqtt can run automatic re-auth when credentials are missing/expired.&#10;- If email is set but code is missing, exporter can trigger email code flow and ask for restart with code.&#10;- Metrics are then polled and exported for Prometheus/Grafana.</Overview>
   <Category>Tools: Monitoring</Category>
-  <WebUI>http://[IP]:[PORT:9109]/</WebUI>
+  <WebUI>http://[IP]:[PORT:9109]/metrics</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/TheBlackBush/bambulab_metrics_exporter/main/unraid-bambulab-metrics-exporter.xml</TemplateURL>
   <Icon>https://raw.githubusercontent.com/TheBlackBush/bambulab_metrics_exporter/main/docs/logo.png</Icon>
 
