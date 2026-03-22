@@ -17,7 +17,6 @@ from bambulab_metrics_exporter.cloud_auth import (
     CloudAuthError,
     CloudAuthInvalidError,
     CloudAuthTransientError,
-    LoginResult,
     _extract_user_id,
     login_with_code,
     refresh_access_token,

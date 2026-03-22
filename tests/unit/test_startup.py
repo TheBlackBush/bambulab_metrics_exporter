@@ -277,8 +277,6 @@ def test_try_token_refresh_persists_credentials(tmp_path: Path, monkeypatch: pyt
 
 def test_validate_cloud_invalid_access_valid_refresh_skips_2fa(monkeypatch: pytest.MonkeyPatch) -> None:
     """When access token is invalid but refresh succeeds, no 2FA is triggered."""
-    from bambulab_metrics_exporter.cloud_auth import LoginResult
-
     settings = Settings(
         bambulab_transport="cloud_mqtt",
         bambulab_serial="S",
