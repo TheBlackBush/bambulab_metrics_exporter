@@ -327,6 +327,7 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 | `bambulab_chamber_light_on` | Gauge | Chamber light status (1/0). |
 | `bambulab_work_light_on` | Gauge | Work light status (1/0). |
 | `bambulab_xcam_feature_enabled{feature}` | Gauge | XCam feature enable flags. |
+| `bambulab_xcam_halt_print_sensitivity_info{level}` | Info Gauge | XCam halt-print sensitivity level (`low`/`medium`/`high`). |
 | `bambulab_ams_status_id` | Gauge | AMS status numeric code. |
 | `bambulab_ams_status_name{status}` | Info Gauge | AMS status name label. |
 | `bambulab_ams_rfid_status_id` | Gauge | AMS RFID status numeric code. |

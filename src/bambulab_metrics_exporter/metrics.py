@@ -70,6 +70,12 @@ class ExporterMetrics:
         self.chamber_light_on = Gauge("bambulab_chamber_light_on", "Chamber light on/off", label_names, registry=self.registry)
         self.work_light_on = Gauge("bambulab_work_light_on", "Work light on/off", label_names, registry=self.registry)
         self.xcam_feature_enabled = Gauge("bambulab_xcam_feature_enabled", "XCam feature enabled flags", [*label_names, "feature"], registry=self.registry)
+        self.xcam_halt_print_sensitivity_info = Gauge(
+            "bambulab_xcam_halt_print_sensitivity_info",
+            "XCam halt_print_sensitivity level as labeled info metric (low/medium/high)",
+            [*label_names, "level"],
+            registry=self.registry,
+        )
         self.gcode_state = Gauge("bambulab_printer_gcode_state", "Current gcode state encoded as one-hot labels", [*label_names, "state"], registry=self.registry)
         self.spd_lvl_state = Gauge("bambulab_spd_lvl_state", "Current speed level as one-hot labels", [*label_names, "mode"], registry=self.registry)
         self.subtask_name_info = Gauge(
@@ -339,6 +345,11 @@ class ExporterMetrics:
         self.xcam_feature_enabled.clear()
         for feature, enabled in snapshot.xcam_flags.items():
             self.xcam_feature_enabled.labels(**labels, feature=feature).set(enabled)
+
+        self.xcam_halt_print_sensitivity_info.clear()
+        sensitivity = snapshot.xcam_halt_print_sensitivity
+        if sensitivity is not None:
+            self.xcam_halt_print_sensitivity_info.labels(**labels, level=sensitivity).set(1.0)
 
         error_code = snapshot.print_error_code
         self.printer_error.labels(**labels).set(1.0 if error_code and error_code != 0 else 0.0)
