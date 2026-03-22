@@ -24,7 +24,7 @@ Full operator documentation lives in the [GitHub Wiki](https://github.com/TheBla
 | [Configuration](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Configuration) | Full environment variable reference |
 | [Prometheus Setup](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Prometheus-Setup) | Scrape config, job examples |
 | [Metrics Reference](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Metrics-Reference) | All metrics, PromQL examples |
-| [Grafana Dashboard](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Grafana-Dashboard) | Import steps, panel list, alert rules |
+| [Grafana Dashboard](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Grafana-Dashboard) | Import steps, panel list, alert rules — also on [Grafana.com](https://grafana.com/grafana/dashboards/25033-bambulab-metrics/) |
 | [Troubleshooting](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Troubleshooting) | Common issues and debugging steps |
 
 ---
@@ -431,5 +431,7 @@ These are useful for quick regression checks and dashboard/query validation.
 - Integration tests with recorded MQTT fixtures
 
 ### Dashboard Preview
+
+The dashboard is available on the [Grafana.com dashboard listing](https://grafana.com/grafana/dashboards/25033-bambulab-metrics/).
 
 ![Grafana Dashboard Sample](examples/grafana/dashboard-sample.jpg)

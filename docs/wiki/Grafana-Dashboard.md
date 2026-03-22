@@ -1,6 +1,7 @@
 # Grafana Dashboard
 
 A ready-to-import sample dashboard is included in the repository.
+The dashboard is also published on the [Grafana.com dashboard listing](https://grafana.com/grafana/dashboards/25033-bambulab-metrics/).
 
 ---
 
