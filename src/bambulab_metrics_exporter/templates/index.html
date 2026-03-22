@@ -172,6 +172,8 @@
   .card-status {
     display: flex;
     flex-direction: column;
+    align-items: center;
+    justify-content: center;
     gap: 0.4rem;
   }
 
@@ -308,6 +310,12 @@
     flex-shrink: 0;
   }
 
+  .footer-credit {
+    margin-top: 0.65rem;
+    font-size: 0.74rem;
+    color: var(--text-secondary);
+  }
+
   /* ─── Responsive ──────────────────────────────────────── */
   @media (max-width: 380px) {
     .cards {
@@ -374,6 +382,7 @@
       </svg>
       GitHub
     </a>
+    <div class="footer-credit">Created by TheBlackBush</div>
   </footer>
 
 </div>
