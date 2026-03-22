@@ -1,6 +1,8 @@
 """Tests for bambulab_metrics_exporter.models."""
 from __future__ import annotations
 
+import pytest
+
 from bambulab_metrics_exporter import models
 from bambulab_metrics_exporter.models import (
     PrinterSnapshot,
