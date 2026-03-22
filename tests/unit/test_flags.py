@@ -33,3 +33,9 @@ def test_decode_home_flags() -> None:
 def test_decode_stat_flags() -> None:
     decoded = decode_stat_flags("46A58008")
     assert decoded["door_open"] is True
+    assert decoded["lid_open"] is False
+
+
+def test_decode_stat_flags_lid_open_bit() -> None:
+    decoded = decode_stat_flags("47A58008")
+    assert decoded["lid_open"] is True

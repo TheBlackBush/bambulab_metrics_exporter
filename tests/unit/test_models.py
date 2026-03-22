@@ -169,6 +169,24 @@ def test_printer_type_detection_from_module_metadata() -> None:
     assert by_hw_project.printer_type == "P1S"
 
 
+def test_lid_open_prefers_direct_field() -> None:
+    snap = PrinterSnapshot(connected=True, raw={"print": {"model_id": "H2D", "stat": "46258008", "lid_open": True}})
+    assert snap.lid_open == 1.0
+
+
+def test_lid_open_from_stat_for_h2_family() -> None:
+    snap_open = PrinterSnapshot(connected=True, raw={"print": {"model_id": "H2D", "stat": "01000000"}})
+    assert snap_open.lid_open == 1.0
+
+    snap_closed = PrinterSnapshot(connected=True, raw={"print": {"model_id": "H2D", "stat": "00000000"}})
+    assert snap_closed.lid_open == 0.0
+
+
+def test_lid_open_non_h2_without_direct_field_is_none() -> None:
+    snap = PrinterSnapshot(connected=True, raw={"print": {"model_id": "P1S", "stat": "01000000"}})
+    assert snap.lid_open is None
+
+
 # ---------------------------------------------------------------------------
 # Parsing helpers (_to_float, _to_int)
 # ---------------------------------------------------------------------------

@@ -417,6 +417,42 @@ class TestDoorOpen:
         assert math.isnan(self._get(m, "door_open"))
 
 
+class TestLidOpen:
+    def _m(self) -> ExporterMetrics:
+        return ExporterMetrics(printer_name="test", serial="SN123")
+
+    def _get(self, m: ExporterMetrics, gauge_name: str, extra: dict | None = None) -> float:
+        labels: dict = {"printer_name": "test", "serial": "SN123"}
+        if extra:
+            labels.update(extra)
+        return getattr(m, gauge_name).labels(**labels)._value.get()
+
+    def test_lid_open_true_direct(self) -> None:
+        m = self._m()
+        m.update_from_snapshot(_snap({"lid_open": True}))
+        assert self._get(m, "lid_open") == 1.0
+
+    def test_lid_open_from_h2_stat_bit(self) -> None:
+        m = self._m()
+        m.update_from_snapshot(_snap({"model_id": "H2D", "stat": "01000000"}))
+        assert self._get(m, "lid_open") == 1.0
+
+    def test_lid_closed_from_h2_stat_bit(self) -> None:
+        m = self._m()
+        m.update_from_snapshot(_snap({"model_id": "H2D", "stat": "00000000"}))
+        assert self._get(m, "lid_open") == 0.0
+
+    def test_lid_open_non_h2_without_direct_is_nan(self) -> None:
+        m = self._m()
+        m.update_from_snapshot(_snap({"model_id": "P1S", "stat": "01000000"}))
+        assert math.isnan(self._get(m, "lid_open"))
+
+    def test_lid_open_prefers_direct_over_stat(self) -> None:
+        m = self._m()
+        m.update_from_snapshot(_snap({"model_id": "H2D", "stat": "00000000", "lid_open": True}))
+        assert self._get(m, "lid_open") == 1.0
+
+
 class TestFlagDerivedBinarySensors:
     def test_flag_binary_sensors_from_home_flag(self) -> None:
         m = ExporterMetrics(printer_name="test", serial="SN123")

@@ -12,6 +12,7 @@ from bambulab_metrics_exporter.flags import (
 
 
 X1_HOMEFLAG_MODELS = {"X1", "X1C"}
+H2_MODEL_PREFIX = "H2"
 
 # product_name → model (priority 1 in resolver)
 PRODUCT_NAME_TO_PRINTER: dict[str, str] = {
@@ -1125,6 +1126,29 @@ class PrinterSnapshot:
             return 1.0 if (stat_flag & STAT_FLAG_MASKS["door_open"]) else 0.0
         if home_flag is not None:
             return 1.0 if (home_flag & HOME_FLAG_MASKS["door_open"]) else 0.0
+        return None
+
+    @property
+    def lid_open(self) -> float | None:
+        """1.0 if lid is open, 0.0 if closed.
+
+        Source selection:
+        - Direct `lid_open` value if present (preferred)
+        - H2-family models use `stat` bitmask (`lid_open`, 0x01000000)
+        - Non-H2 models without direct `lid_open` return None
+        """
+        val = self.print_block.get("lid_open")
+        if isinstance(val, bool):
+            return 1.0 if val else 0.0
+        if isinstance(val, (int, float)):
+            return 1.0 if val else 0.0
+
+        ptype = self.printer_type
+        if isinstance(ptype, str) and ptype.startswith(H2_MODEL_PREFIX):
+            stat_flag = to_hex_int(self.print_block.get("stat"))
+            if stat_flag is not None:
+                return 1.0 if (stat_flag & STAT_FLAG_MASKS["lid_open"]) else 0.0
+
         return None
 
     @property
