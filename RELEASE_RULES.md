@@ -7,6 +7,19 @@ Release and PR rules for `bambulab-metrics-exporter`.
 If the user asks to bump/update version, the task is **not done** at "commit + push".
 It is complete only when version files, changelog, tag, and GitHub Release are all updated and consistent.
 
+## 0) Git identity (required before any commit/release action)
+
+- Verify active git identity before starting work and again before release steps.
+- Required identity for this repo workflow:
+  - `user.name` must be `"Idan Bush"`
+  - `user.email` must be the configured email for this repo
+- Verify local identity:
+  - `git config user.name`
+  - `git config user.email`
+- Set local repo identity (preferred over global for safety):
+  - `git config user.name "Idan Bush"`
+  - `git config user.email "idan.bushari@gmail.com"` (or repo-approved email)
+
 ## 1) PR workflow (required)
 
 1. Branch from latest `main`:
