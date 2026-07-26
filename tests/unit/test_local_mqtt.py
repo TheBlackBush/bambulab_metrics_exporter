@@ -159,6 +159,28 @@ def test_fetch_snapshot_timeout_returns_partial(monkeypatch) -> None:
     assert snap.raw == {}
 
 
+def test_fetch_snapshot_carries_configured_serial(monkeypatch) -> None:
+    """The configured serial must reach the snapshot on both return paths."""
+    fake = _FakeMQTTClient()
+    monkeypatch.setattr("bambulab_metrics_exporter.client.local_mqtt.mqtt.Client", lambda *a, **k: fake)
+    client = LocalMqttBambuClient(_settings(serial="20P6AJ641300919", request_timeout=0.2))
+
+    # Timeout path (no state yet).
+    assert client.fetch_snapshot(0.01).configured_serial == "20P6AJ641300919"
+
+    # Normal path (state present) — and the model now resolves without an
+    # `sn` or `module` field in the payload, as on a real X2D.
+    msg = SimpleNamespace(
+        topic="device/20P6AJ641300919/report",
+        payload=json.dumps({"print": {"device": {"type": 1}}}).encode("utf-8"),
+    )
+    client._on_message(None, None, msg)
+
+    snap = client.fetch_snapshot(1.0)
+    assert snap.configured_serial == "20P6AJ641300919"
+    assert snap.model_name == "X2D"
+
+
 def test_request_pushall_publish(monkeypatch) -> None:
     fake = _FakeMQTTClient()
     monkeypatch.setattr("bambulab_metrics_exporter.client.local_mqtt.mqtt.Client", lambda *a, **k: fake)

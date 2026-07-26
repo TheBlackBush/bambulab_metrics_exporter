@@ -59,7 +59,8 @@ Full operator documentation lives in the [GitHub Wiki](https://github.com/TheBla
 - Supports both LAN MQTT (`local_mqtt`) and Cloud MQTT (`cloud_mqtt`).
 - Uses `device/<serial>/report` and `device/<serial>/request` topics.
 - Requests full snapshots with `pushall` and maps stable telemetry fields to Prometheus metrics.
-- Printer model detection uses a table-driven resolver pipeline (`product_name` → `hw_ver+project_name` → `SN prefix` → legacy fallbacks), including newer SN prefixes such as `22E` (P2S), `093` (H2S), and `094` (H2D).
+- Printer model detection uses a table-driven resolver pipeline (`product_name` → `hw_ver+project_name` → `SN prefix` → legacy fallbacks), including newer SN prefixes such as `22E` (P2S), `093` (H2S), `094` (H2D), and `20P` (X2D).
+- The `SN prefix` step falls back to the configured `BAMBULAB_SERIAL` when the printer does not report `print.sn` in its MQTT payload (observed on the X2D).
 
 > **Deployment:** This project is deployed via Docker. There is no pip/PyPI distribution.
 > See [Installation](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Installation) for full setup instructions.

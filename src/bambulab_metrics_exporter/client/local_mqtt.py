@@ -65,11 +65,19 @@ class LocalMqttBambuClient(BambuClient):
         while time.monotonic() < deadline:
             with self._lock:
                 if self._latest_state:
-                    return PrinterSnapshot(connected=self._connected, raw=deepcopy(self._latest_state))
+                    return self._build_snapshot()
             time.sleep(0.1)
 
         with self._lock:
-            return PrinterSnapshot(connected=self._connected, raw=deepcopy(self._latest_state))
+            return self._build_snapshot()
+
+    def _build_snapshot(self) -> PrinterSnapshot:
+        """Build a snapshot from the merged state. Caller must hold `self._lock`."""
+        return PrinterSnapshot(
+            connected=self._connected,
+            raw=deepcopy(self._latest_state),
+            configured_serial=self._settings.bambulab_serial or None,
+        )
 
     def _request_pushall(self) -> None:
         payload = {

@@ -4,6 +4,22 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **X2D model detection**: `20P` SN prefix → `X2D` in the SN-prefix table, and
+  `"bambu lab x2d"` → `X2D` in the `product_name` table.
+- `PrinterSnapshot.configured_serial` (optional, defaults to `None`): the serial from
+  `BAMBULAB_SERIAL`, populated by `LocalMqttBambuClient` (and therefore
+  `CloudMqttBambuClient`). Step 3 of the model resolver now falls back to it when the
+  payload carries no `print.sn`.
+
+### Fixed
+- **X2D was reported as `X1C`** in `bambulab_printer_model_info`. The X2D's LAN MQTT
+  payload contains no `module` list, no `info` block and no `print.sn`, so resolver
+  steps 1–3 cannot fire and detection falls through to the legacy `device.type` table —
+  where the X2D's `device.type == 1` is already claimed by the X1C. Resolving from the
+  configured serial fixes this, and also repairs SN-prefix detection generally for any
+  firmware that omits `print.sn`.
+
 ## [0.1.40] - 2026-03-22
 
 ### Added

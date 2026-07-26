@@ -28,6 +28,7 @@ PRODUCT_NAME_TO_PRINTER: dict[str, str] = {
     "bambu lab x1": "X1",
     "bambu lab x1 carbon": "X1C",
     "bambu lab x1e": "X1E",
+    "bambu lab x2d": "X2D",
 }
 
 # (hw_ver, project_name) → model (priority 2 in resolver, AP-module path)
@@ -52,6 +53,7 @@ _SN_PREFIX_TO_PRINTER: dict[str, str] = {
     "22E": "P2S",
     "093": "H2S",
     "094": "H2D",
+    "20P": "X2D",
 }
 
 # legacy device.type → model (priority 4)
@@ -402,6 +404,11 @@ def _normalize_product_name(value: Any) -> str:
 class PrinterSnapshot:
     connected: bool
     raw: dict[str, Any]
+    # Serial from configuration (BAMBULAB_SERIAL), used as a fallback for
+    # SN-prefix model detection on firmware that omits `print.sn` from LAN
+    # reports. Optional so callers constructing snapshots from a raw payload
+    # alone keep working unchanged.
+    configured_serial: str | None = None
 
     @property
     def print_block(self) -> dict[str, Any]:
@@ -463,7 +470,10 @@ class PrinterSnapshot:
                 return "A1MINI"
 
         # --- Step 3: SN-prefix mapping ---
-        sn = self.sn
+        # Some firmware (e.g. X2D) never reports `print.sn` over LAN MQTT, so
+        # fall back to the configured serial — for local transport it is
+        # required config and is the serial of this very printer.
+        sn = self.sn or self.configured_serial
         if sn:
             for prefix, model in _SN_PREFIX_TO_PRINTER.items():
                 if sn.upper().startswith(prefix.upper()):

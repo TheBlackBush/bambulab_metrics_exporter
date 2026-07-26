@@ -171,6 +171,60 @@ def test_printer_type_detection_from_module_metadata() -> None:
     assert by_hw_project.printer_type == "P1S"
 
 
+def test_printer_type_falls_back_to_configured_serial() -> None:
+    """X2D LAN reports carry no `module` list and no `print.sn`.
+
+    Captured from a real X2D over local MQTT: 20 messages including a full
+    pushall produced a `print` block of 99 keys with `sn`, `module` and `info`
+    all absent, and `device.type == 1`. Without the configured-serial fallback
+    the resolver reaches the legacy device-type table, where type 1 is claimed
+    by the X1C, and the printer is mislabelled.
+    """
+    x2d = PrinterSnapshot(
+        connected=True,
+        raw={"print": {"device": {"type": 1}}},
+        configured_serial="20P6AJ641300919",
+    )
+    assert x2d.printer_type == "X2D"
+
+    # Payload-provided `sn` still wins over the configured value.
+    payload_sn_wins = PrinterSnapshot(
+        connected=True,
+        raw={"print": {"sn": "094ABCDEFGHIJKL", "device": {"type": 1}}},
+        configured_serial="20P6AJ641300919",
+    )
+    assert payload_sn_wins.printer_type == "H2D"
+
+    # Higher-priority resolver steps still win over the serial fallback.
+    product_name_wins = PrinterSnapshot(
+        connected=True,
+        raw={"module": [{"name": "ota", "product_name": "Bambu Lab H2S"}]},
+        configured_serial="20P6AJ641300919",
+    )
+    assert product_name_wins.printer_type == "H2S"
+
+    # An unknown serial prefix must not short-circuit the legacy table.
+    unknown_prefix = PrinterSnapshot(
+        connected=True,
+        raw={"print": {"device": {"type": 3}}},
+        configured_serial="ZZZ0000000000",
+    )
+    assert unknown_prefix.printer_type == "P1S"
+
+
+def test_printer_type_x2d_from_product_name() -> None:
+    snap = PrinterSnapshot(
+        connected=True,
+        raw={"module": [{"name": "ota", "product_name": "Bambu Lab X2D"}]},
+    )
+    assert snap.printer_type == "X2D"
+
+
+def test_x2d_is_not_treated_as_x1_home_flag_model() -> None:
+    """X2D must take the `stat` bitmask path, not the X1/X1C `home_flag` path."""
+    assert "X2D" not in models.X1_HOMEFLAG_MODELS
+
+
 def test_lid_open_prefers_direct_field() -> None:
     snap = PrinterSnapshot(connected=True, raw={"print": {"model_id": "H2D", "stat": "46258008", "lid_open": True}})
     assert snap.lid_open == 1.0
