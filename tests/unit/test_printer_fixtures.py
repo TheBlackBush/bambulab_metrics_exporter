@@ -1,0 +1,535 @@
+"""Per-model checks against sanitized real payloads (tests/fixtures/printers)."""
+from __future__ import annotations
+
+import json
+import math
+from pathlib import Path
+
+import pytest
+
+from bambulab_metrics_exporter.metrics import ExporterMetrics
+from bambulab_metrics_exporter.models import PrinterSnapshot
+
+FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "printers"
+
+# Serial prefix per model, so detection runs exactly like a configured printer.
+_PREFIX = {
+    "A1": "039", "A1MINI": "030", "A2L": "26A", "P1P": "01S", "P1S": "01P", "P2S": "22E",
+    "X1": "00W", "X1C": "00M", "X1E": "03W", "X2D": "20P", "H2D": "094", "H2DPRO": "239",
+    "H2S": "093", "H2C": "31B",
+}
+
+
+def _load(name: str) -> tuple[dict, PrinterSnapshot, ExporterMetrics]:
+    fixture = json.loads((FIXTURES / f"{name}.json").read_text(encoding="utf-8"))
+    raw = {**fixture["pushall"], **(fixture.get("get_version") or {})}
+    snap = PrinterSnapshot(
+        connected=True,
+        raw=raw,
+        configured_serial=_PREFIX[fixture["model"]] + "FIXTURE000001",
+    )
+    metrics = ExporterMetrics(printer_name="fixture", serial="FIXTURE")
+    metrics.update_from_snapshot(snap)
+    return fixture, snap, metrics
+
+
+def _samples(metrics: ExporterMetrics, name: str) -> list[tuple[dict[str, str], float]]:
+    return [
+        ({k: v for k, v in s.labels.items() if k not in ("printer_name", "serial")}, s.value)
+        for metric in metrics.registry.collect()
+        for s in metric.samples
+        if s.name == name
+    ]
+
+
+def _value(metrics: ExporterMetrics, name: str) -> float:
+    found = _samples(metrics, name)
+    assert len(found) == 1, (name, found)
+    return found[0][1]
+
+
+ALL = sorted(p.stem for p in FIXTURES.glob("*.json"))
+
+
+@pytest.mark.parametrize("name", ALL)
+def test_fixture_detects_model_and_exports_sane_values(name: str) -> None:
+    fixture, snap, metrics = _load(name)
+    assert snap.model_name == fixture["model"]
+
+    for metric in metrics.registry.collect():
+        for sample in metric.samples:
+            if math.isnan(sample.value):
+                continue
+            if "temperature_celsius" in sample.name:
+                assert -40 <= sample.value <= 500, (sample.name, sample.labels, sample.value)
+            if sample.name == "bambulab_ams_slot_remaining_percent":
+                assert 0 <= sample.value <= 100, (sample.labels, sample.value)
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("h2s", 60.0),  # packed ctc value 3932220 = 60 °C current / 60 °C target
+        ("x1c_fw0112_ams1", 29.0),
+        ("a1", None),  # no chamber sensor: placeholder 5 °C is not exported
+        ("a2l", None),
+        ("p1p_no_ams", None),
+    ],
+)
+def test_chamber_temperature(name: str, expected: float | None) -> None:
+    _, _, metrics = _load(name)
+    value = _value(metrics, "bambulab_chamber_temperature_celsius")
+    assert math.isnan(value) if expected is None else value == expected
+
+
+def test_secondary_aux_fan_reads_airduct_state() -> None:
+    _, _, metrics = _load("x2d")
+    assert _value(metrics, "bambulab_fan_secondary_aux_speed_percent") == 10.0
+
+
+def _active_slots(metrics: ExporterMetrics) -> list[tuple[str, str]]:
+    return sorted(
+        (labels["ams_id"], labels["slot_id"])
+        for labels, value in _samples(metrics, "bambulab_ams_slot_active")
+        if value == 1.0
+    )
+
+
+@pytest.mark.parametrize(
+    ("name", "active", "external"),
+    [
+        ("h2d", [("1", "3")], 0.0),  # snow 0x0103; tray_now only holds the local slot 3
+        ("h2d_external_spool", [], 1.0),  # snow 0xFF00 on the active extruder
+        ("x2d", [("0", "1")], 0.0),  # active extruder 1, snow 0x0001
+        ("x1_legacy_firmware", [("128", "0")], 0.0),  # tray_now 128 is an AMS HT unit
+        ("p1p_no_ams", [], 1.0),  # tray_now 254
+        ("x1c_fw0112_ams1", [], 0.0),  # nothing loaded
+    ],
+)
+def test_active_slot_and_external_spool(name: str, active: list, external: float) -> None:
+    _, _, metrics = _load(name)
+    assert _active_slots(metrics) == active
+    assert _value(metrics, "bambulab_external_spool_active") == external
+
+
+def test_unknown_remaining_is_nan_not_negative() -> None:
+    _, _, metrics = _load("h2d_external_spool")
+    values = [v for _, v in _samples(metrics, "bambulab_ams_slot_remaining_percent")]
+    assert values and any(math.isnan(v) for v in values)
+    assert all(math.isnan(v) or v >= 0 for v in values)
+
+
+def test_ams_info_strings_are_hex() -> None:
+    """AMS 2 Pro info "2003" / AMS HT "2004": dry status nibble is 0, not 13."""
+    _, _, metrics = _load("h2d")
+    states = {labels["state"] for labels, _ in _samples(metrics, "bambulab_ams_heater_state_info")}
+    assert states and not any(state.startswith("unknown") for state in states)
+
+
+def test_drying_metrics_only_for_units_with_a_dryer() -> None:
+    _, _, metrics = _load("x1c_multi_ams")
+    models = {
+        labels["ams_model"] for labels, _ in _samples(metrics, "bambulab_ams_heater_state_info")
+    }
+    assert models and models <= {"ams_2_pro", "ams_ht"}
+
+
+@pytest.mark.parametrize("name", ["a1", "a2l"])
+def test_ams_lite_has_no_sensor_metrics(name: str) -> None:
+    _, _, metrics = _load(name)
+    assert _samples(metrics, "bambulab_ams_unit_temperature_celsius") == []
+    assert _samples(metrics, "bambulab_ams_unit_humidity_index") == []
+
+
+@pytest.mark.parametrize(("name", "model"), [("a1", "ams_lite"), ("x1_legacy_firmware", "ams_ht")])
+def test_ams_model_from_get_version_modules(name: str, model: str) -> None:
+    _, _, metrics = _load(name)
+    assert model in {labels["ams_model"] for labels, _ in _samples(metrics, "bambulab_ams_unit_info")}
+
+
+@pytest.mark.parametrize("name", ["a1", "a2l", "p1p_no_ams"])
+def test_no_door_value_on_models_without_sensor(name: str) -> None:
+    _, _, metrics = _load(name)
+    assert math.isnan(_value(metrics, "bambulab_door_open"))
+
+
+@pytest.mark.parametrize("name", ["h2d", "x2d", "x1c_fw0112_ams1"])
+def test_door_reported_on_models_with_sensor(name: str) -> None:
+    _, _, metrics = _load(name)
+    assert _value(metrics, "bambulab_door_open") in (0.0, 1.0)
+
+
+def test_camera_recording_follows_camera_setting() -> None:
+    """Verified on the maintainer's X1C: ipcam_record enable while home_flag bit 5 is 0."""
+    _, _, metrics = _load("x1c_fw0112_ams1")
+    assert _value(metrics, "bambulab_camera_recording") == 1.0
+
+
+def test_external_spool_info_omits_empty_virtual_slots() -> None:
+    _, _, metrics = _load("h2c")
+    for labels, _ in _samples(metrics, "bambulab_external_spool_info"):
+        assert labels["tray_type"] != "unknown" or labels["tray_info_idx"] != "unknown"
+
+
+@pytest.mark.parametrize("name", ["a1", "p1p_no_ams"])
+def test_nozzle_info_from_top_level_fields(name: str) -> None:
+    _, _, metrics = _load(name)
+    nozzles = _samples(metrics, "bambulab_active_nozzle_info")
+    assert len(nozzles) == 1 and nozzles[0][0]["nozzle_type"]
+
+
+def test_h2c_with_legacy_h2d_prefix_is_detected_as_h2c() -> None:
+    fixture = json.loads((FIXTURES / "h2c.json").read_text(encoding="utf-8"))
+    raw = {**fixture["pushall"]}  # no get_version product name
+    snap = PrinterSnapshot(connected=True, raw=raw, configured_serial="094FIXTURE000001")
+    assert snap.model_name == "H2C"
+    plain_h2d = PrinterSnapshot(connected=True, raw={"print": {}}, configured_serial="094FIXTURE000001")
+    assert plain_h2d.model_name == "H2D"
+
+
+# ---------------------------------------------------------------------------
+# Corrected meanings (maintainer-approved label/value changes)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(("name", "expected"), [("a1", 1.0), ("a2l", 1.0), ("x1c_fw0112_ams1", None)])
+def test_tangle_detection_enabled_only_when_supported(name: str, expected: float | None) -> None:
+    """home_flag bit 20 is the tangle-detection setting; bit 19 says whether the printer
+    supports it. The maintainer's X1C has the setting on but reports it unsupported."""
+    _, _, metrics = _load(name)
+    value = _value(metrics, "bambulab_filament_tangle_detection_enabled")
+    alias = _value(metrics, "bambulab_filament_tangle_detected")
+    if expected is None:
+        assert math.isnan(value) and math.isnan(alias)
+    else:
+        assert value == expected and alias == expected
+
+
+def test_ams_dry_state_is_named() -> None:
+    _, _, metrics = _load("x1c_multi_ams")
+    states = {
+        (labels["ams_id"], labels["state"])
+        for labels, _ in _samples(metrics, "bambulab_ams_heater_state_info")
+    }
+    assert ("2", "drying") in states  # AMS 2 Pro info 0x142023, dry_time 583
+    assert ("128", "off") in states  # AMS HT info 0x2004
+    subs = {labels["state"] for labels, _ in _samples(metrics, "bambulab_ams_dry_sub_status_info")}
+    assert subs <= {"none", "heating", "dehumidifying"}
+
+
+def test_hotend_rack_max_temperature_and_deprecated_alias() -> None:
+    _, _, metrics = _load("h2c")
+    max_temps = dict(
+        (labels["slot_id"], v)
+        for labels, v in _samples(metrics, "bambulab_hotend_rack_hotend_max_temperature_celsius")
+    )
+    assert max_temps and set(max_temps.values()) == {350.0}
+    alias = dict(
+        (labels["slot_id"], v)
+        for labels, v in _samples(metrics, "bambulab_hotend_rack_hotend_runtime_minutes")
+    )
+    assert alias == max_temps
+
+
+# ---------------------------------------------------------------------------
+# New metrics: chamber heater, loaded slot per extruder, HMS counts
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    ("name", "target", "state"),
+    [
+        ("h2s", 60.0, 2.0),  # heating to 60, holding
+        ("h2d", 0.0, 0.0),  # heater off
+        ("x2d", 0.0, 0.0),
+        ("x1c_fw0112_ams1", None, None),  # X1C has no chamber heater
+        ("p2s", None, None),
+        ("a1", None, None),  # no chamber at all
+    ],
+)
+def test_chamber_target_and_heater_state(name: str, target: float | None, state: float | None) -> None:
+    _, _, metrics = _load(name)
+    got_target = _value(metrics, "bambulab_chamber_target_temperature_celsius")
+    got_state = _value(metrics, "bambulab_chamber_heater_state")
+    assert math.isnan(got_target) if target is None else got_target == target
+    assert math.isnan(got_state) if state is None else got_state == state
+
+
+@pytest.mark.parametrize(
+    ("name", "loaded"),
+    [
+        ("h2d", [("0", "1", "3")]),  # extruder 0 holds AMS 1 slot 3; extruder 1 empty
+        ("h2d_external_spool", [("0", "external", "external")]),
+        ("x2d", [("1", "0", "1")]),
+        ("h2s", [("0", "0", "0")]),
+        ("x1c_fw0112_ams1", []),  # nothing loaded
+        ("a1", []),  # no per-extruder data on this firmware
+    ],
+)
+def test_extruder_loaded_slot_info(name: str, loaded: list) -> None:
+    _, _, metrics = _load(name)
+    got = sorted(
+        (labels["extruder_id"], labels["ams_id"], labels["slot_id"])
+        for labels, _ in _samples(metrics, "bambulab_extruder_loaded_slot_info")
+    )
+    assert got == loaded
+
+
+def _hms(metrics: ExporterMetrics) -> tuple[dict[str, float], dict[str, float]]:
+    severity = {labels["severity"]: v for labels, v in _samples(metrics, "bambulab_hms_active_errors")}
+    module = {labels["module"]: v for labels, v in _samples(metrics, "bambulab_hms_active_errors_by_module")}
+    return severity, module
+
+
+@pytest.mark.parametrize(
+    ("name", "severity", "module"),
+    [
+        ("x1_legacy_firmware", "common", "xcam"),  # attr 0x0C000300, code 0x00030007
+        ("x2d", "serious", "mainboard"),  # attr 0x05001000, code 0x00020070
+    ],
+)
+def test_hms_counts(name: str, severity: str, module: str) -> None:
+    _, _, metrics = _load(name)
+    by_severity, by_module = _hms(metrics)
+    assert set(by_severity) == {"fatal", "serious", "common", "info", "unknown"}
+    assert set(by_module) == {"mc", "mainboard", "ams", "toolhead", "xcam", "other"}
+    assert by_severity[severity] == 1.0 and sum(by_severity.values()) == 1.0
+    assert by_module[module] == 1.0 and sum(by_module.values()) == 1.0
+
+
+def test_hms_zero_counts_on_healthy_printer() -> None:
+    _, _, metrics = _load("x1c_fw0112_ams1")
+    by_severity, by_module = _hms(metrics)
+    assert by_severity and all(v == 0.0 for v in by_severity.values())
+    assert all(v == 0.0 for v in by_module.values())
+
+
+@pytest.mark.parametrize(
+    ("name", "mode"),
+    [
+        ("h2s", "heating"),
+        ("h2d", "cooling"),
+        ("x2d", "cooling"),
+        ("a2l", None),  # parts only, no modeCur
+        ("x1c_fw0112_ams1", None),  # no airduct
+    ],
+)
+def test_airduct_mode(name: str, mode: str | None) -> None:
+    _, _, metrics = _load(name)
+    got = [labels["mode"] for labels, v in _samples(metrics, "bambulab_airduct_mode_info") if v == 1.0]
+    assert got == ([] if mode is None else [mode])
+
+
+@pytest.mark.parametrize(
+    ("name", "fans"),
+    [
+        ("h2s", {"part_cooling": 10.0, "aux": 0.0, "chamber": 0.0, "inner_loop": 100.0}),
+        ("x2d", {"part_cooling": 80.0, "aux": 10.0, "aux_2": 10.0, "chamber": 70.0}),
+        ("p2s", {"part_cooling": 90.0, "aux": 0.0}),
+        ("a2l", {"part_cooling": 0.0}),
+        ("x1c_fw0112_ams1", {}),
+    ],
+)
+def test_airduct_fan_speeds(name: str, fans: dict[str, float]) -> None:
+    _, _, metrics = _load(name)
+    got = {labels["fan"]: v for labels, v in _samples(metrics, "bambulab_airduct_fan_speed_percent")}
+    assert got == fans
+
+
+@pytest.mark.parametrize(
+    ("name", "drying"),
+    [
+        ("h2c", {"0": 716 * 60.0}),  # AMS 2 Pro drying, 716 minutes left
+        ("x1c_multi_ams", {"2": 583 * 60.0, "128": 0.0}),  # AMS 1 units have no dryer
+        ("x1c_fw0112_ams1", {}),  # AMS 1 only
+    ],
+)
+def test_ams_drying_remaining(name: str, drying: dict[str, float]) -> None:
+    _, _, metrics = _load(name)
+    got = {labels["ams_id"]: v for labels, v in _samples(metrics, "bambulab_ams_drying_remaining_seconds")}
+    assert got == drying
+    # Unset drying settings (-1 or absent) are omitted.
+    assert _samples(metrics, "bambulab_ams_drying_target_temperature_celsius") == []
+    assert _samples(metrics, "bambulab_ams_drying_duration_seconds") == []
+
+
+@pytest.mark.parametrize(
+    ("name", "extruders", "print_time"),
+    [
+        ("x2d", ["0", "1"], True),
+        ("h2c", ["0", "1"], False),  # rack slots 16-21 are not mounted nozzles
+        ("x1c_fw0112_ams1", ["0"], False),
+        ("x1_legacy_firmware", [], False),  # legacy nozzle block has no info list
+    ],
+)
+def test_mounted_nozzle_wear_and_print_time(name: str, extruders: list, print_time: bool) -> None:
+    _, _, metrics = _load(name)
+    wear = sorted(labels["extruder_id"] for labels, _ in _samples(metrics, "bambulab_nozzle_wear_ratio"))
+    assert wear == extruders
+    times = sorted(labels["extruder_id"] for labels, _ in _samples(metrics, "bambulab_nozzle_print_time_seconds"))
+    assert times == (extruders if print_time else [])
+
+
+@pytest.mark.parametrize(
+    ("name", "expected", "ota"),
+    [
+        ("x1c_fw0112_ams1", 0.0, "01.12.00.00"),
+        ("h2d", 0.0, "01.01.01.00"),
+        ("h2d_pro", None, "01.01.00.00"),  # new_version_state 0: unknown
+    ],
+)
+def test_firmware_update_and_versions(name: str, expected: float | None, ota: str) -> None:
+    _, _, metrics = _load(name)
+    got = _value(metrics, "bambulab_firmware_update_available")
+    assert math.isnan(got) if expected is None else got == expected
+    versions = {
+        labels["module"]: labels["version"]
+        for labels, _ in _samples(metrics, "bambulab_module_firmware_info")
+    }
+    assert versions["ota"] == ota and "mc" in versions
+
+
+@pytest.mark.parametrize(
+    ("name", "tool"),
+    [
+        ("h2d", "laser_10w"),
+        ("h2c", "cooling_fan"),  # mount_3d 1, type F000
+        ("x2d", "none"),
+        ("a1", None),  # no ext_tool block
+    ],
+)
+def test_tool_head(name: str, tool: str | None) -> None:
+    _, _, metrics = _load(name)
+    got = [labels["tool"] for labels, _ in _samples(metrics, "bambulab_tool_head_info")]
+    assert got == ([] if tool is None else [tool])
+
+
+@pytest.mark.parametrize(
+    ("name", "present"),
+    [
+        ("x2d", {"filament_buffer", "external_exhaust_fan"}),
+        ("p2s", {"filament_buffer"}),
+        ("x1c_multi_ams", set()),  # "AMS Hub" is not a filament buffer
+        ("h2s", set()),  # fire_ext block present but connect_flag 0
+    ],
+)
+def test_accessories(name: str, present: set[str]) -> None:
+    _, _, metrics = _load(name)
+    got = {labels["accessory"]: v for labels, v in _samples(metrics, "bambulab_accessory_present")}
+    assert set(got) == {
+        "filament_buffer", "external_exhaust_fan", "fire_extinguisher", "rotary_attachment",
+        "filament_switch", "air_pump",
+    }
+    assert {k for k, v in got.items() if v == 1.0} == present
+
+
+def test_light_modes() -> None:
+    _, _, metrics = _load("h2d")
+    got = {labels["light"]: labels["mode"] for labels, _ in _samples(metrics, "bambulab_light_mode_info")}
+    # work_light is always reported "flashing" (also while off), so it is omitted.
+    assert got == {"chamber_light": "on", "chamber_light2": "on"}
+
+
+def test_timelapse_storage_x2d() -> None:
+    _, _, metrics = _load("x2d")
+    free = {labels["storage"]: v for labels, v in _samples(metrics, "bambulab_timelapse_storage_free_bytes")}
+    total = {labels["storage"]: v for labels, v in _samples(metrics, "bambulab_timelapse_storage_total_bytes")}
+    # External storage reports 0/0 (none inserted) and is omitted.
+    assert free == {"internal": 881996 * 1024.0}
+    assert total == {"internal": 962560 * 1024.0}
+
+
+@pytest.mark.parametrize(
+    ("name", "present"),
+    [
+        ("h2d", {"0": 1.0, "1": 0.0}),  # hw_switch_state 1
+        ("x2d", {"0": 0.0, "1": 1.0}),  # hw_switch_state 2
+        ("p1p_no_ams", {"0": 1.0}),  # legacy hw_switch_state only
+        ("x1c_fw0112_ams1", {"0": 0.0}),
+    ],
+)
+def test_toolhead_filament_present(name: str, present: dict[str, float]) -> None:
+    _, _, metrics = _load(name)
+    got = {labels["extruder_id"]: v for labels, v in _samples(metrics, "bambulab_toolhead_filament_present")}
+    assert got == present
+
+
+def _pushall_only(name: str, serial: str | None) -> tuple[PrinterSnapshot, ExporterMetrics]:
+    fixture = json.loads((FIXTURES / f"{name}.json").read_text(encoding="utf-8"))
+    snap = PrinterSnapshot(connected=True, raw=fixture["pushall"], configured_serial=serial)
+    metrics = ExporterMetrics(printer_name="fixture", serial="FIXTURE")
+    metrics.update_from_snapshot(snap)
+    return snap, metrics
+
+
+def test_a1_ams_lite_without_get_version_has_no_placeholder_sensors() -> None:
+    """Regression: without the get_version reply (or with BAMBULAB_REQUEST_PUSHALL=false)
+    the A1 AMS Lite was `unknown` and exported temperature 0 / humidity index 5."""
+    snap, metrics = _pushall_only("a1", "039FIXTURE000001")
+    assert [u["ams_model"] for u in snap.ams_units_with_model] == ["ams_lite"]
+    assert _samples(metrics, "bambulab_ams_unit_temperature_celsius") == []
+    assert _samples(metrics, "bambulab_ams_unit_humidity_index") == []
+
+
+def test_legacy_ams_ht_without_get_version_is_recognized() -> None:
+    snap, _ = _pushall_only("x1_legacy_firmware", "00MFIXTURE000001")
+    assert [u["ams_model"] for u in snap.ams_units_with_model] == ["ams_ht"]
+
+
+def test_unknown_unit_on_other_models_stays_unknown() -> None:
+    snap = PrinterSnapshot(
+        connected=True, raw={"print": {"ams": {"ams": [{"id": "0"}]}}},
+        configured_serial="00MFIXTURE000001",
+    )
+    assert [u["ams_model"] for u in snap.ams_units_with_model] == ["unknown"]
+
+
+def test_r1_laser_reports_no_fdm_metrics() -> None:
+    payload = {
+        "nozzle_temper": 200.0, "bed_temper": 60.0, "cooling_fan_speed": "15",
+        "ams": {"ams": [{"id": "0", "info": "1001"}]},
+        "device": {"extruder": {"info": [{"id": 0, "snow": 0, "temp": 200}]}},
+    }
+    snap = PrinterSnapshot(connected=True, raw={"print": payload}, configured_serial="35FFAKE0000001")
+    metrics = ExporterMetrics(printer_name="fixture", serial="FIXTURE")
+    metrics.update_from_snapshot(snap)
+    assert snap.model_name == "R1"
+    assert math.isnan(_value(metrics, "bambulab_nozzle_temperature_celsius"))
+    assert math.isnan(_value(metrics, "bambulab_bed_temperature_celsius"))
+    assert math.isnan(_value(metrics, "bambulab_fan_cooling_speed_percent"))
+    assert _samples(metrics, "bambulab_ams_unit_info") == []
+    assert _samples(metrics, "bambulab_extruder_loaded_slot_info") == []
+
+
+_FIXTURES_WITH_PRODUCT_NAME = [
+    p.stem for p in sorted(FIXTURES.glob("*.json"))
+    if any(
+        m.get("product_name")
+        for m in json.loads(p.read_text(encoding="utf-8")).get("get_version", {})
+        .get("info", {}).get("module", [])
+    )
+]
+
+
+@pytest.mark.parametrize("name", _FIXTURES_WITH_PRODUCT_NAME)
+def test_model_detected_from_payload_alone(name: str) -> None:
+    """The main fixture test passes the expected model's serial prefix; this one detects
+    from the payload and get_version product name only, so it can fail."""
+    fixture = json.loads((FIXTURES / f"{name}.json").read_text(encoding="utf-8"))
+    raw = {**fixture["pushall"], **fixture["get_version"]}
+    assert PrinterSnapshot(connected=True, raw=raw).model_name == fixture["model"]
+
+
+def test_sanitizer_replaces_ams_identifiers() -> None:
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("sanitize_fixture", FIXTURES / "sanitize_fixture.py")
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    out = module.sanitize({"print": {"ams": {"ams": [
+        {"id": "0", "ams_id": "03C06A6320AAAAA", "chip_id": "13c4303534340600aaaa"},
+        {"id": "1", "ams_id": "1"},
+    ]}}})
+    units = out["pushall"]["print"]["ams"]["ams"]
+    assert units[0]["ams_id"].startswith("03CFIXTURE")
+    assert set(units[0]["chip_id"]) == {"0"}
+    assert units[1]["ams_id"] == "1"  # numeric unit index is kept

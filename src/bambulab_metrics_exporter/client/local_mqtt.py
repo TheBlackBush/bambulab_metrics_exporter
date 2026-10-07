@@ -26,6 +26,7 @@ class LocalMqttBambuClient(BambuClient):
         self._lock = threading.Lock()
         self._latest_state: dict[str, Any] = {}
         self._connected = False
+        self._auth_rejected = False
         self._last_message_ts = 0.0
 
         # paho v2 callback API (typed loosely for compatibility across stub versions)
@@ -34,7 +35,7 @@ class LocalMqttBambuClient(BambuClient):
         else:
             self._client = mqtt.Client()
         self._client.username_pw_set(settings.bambulab_username, settings.bambulab_access_code)
-        self._client.tls_set(cert_reqs=ssl.CERT_NONE)
+        self._client.tls_set_context(_tls_context())
         self._client.tls_insecure_set(True)
         self._client.enable_logger(logger)
 
@@ -53,6 +54,11 @@ class LocalMqttBambuClient(BambuClient):
         self._client.connect(self._settings.bambulab_host, self._settings.bambulab_port, keepalive=20)
         self._client.loop_start()
 
+    @property
+    def auth_rejected(self) -> bool:
+        with self._lock:
+            return self._auth_rejected
+
     def disconnect(self) -> None:
         self._client.loop_stop()
         self._client.disconnect()
@@ -65,11 +71,20 @@ class LocalMqttBambuClient(BambuClient):
         while time.monotonic() < deadline:
             with self._lock:
                 if self._latest_state:
-                    return PrinterSnapshot(connected=self._connected, raw=deepcopy(self._latest_state))
+                    return self._build_snapshot()
             time.sleep(0.1)
 
         with self._lock:
-            return PrinterSnapshot(connected=self._connected, raw=deepcopy(self._latest_state))
+            return self._build_snapshot()
+
+    def _build_snapshot(self) -> PrinterSnapshot:
+        """Build a snapshot from the merged state. Caller must hold `self._lock`."""
+        return PrinterSnapshot(
+            connected=self._connected,
+            raw=deepcopy(self._latest_state),
+            configured_serial=self._settings.bambulab_serial or None,
+            configured_model=self._settings.bambulab_printer_model or None,
+        )
 
     def _request_pushall(self) -> None:
         payload = {
@@ -82,6 +97,15 @@ class LocalMqttBambuClient(BambuClient):
         }
         self._client.publish(self._topic_request, json.dumps(payload), qos=1)
 
+    def _request_version(self) -> None:
+        """Ask for the module list (read-only, no printer control).
+
+        The reply arrives on the report topic as `info.module` and carries the
+        product name used for model detection.
+        """
+        payload = {"info": {"sequence_id": "0", "command": "get_version"}}
+        self._client.publish(self._topic_request, json.dumps(payload), qos=1)
+
     def _on_connect(
         self,
         _client: mqtt.Client,
@@ -91,6 +115,8 @@ class LocalMqttBambuClient(BambuClient):
         _properties: object | None,
     ) -> None:
         if reason_code != 0:
+            with self._lock:
+                self._auth_rejected = _is_auth_rejection(reason_code)
             logger.error(
                 "MQTT connect failed: reason=%s host=%s port=%s user=%s topic=%s",
                 str(reason_code),
@@ -102,8 +128,11 @@ class LocalMqttBambuClient(BambuClient):
             return
         with self._lock:
             self._connected = True
+            self._auth_rejected = False
         logger.info("MQTT connected")
         _client.subscribe(self._topic_report, qos=1)
+        if self._settings.bambulab_request_pushall:
+            self._request_version()
 
     def _on_disconnect(
         self,
@@ -129,6 +158,32 @@ class LocalMqttBambuClient(BambuClient):
         with self._lock:
             _deep_merge_in_place(self._latest_state, payload)
             self._last_message_ts = time.time()
+
+
+def _tls_context() -> ssl.SSLContext:
+    """TLS for printer and cloud brokers.
+
+    Certificate and hostname checks stay disabled (documented compatibility behavior).
+    The maximum version is TLS 1.2: P2S firmware 01.02.00.00 never answers a TLS 1.3
+    ClientHello, so the handshake would hang. Every Bambu broker supports TLS 1.2.
+    """
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    context.maximum_version = ssl.TLSVersion.TLSv1_2
+    return context
+
+
+# CONNACK codes for refused credentials: MQTT 3.1.1 (4, 5) and the MQTT 5 values paho v2
+# reports for them (134 bad user name or password, 135 not authorized).
+_AUTH_REJECTION_CODES = {4, 5, 134, 135}
+
+
+def _is_auth_rejection(reason_code: object) -> bool:
+    value = getattr(reason_code, "value", reason_code)
+    if isinstance(value, int) and value in _AUTH_REJECTION_CODES:
+        return True
+    return str(reason_code).strip().lower() in {"not authorized", "bad user name or password"}
 
 
 def _deep_merge_in_place(target: dict[str, Any], source: dict[str, Any]) -> None:

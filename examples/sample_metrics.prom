@@ -1,16 +1,355 @@
-# Sample output excerpt (for docs/testing)
+# Sample /metrics output for an X1C (firmware 01.12.00.00, AMS 1), generated from
+# tests/fixtures/printers/x1c_fw0112_ams1.json with a fake serial. Idle printer, so
+# print-job series show idle values.
+# HELP bambulab_printer_up 1 if latest poll had a valid payload
+# TYPE bambulab_printer_up gauge
+bambulab_printer_up{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 1.0
+# HELP bambulab_printer_connected 1 if MQTT connection is up
+# TYPE bambulab_printer_connected gauge
+bambulab_printer_connected{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 1.0
 # HELP bambulab_print_progress_percent Print progress percent
 # TYPE bambulab_print_progress_percent gauge
-bambulab_print_progress_percent{printer_name="bambu",site="",location=""} 21
-
+bambulab_print_progress_percent{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_print_remaining_seconds Estimated seconds remaining
+# TYPE bambulab_print_remaining_seconds gauge
+bambulab_print_remaining_seconds{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_print_layer_current Current print layer
+# TYPE bambulab_print_layer_current gauge
+bambulab_print_layer_current{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_print_layer_total Total print layers
+# TYPE bambulab_print_layer_total gauge
+bambulab_print_layer_total{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_print_layer_progress_percent Layer-based progress percent
+# TYPE bambulab_print_layer_progress_percent gauge
+bambulab_print_layer_progress_percent{printer_name="my-x1c",serial="00MFAKE0TEST0001"} NaN
 # HELP bambulab_nozzle_temperature_celsius Nozzle temperature
 # TYPE bambulab_nozzle_temperature_celsius gauge
-bambulab_nozzle_temperature_celsius{printer_name="bambu",site="",location=""} 220
-
+bambulab_nozzle_temperature_celsius{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 30.0
+# HELP bambulab_nozzle_target_temperature_celsius Nozzle target temperature
+# TYPE bambulab_nozzle_target_temperature_celsius gauge
+bambulab_nozzle_target_temperature_celsius{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_nozzle_diameter Nozzle diameter from MQTT
+# TYPE bambulab_nozzle_diameter gauge
+bambulab_nozzle_diameter{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.4
+# HELP bambulab_bed_temperature_celsius Bed temperature
+# TYPE bambulab_bed_temperature_celsius gauge
+bambulab_bed_temperature_celsius{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 27.0
+# HELP bambulab_bed_target_temperature_celsius Bed target temperature
+# TYPE bambulab_bed_target_temperature_celsius gauge
+bambulab_bed_target_temperature_celsius{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_chamber_temperature_celsius Chamber temperature
+# TYPE bambulab_chamber_temperature_celsius gauge
+bambulab_chamber_temperature_celsius{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 29.0
+# HELP bambulab_chamber_target_temperature_celsius Chamber heater target temperature (0 while the heater is off)
+# TYPE bambulab_chamber_target_temperature_celsius gauge
+bambulab_chamber_target_temperature_celsius{printer_name="my-x1c",serial="00MFAKE0TEST0001"} NaN
+# HELP bambulab_chamber_heater_state Chamber heater state: 0 idle, 1 heating, 2 holding, 3 cooling
+# TYPE bambulab_chamber_heater_state gauge
+bambulab_chamber_heater_state{printer_name="my-x1c",serial="00MFAKE0TEST0001"} NaN
+# HELP bambulab_extruder_loaded_slot_info Filament source loaded in each extruder (ams_id/slot_id, or external)
+# TYPE bambulab_extruder_loaded_slot_info gauge
+# HELP bambulab_hms_active_errors Active HMS errors by severity (fatal, serious, common, info, unknown)
+# TYPE bambulab_hms_active_errors gauge
+bambulab_hms_active_errors{printer_name="my-x1c",serial="00MFAKE0TEST0001",severity="fatal"} 0.0
+bambulab_hms_active_errors{printer_name="my-x1c",serial="00MFAKE0TEST0001",severity="serious"} 0.0
+bambulab_hms_active_errors{printer_name="my-x1c",serial="00MFAKE0TEST0001",severity="common"} 0.0
+bambulab_hms_active_errors{printer_name="my-x1c",serial="00MFAKE0TEST0001",severity="info"} 0.0
+bambulab_hms_active_errors{printer_name="my-x1c",serial="00MFAKE0TEST0001",severity="unknown"} 0.0
+# HELP bambulab_hms_active_errors_by_module Active HMS errors by module (mc, mainboard, ams, toolhead, xcam, other)
+# TYPE bambulab_hms_active_errors_by_module gauge
+bambulab_hms_active_errors_by_module{module="mc",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+bambulab_hms_active_errors_by_module{module="mainboard",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+bambulab_hms_active_errors_by_module{module="ams",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+bambulab_hms_active_errors_by_module{module="toolhead",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+bambulab_hms_active_errors_by_module{module="xcam",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+bambulab_hms_active_errors_by_module{module="other",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_airduct_mode_info Airduct mode (cooling, heating, exhaust, full_cooling, init, unknown)
+# TYPE bambulab_airduct_mode_info gauge
+# HELP bambulab_airduct_fan_speed_percent Airduct fan speed percent by fan (part_cooling, aux, chamber, aux_2, ...)
+# TYPE bambulab_airduct_fan_speed_percent gauge
+# HELP bambulab_nozzle_wear_ratio Wear value of the nozzle mounted on each extruder (raw, unit unconfirmed)
+# TYPE bambulab_nozzle_wear_ratio gauge
+bambulab_nozzle_wear_ratio{extruder_id="0",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_nozzle_print_time_seconds Total print time of the nozzle mounted on each extruder
+# TYPE bambulab_nozzle_print_time_seconds gauge
+# HELP bambulab_firmware_update_available 1 when a firmware update is available, 0 when up to date
+# TYPE bambulab_firmware_update_available gauge
+bambulab_firmware_update_available{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_module_firmware_info Firmware version per module from get_version (module ota is the printer)
+# TYPE bambulab_module_firmware_info gauge
+bambulab_module_firmware_info{module="ota",printer_name="my-x1c",serial="00MFAKE0TEST0001",version="01.12.00.00"} 1.0
+bambulab_module_firmware_info{module="ams/0",printer_name="my-x1c",serial="00MFAKE0TEST0001",version="00.00.06.75"} 1.0
+bambulab_module_firmware_info{module="mc",printer_name="my-x1c",serial="00MFAKE0TEST0001",version="00.00.33.22"} 1.0
+bambulab_module_firmware_info{module="mc-sub",printer_name="my-x1c",serial="00MFAKE0TEST0001",version="00.00.33.22"} 1.0
+bambulab_module_firmware_info{module="th",printer_name="my-x1c",serial="00MFAKE0TEST0001",version="00.00.07.15"} 1.0
+bambulab_module_firmware_info{module="ap",printer_name="my-x1c",serial="00MFAKE0TEST0001",version="00.00.86.22"} 1.0
+# HELP bambulab_tool_head_info Mounted tool head (none, laser_10w, laser_40w, cutter, cooling_fan, other)
+# TYPE bambulab_tool_head_info gauge
+bambulab_tool_head_info{printer_name="my-x1c",serial="00MFAKE0TEST0001",tool="none"} 1.0
+# HELP bambulab_accessory_present 1 if the accessory is installed, 0 if not
+# TYPE bambulab_accessory_present gauge
+bambulab_accessory_present{accessory="filament_buffer",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+bambulab_accessory_present{accessory="external_exhaust_fan",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+bambulab_accessory_present{accessory="fire_extinguisher",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+bambulab_accessory_present{accessory="rotary_attachment",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+bambulab_accessory_present{accessory="filament_switch",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+bambulab_accessory_present{accessory="air_pump",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_light_mode_info Light mode per light (on, off, flashing, unknown)
+# TYPE bambulab_light_mode_info gauge
+bambulab_light_mode_info{light="chamber_light",mode="off",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 1.0
+bambulab_light_mode_info{light="work_light",mode="flashing",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 1.0
+# HELP bambulab_timelapse_storage_free_bytes Free timelapse storage space
+# TYPE bambulab_timelapse_storage_free_bytes gauge
+# HELP bambulab_timelapse_storage_total_bytes Total timelapse storage space
+# TYPE bambulab_timelapse_storage_total_bytes gauge
+# HELP bambulab_toolhead_filament_present 1 if the extruder filament sensor detects filament
+# TYPE bambulab_toolhead_filament_present gauge
+bambulab_toolhead_filament_present{extruder_id="0",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_fan_big_1_speed_percent Big fan 1 speed percent
+# TYPE bambulab_fan_big_1_speed_percent gauge
+bambulab_fan_big_1_speed_percent{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_fan_big_2_speed_percent Big fan 2 speed percent
+# TYPE bambulab_fan_big_2_speed_percent gauge
+bambulab_fan_big_2_speed_percent{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_fan_cooling_speed_percent Cooling fan speed percent
+# TYPE bambulab_fan_cooling_speed_percent gauge
+bambulab_fan_cooling_speed_percent{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_fan_heatbreak_speed_percent Heatbreak fan speed percent
+# TYPE bambulab_fan_heatbreak_speed_percent gauge
+bambulab_fan_heatbreak_speed_percent{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_fan_secondary_aux_speed_percent Secondary auxiliary fan speed percent
+# TYPE bambulab_fan_secondary_aux_speed_percent gauge
+bambulab_fan_secondary_aux_speed_percent{printer_name="my-x1c",serial="00MFAKE0TEST0001"} NaN
+# HELP bambulab_printer_error 1 when printer reported an error code
+# TYPE bambulab_printer_error gauge
+bambulab_printer_error{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_print_error_code Raw print_error value
+# TYPE bambulab_print_error_code gauge
+bambulab_print_error_code{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_print_error Raw print_error value from MQTT
+# TYPE bambulab_print_error gauge
+bambulab_print_error{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_ap_error_code Raw ap_err value
+# TYPE bambulab_ap_error_code gauge
+bambulab_ap_error_code{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_mc_stage Machine stage numeric code
+# TYPE bambulab_mc_stage gauge
+bambulab_mc_stage{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 1.0
+# HELP bambulab_mc_print_sub_stage Machine print sub-stage numeric code
+# TYPE bambulab_mc_print_sub_stage gauge
+bambulab_mc_print_sub_stage{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_print_real_action Print real action numeric code
+# TYPE bambulab_print_real_action gauge
+bambulab_print_real_action{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_print_gcode_action Print gcode action numeric code
+# TYPE bambulab_print_gcode_action gauge
+bambulab_print_gcode_action{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_wifi_signal WiFi signal value from printer telemetry
+# TYPE bambulab_wifi_signal gauge
+bambulab_wifi_signal{printer_name="my-x1c",serial="00MFAKE0TEST0001"} -48.0
+# HELP bambulab_online_ahb AHB online flag
+# TYPE bambulab_online_ahb gauge
+bambulab_online_ahb{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_online_ext External online flag
+# TYPE bambulab_online_ext gauge
+bambulab_online_ext{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_ams_status_id AMS status numeric code
+# TYPE bambulab_ams_status_id gauge
+bambulab_ams_status_id{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_ams_status_name AMS status as labeled info metric
+# TYPE bambulab_ams_status_name gauge
+bambulab_ams_status_name{printer_name="my-x1c",serial="00MFAKE0TEST0001",status="idle"} 1.0
+# HELP bambulab_ams_rfid_status_id AMS RFID status numeric code
+# TYPE bambulab_ams_rfid_status_id gauge
+bambulab_ams_rfid_status_id{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_ams_rfid_status_name AMS RFID status as labeled info metric
+# TYPE bambulab_ams_rfid_status_name gauge
+bambulab_ams_rfid_status_name{printer_name="my-x1c",serial="00MFAKE0TEST0001",status="idle"} 1.0
+# HELP bambulab_queue_total Total queued jobs
+# TYPE bambulab_queue_total gauge
+bambulab_queue_total{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_queue_estimated_seconds Estimated queue time seconds
+# TYPE bambulab_queue_estimated_seconds gauge
+bambulab_queue_estimated_seconds{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_queue_number Queue number
+# TYPE bambulab_queue_number gauge
+bambulab_queue_number{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_queue_status Queue status numeric code
+# TYPE bambulab_queue_status gauge
+bambulab_queue_status{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_queue_position Current queue position
+# TYPE bambulab_queue_position gauge
+bambulab_queue_position{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_spd_lvl Printer speed level (1=Silent,2=Standard,3=Sport,4=Ludicrous)
+# TYPE bambulab_spd_lvl gauge
+bambulab_spd_lvl{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 2.0
+# HELP bambulab_spd_mag Printer speed percentage relative to standard
+# TYPE bambulab_spd_mag gauge
+bambulab_spd_mag{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 100.0
+# HELP bambulab_printer_error_code Raw printer error code
+# TYPE bambulab_printer_error_code gauge
+bambulab_printer_error_code{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_chamber_light_on Chamber light on/off
+# TYPE bambulab_chamber_light_on gauge
+bambulab_chamber_light_on{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_work_light_on Work light on/off
+# TYPE bambulab_work_light_on gauge
+bambulab_work_light_on{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 1.0
+# HELP bambulab_xcam_feature_enabled XCam feature enabled flags
+# TYPE bambulab_xcam_feature_enabled gauge
+bambulab_xcam_feature_enabled{feature="allow_skip_parts",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+bambulab_xcam_feature_enabled{feature="buildplate_marker_detector",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+bambulab_xcam_feature_enabled{feature="first_layer_inspector",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 1.0
+bambulab_xcam_feature_enabled{feature="print_halt",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 1.0
+bambulab_xcam_feature_enabled{feature="printing_monitor",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 1.0
+bambulab_xcam_feature_enabled{feature="spaghetti_detector",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 1.0
+# HELP bambulab_xcam_halt_print_sensitivity_info XCam halt_print_sensitivity level as labeled info metric (low/medium/high)
+# TYPE bambulab_xcam_halt_print_sensitivity_info gauge
+bambulab_xcam_halt_print_sensitivity_info{level="medium",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 1.0
+# HELP bambulab_printer_gcode_state Current gcode state encoded as one-hot labels
+# TYPE bambulab_printer_gcode_state gauge
+bambulab_printer_gcode_state{printer_name="my-x1c",serial="00MFAKE0TEST0001",state="INIT"} 0.0
+bambulab_printer_gcode_state{printer_name="my-x1c",serial="00MFAKE0TEST0001",state="PREPARE"} 0.0
+bambulab_printer_gcode_state{printer_name="my-x1c",serial="00MFAKE0TEST0001",state="SLICING"} 0.0
+bambulab_printer_gcode_state{printer_name="my-x1c",serial="00MFAKE0TEST0001",state="RUNNING"} 0.0
+bambulab_printer_gcode_state{printer_name="my-x1c",serial="00MFAKE0TEST0001",state="OFFLINE"} 0.0
+bambulab_printer_gcode_state{printer_name="my-x1c",serial="00MFAKE0TEST0001",state="PAUSE"} 0.0
+bambulab_printer_gcode_state{printer_name="my-x1c",serial="00MFAKE0TEST0001",state="FAILED"} 0.0
+bambulab_printer_gcode_state{printer_name="my-x1c",serial="00MFAKE0TEST0001",state="IDLE"} 1.0
+bambulab_printer_gcode_state{printer_name="my-x1c",serial="00MFAKE0TEST0001",state="UNKNOWN"} 0.0
+bambulab_printer_gcode_state{printer_name="my-x1c",serial="00MFAKE0TEST0001",state="FINISH"} 0.0
+# HELP bambulab_spd_lvl_state Current speed level as one-hot labels
+# TYPE bambulab_spd_lvl_state gauge
+bambulab_spd_lvl_state{mode="LUDICROUS",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+bambulab_spd_lvl_state{mode="STANDARD",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 1.0
+bambulab_spd_lvl_state{mode="SPORT",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+bambulab_spd_lvl_state{mode="UNKNOWN",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+bambulab_spd_lvl_state{mode="SILENT",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_subtask_name_info Current print subtask name as labeled info metric
+# TYPE bambulab_subtask_name_info gauge
+# HELP bambulab_fail_reason_info Current print fail reason as labeled info metric
+# TYPE bambulab_fail_reason_info gauge
+bambulab_fail_reason_info{fail_reason="0",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 1.0
+# HELP bambulab_printer_model_info Printer model type as labeled info metric
+# TYPE bambulab_printer_model_info gauge
+bambulab_printer_model_info{model="X1C",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 1.0
+# HELP bambulab_ams_unit_info AMS unit info with model and series labels
+# TYPE bambulab_ams_unit_info gauge
+bambulab_ams_unit_info{ams_id="0",ams_model="ams_1",ams_series="gen_1",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 1.0
+# HELP bambulab_ams_slot_active AMS slot active flag
+# TYPE bambulab_ams_slot_active gauge
+bambulab_ams_slot_active{ams_id="0",printer_name="my-x1c",serial="00MFAKE0TEST0001",slot_id="0"} 0.0
+bambulab_ams_slot_active{ams_id="0",printer_name="my-x1c",serial="00MFAKE0TEST0001",slot_id="1"} 0.0
+bambulab_ams_slot_active{ams_id="0",printer_name="my-x1c",serial="00MFAKE0TEST0001",slot_id="2"} 0.0
+bambulab_ams_slot_active{ams_id="0",printer_name="my-x1c",serial="00MFAKE0TEST0001",slot_id="3"} 0.0
 # HELP bambulab_ams_slot_remaining_percent AMS slot remaining filament percent
 # TYPE bambulab_ams_slot_remaining_percent gauge
-bambulab_ams_slot_remaining_percent{printer_name="bambu",site="",location="",ams_id="0",slot_id="2"} 70
-
+bambulab_ams_slot_remaining_percent{ams_id="0",printer_name="my-x1c",serial="00MFAKE0TEST0001",slot_id="0"} 80.0
+bambulab_ams_slot_remaining_percent{ams_id="0",printer_name="my-x1c",serial="00MFAKE0TEST0001",slot_id="1"} NaN
+bambulab_ams_slot_remaining_percent{ams_id="0",printer_name="my-x1c",serial="00MFAKE0TEST0001",slot_id="2"} NaN
 # HELP bambulab_ams_slot_tray_info AMS slot filament type and color info metric
 # TYPE bambulab_ams_slot_tray_info gauge
-bambulab_ams_slot_tray_info{printer_name="bambu",site="",location="",ams_id="0",slot_id="2",tray_type="PLA",tray_color="#F98C36FF"} 1
+bambulab_ams_slot_tray_info{ams_id="0",printer_name="my-x1c",serial="00MFAKE0TEST0001",slot_id="0",tray_color="#00AE42FF",tray_type="PLA"} 1.0
+bambulab_ams_slot_tray_info{ams_id="0",printer_name="my-x1c",serial="00MFAKE0TEST0001",slot_id="1",tray_color="#161616FF",tray_type="PLA"} 1.0
+bambulab_ams_slot_tray_info{ams_id="0",printer_name="my-x1c",serial="00MFAKE0TEST0001",slot_id="2",tray_color="#898989FF",tray_type="PLA"} 1.0
+bambulab_ams_slot_tray_info{ams_id="0",printer_name="my-x1c",serial="00MFAKE0TEST0001",slot_id="3",tray_color="unknown",tray_type="unknown"} 1.0
+# HELP bambulab_ams_unit_humidity AMS unit humidity
+# TYPE bambulab_ams_unit_humidity gauge
+bambulab_ams_unit_humidity{ams_id="0",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 37.0
+# HELP bambulab_ams_unit_humidity_index AMS unit humidity index
+# TYPE bambulab_ams_unit_humidity_index gauge
+bambulab_ams_unit_humidity_index{ams_id="0",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 1.0
+# HELP bambulab_ams_unit_temperature_celsius AMS unit temperature
+# TYPE bambulab_ams_unit_temperature_celsius gauge
+bambulab_ams_unit_temperature_celsius{ams_id="0",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 32.5
+# HELP bambulab_ams_heater_state_info AMS heater/dry state as labeled info metric (Gen2)
+# TYPE bambulab_ams_heater_state_info gauge
+# HELP bambulab_ams_dry_fan_status AMS drying fan status (Gen2)
+# TYPE bambulab_ams_dry_fan_status gauge
+# HELP bambulab_ams_dry_sub_status_info AMS drying sub-status as labeled info metric (Gen2)
+# TYPE bambulab_ams_dry_sub_status_info gauge
+# HELP bambulab_ams_drying_remaining_seconds Remaining AMS drying time (0 when not drying)
+# TYPE bambulab_ams_drying_remaining_seconds gauge
+# HELP bambulab_ams_drying_target_temperature_celsius Configured AMS drying temperature
+# TYPE bambulab_ams_drying_target_temperature_celsius gauge
+# HELP bambulab_ams_drying_duration_seconds Configured AMS drying duration
+# TYPE bambulab_ams_drying_duration_seconds gauge
+# HELP bambulab_sdcard_status_info SD card status as labeled info metric
+# TYPE bambulab_sdcard_status_info gauge
+bambulab_sdcard_status_info{printer_name="my-x1c",serial="00MFAKE0TEST0001",status="present"} 1.0
+# HELP bambulab_door_open 1 if printer door is open
+# TYPE bambulab_door_open gauge
+bambulab_door_open{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_lid_open 1 if printer lid is open
+# TYPE bambulab_lid_open gauge
+bambulab_lid_open{printer_name="my-x1c",serial="00MFAKE0TEST0001"} NaN
+# HELP bambulab_wired_network 1 if wired network flag is set
+# TYPE bambulab_wired_network gauge
+bambulab_wired_network{printer_name="my-x1c",serial="00MFAKE0TEST0001"} NaN
+# HELP bambulab_external_spool_active 1 if external spool is currently active
+# TYPE bambulab_external_spool_active gauge
+bambulab_external_spool_active{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_external_spool_info External spool metadata as labeled info metric
+# TYPE bambulab_external_spool_info gauge
+bambulab_external_spool_info{external_id="255",printer_name="my-x1c",serial="00MFAKE0TEST0001",tray_color="#FFFFFFFF",tray_info_idx="GFG99",tray_type="PETG"} 1.0
+# HELP bambulab_active_extruder_index Active extruder index (0=right,1=left on dual-extruder models)
+# TYPE bambulab_active_extruder_index gauge
+bambulab_active_extruder_index{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_extruder_temperature_celsius Current extruder temperature per extruder id
+# TYPE bambulab_extruder_temperature_celsius gauge
+bambulab_extruder_temperature_celsius{extruder_id="0",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 30.0
+# HELP bambulab_extruder_target_temperature_celsius Target extruder temperature per extruder id
+# TYPE bambulab_extruder_target_temperature_celsius gauge
+bambulab_extruder_target_temperature_celsius{extruder_id="0",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_extruder_nozzle_info Nozzle type/diameter per extruder id
+# TYPE bambulab_extruder_nozzle_info gauge
+bambulab_extruder_nozzle_info{extruder_id="0",nozzle_diameter="0.4",nozzle_type="HX01",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 1.0
+# HELP bambulab_active_nozzle_info Nozzle type/diameter of currently active extruder
+# TYPE bambulab_active_nozzle_info gauge
+bambulab_active_nozzle_info{nozzle_diameter="0.4",nozzle_type="HX01",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 1.0
+# HELP bambulab_hotend_rack_holder_position_info Hotend rack holder position as labeled info metric
+# TYPE bambulab_hotend_rack_holder_position_info gauge
+# HELP bambulab_hotend_rack_holder_state_info Hotend rack holder state as labeled info metric
+# TYPE bambulab_hotend_rack_holder_state_info gauge
+# HELP bambulab_hotend_rack_slot_state_info Hotend rack slot state as labeled info metric
+# TYPE bambulab_hotend_rack_slot_state_info gauge
+# HELP bambulab_hotend_rack_hotend_info Hotend rack hotend type/diameter info
+# TYPE bambulab_hotend_rack_hotend_info gauge
+# HELP bambulab_hotend_rack_hotend_wear_ratio Hotend rack hotend wear ratio per slot
+# TYPE bambulab_hotend_rack_hotend_wear_ratio gauge
+# HELP bambulab_hotend_rack_hotend_runtime_minutes Deprecated: carries the hotend's maximum temperature (payload tm), not a runtime; use bambulab_hotend_rack_hotend_print_time_seconds or bambulab_hotend_rack_hotend_max_temperature_celsius
+# TYPE bambulab_hotend_rack_hotend_runtime_minutes gauge
+# HELP bambulab_hotend_rack_hotend_print_time_seconds Total print time of the hotend in a rack slot
+# TYPE bambulab_hotend_rack_hotend_print_time_seconds gauge
+# HELP bambulab_hotend_rack_hotend_max_temperature_celsius Maximum temperature of the hotend in a rack slot
+# TYPE bambulab_hotend_rack_hotend_max_temperature_celsius gauge
+# HELP bambulab_camera_recording 1 if camera recording flag is set
+# TYPE bambulab_camera_recording gauge
+bambulab_camera_recording{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 1.0
+# HELP bambulab_ams_auto_switch 1 if AMS auto switch flag is set
+# TYPE bambulab_ams_auto_switch gauge
+bambulab_ams_auto_switch{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 1.0
+# HELP bambulab_filament_tangle_detected Deprecated alias of bambulab_filament_tangle_detection_enabled (this is the tangle-detection setting, not a detected tangle)
+# TYPE bambulab_filament_tangle_detected gauge
+bambulab_filament_tangle_detected{printer_name="my-x1c",serial="00MFAKE0TEST0001"} NaN
+# HELP bambulab_filament_tangle_detection_enabled 1 if filament tangle detection is enabled; NaN when the printer does not support it
+# TYPE bambulab_filament_tangle_detection_enabled gauge
+bambulab_filament_tangle_detection_enabled{printer_name="my-x1c",serial="00MFAKE0TEST0001"} NaN
+# HELP bambulab_filament_tangle_detect_supported 1 if filament tangle detect supported flag is set
+# TYPE bambulab_filament_tangle_detect_supported gauge
+bambulab_filament_tangle_detect_supported{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_stg_cur Current print stage numeric ID
+# TYPE bambulab_stg_cur gauge
+bambulab_stg_cur{printer_name="my-x1c",serial="00MFAKE0TEST0001"} -1.0
+# HELP bambulab_print_stage_info Current print stage as labeled info metric
+# TYPE bambulab_print_stage_info gauge
+bambulab_print_stage_info{printer_name="my-x1c",serial="00MFAKE0TEST0001",stage="idle"} 1.0
+# HELP bambulab_exporter_scrape_duration_seconds Duration of last polling cycle
+# TYPE bambulab_exporter_scrape_duration_seconds gauge
+bambulab_exporter_scrape_duration_seconds{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.42
+# HELP bambulab_exporter_scrape_success 1 when last polling cycle succeeded
+# TYPE bambulab_exporter_scrape_success gauge
+bambulab_exporter_scrape_success{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 1.0
+# HELP bambulab_exporter_last_success_unixtime Unix timestamp of last successful cycle
+# TYPE bambulab_exporter_last_success_unixtime gauge
+bambulab_exporter_last_success_unixtime{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 1.7672256e+09

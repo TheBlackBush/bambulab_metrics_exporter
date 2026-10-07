@@ -37,9 +37,13 @@ Once running, the exporter exposes:
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /` | Landing page: version, health, readiness |
+| `GET /` | Status page: health, printer connection, last update |
+| `GET /auth` | Printer connection page: local or Bambu Cloud login |
+| `GET /auth/status` | Connection state as JSON |
 | `GET /metrics` | Prometheus metrics |
 | `GET /health` | Liveness check |
 | `GET /ready` | Readiness check |
+
+> The `/auth` page has no login of its own. Keep port 9109 on a trusted network.
 
 Default port: **9109**

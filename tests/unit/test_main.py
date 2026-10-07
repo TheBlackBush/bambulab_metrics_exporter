@@ -4,11 +4,12 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
+
+import pytest
 
 
 from bambulab_metrics_exporter import main
-from bambulab_metrics_exporter.config import Settings
 
 
 # ---------------------------------------------------------------------------
@@ -32,27 +33,20 @@ def test_safe_load_dotenv_permission_error(caplog) -> None:
 # _persist_runtime_env
 # ---------------------------------------------------------------------------
 
-def test_persist_runtime_env_permission_error(caplog) -> None:
-    with caplog.at_level(logging.WARNING):
-        with patch("bambulab_metrics_exporter.main.sync_env_file", side_effect=PermissionError):
-            main._persist_runtime_env(Path(".env"))
-    assert "Skipping .env sync due to permission error" in caplog.text
-
-
-# ---------------------------------------------------------------------------
-# _bootstrap_cloud_credentials
-# ---------------------------------------------------------------------------
-
 def test_bootstrap_cloud_credentials_skips_when_not_cloud(monkeypatch) -> None:
     monkeypatch.setenv("BAMBULAB_TRANSPORT", "local_mqtt")
-    main._bootstrap_cloud_credentials()  # should no-op
+    monkeypatch.delenv("BAMBULAB_CLOUD_USER_ID", raising=False)
+    main._bootstrap_cloud_credentials()
+    assert "BAMBULAB_CLOUD_USER_ID" not in os.environ
 
 
 def test_bootstrap_cloud_credentials_skips_when_has_tokens(monkeypatch) -> None:
     monkeypatch.setenv("BAMBULAB_TRANSPORT", "cloud_mqtt")
     monkeypatch.setenv("BAMBULAB_CLOUD_USER_ID", "uid")
     monkeypatch.setenv("BAMBULAB_CLOUD_ACCESS_TOKEN", "token")
-    main._bootstrap_cloud_credentials()  # should no-op
+    monkeypatch.setenv("BAMBULAB_CONFIG_DIR", "/nonexistent-fake-dir")
+    main._bootstrap_cloud_credentials()
+    assert os.environ["BAMBULAB_CLOUD_ACCESS_TOKEN"] == "token"
 
 
 def test_bootstrap_cloud_credentials_skips_without_secret_or_file(monkeypatch, tmp_path: Path) -> None:
@@ -67,6 +61,7 @@ def test_bootstrap_cloud_credentials_skips_without_secret_or_file(monkeypatch, t
 
     monkeypatch.setenv("BAMBULAB_SECRET_KEY", "sek")
     main._bootstrap_cloud_credentials()
+    assert "BAMBULAB_CLOUD_ACCESS_TOKEN" not in os.environ
 
 
 def test_bootstrap_cloud_credentials_loads_from_encrypted_store(tmp_path: Path, monkeypatch) -> None:
@@ -124,128 +119,135 @@ def test_bootstrap_cloud_credentials_loads_and_sets_env(monkeypatch, tmp_path: P
 # run() – wiring and lifecycle
 # ---------------------------------------------------------------------------
 
-class _CollectorStub:
+class _RuntimeStub:
     def __init__(self) -> None:
-        self.started = False
+        self.events: list[str] = []
 
     def start(self) -> None:
-        self.started = True
+        self.events.append("start")
 
     def stop(self) -> None:
-        self.started = False
+        self.events.append("stop")
 
 
-def test_run_wires_components(monkeypatch) -> None:
-    settings = Settings(
-        bambulab_transport="cloud_mqtt",
-        bambulab_serial="SERIAL1",
-        bambulab_cloud_user_id="uid",
-        bambulab_cloud_access_token="token",
-    )
-
-    monkeypatch.setattr("bambulab_metrics_exporter.main._safe_load_dotenv", lambda: None)
-    monkeypatch.setattr("bambulab_metrics_exporter.main._bootstrap_cloud_credentials", lambda: None)
-    monkeypatch.setattr("bambulab_metrics_exporter.main.Settings", lambda: settings)
-    monkeypatch.setattr("bambulab_metrics_exporter.main.startup_validate", lambda s: None)
-    monkeypatch.setattr("bambulab_metrics_exporter.main._persist_runtime_env", lambda p: None)
-
-    class _ClientStub:
-        def connect(self): pass
-        def disconnect(self): pass
-        def fetch_snapshot(self, timeout):
-            from bambulab_metrics_exporter.models import PrinterSnapshot
-            return PrinterSnapshot(connected=False, raw={})
-
-    monkeypatch.setattr("bambulab_metrics_exporter.main.build_client", lambda s: _ClientStub())
-
-    collector = _CollectorStub()
-    monkeypatch.setattr("bambulab_metrics_exporter.main.PollingCollector", lambda client, metrics, settings: collector)
-
-    app_holder: dict = {}
-
+def _capture_app(handlers: dict):
     class _AppStub:
-        def on_event(self, _name):
+        def on_event(self, name):
             def deco(fn):
-                app_holder["shutdown"] = fn
+                handlers[name] = fn
                 return fn
             return deco
 
-    monkeypatch.setattr("bambulab_metrics_exporter.main.build_app", lambda metrics, collector, settings=None: _AppStub())
-    monkeypatch.setattr("bambulab_metrics_exporter.main.uvicorn.run", lambda *a, **k: None)
+    return _AppStub()
+
+
+def test_run_starts_runtime_before_server_and_stops_on_shutdown(monkeypatch, caplog) -> None:
+    caplog.set_level(logging.INFO)
+    order: list[str] = []
+    runtime = _RuntimeStub()
+    handlers: dict = {}
+
+    monkeypatch.setattr("bambulab_metrics_exporter.main._safe_load_dotenv", lambda: order.append("dotenv"))
+    monkeypatch.setattr("bambulab_metrics_exporter.main.apply_overrides_to_env", lambda: order.append("overrides"))
+    monkeypatch.setattr("bambulab_metrics_exporter.main._bootstrap_cloud_credentials", lambda: order.append("bootstrap"))
+    monkeypatch.setattr("bambulab_metrics_exporter.main.ExporterRuntime", lambda: runtime)
+
+    def fake_build_app(runtime=None):
+        assert runtime is not None
+        order.append("app")
+        return _capture_app(handlers)
+
+    monkeypatch.setattr("bambulab_metrics_exporter.main.build_app", fake_build_app)
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.main.uvicorn.run",
+        lambda app, host, port, log_level: order.append(f"serve:{port}"),
+    )
 
     main.run()
 
-    assert collector.started is True
-    assert "shutdown" in app_holder
+    # Page overrides apply after .env and before credentials bootstrap; the server starts
+    # without waiting for the printer connection.
+    assert order[:3] == ["dotenv", "overrides", "bootstrap"]
+    assert "BAMBU LAB METRICS EXPORTER WEB UI" in caplog.text and "/auth" in caplog.text
+    assert order[-2:] == ["app", "serve:9109"]
+    assert runtime.events == ["start"]
+
+    handlers["shutdown"]()
+    assert runtime.events == ["start", "stop"]
 
 
-def test_main_run_metadata_discovery_from_cloud(monkeypatch) -> None:
-    """Cloud metadata discovery updates env vars."""
+@pytest.mark.parametrize(
+    ("host", "port", "expected"),
+    [
+        ("0.0.0.0", 9109, "http://<docker-host>:9109"),
+        ("::", 9200, "http://<docker-host>:9200"),
+        ("127.0.0.1", 9109, "http://127.0.0.1:9109"),
+        ("::1", 9109, "http://[::1]:9109"),
+    ],
+)
+def test_base_url(host: str, port: int, expected: str) -> None:
+    from bambulab_metrics_exporter.config import Settings
+
+    assert main.base_url(Settings(listen_host=host, listen_port=port)) == expected
+
+
+def test_log_web_endpoints(caplog) -> None:
+    from bambulab_metrics_exporter.config import Settings
+
+    caplog.set_level(logging.INFO)
+    main.log_web_endpoints(Settings(listen_host="0.0.0.0", listen_port=9110))
+    for path in ("/", "/auth", "/metrics", "/health", "/ready"):
+        assert f"http://<docker-host>:9110{path}" in caplog.text
+    assert "9110 is the container port" in caplog.text
+
+    caplog.clear()
+    main.log_web_endpoints(Settings(listen_host="127.0.0.1", listen_port=9109))
+    assert "http://127.0.0.1:9109/auth" in caplog.text
+    assert "container port" not in caplog.text
+
+
+def test_run_with_invalid_env_still_serves(monkeypatch, caplog) -> None:
+    """Invalid values used to crash before the server started, making /auth unreachable."""
+    monkeypatch.setenv("BAMBULAB_TRANSPORT", "lan")
+    monkeypatch.setenv("POLLING_INTERVAL_SECONDS", "0")
+    served: dict = {}
+    monkeypatch.setattr("bambulab_metrics_exporter.main._safe_load_dotenv", lambda: None)
+    monkeypatch.setattr("bambulab_metrics_exporter.main.ExporterRuntime.start", lambda self: None)
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.main.uvicorn.run",
+        lambda app, host, port, log_level: served.update(host=host, port=port),
+    )
+
+    main.run()
+
+    assert served == {"host": "0.0.0.0", "port": 9109}
+    assert "Invalid configuration" in caplog.text
+
+
+def test_bootstrap_with_unreadable_credentials_does_not_crash(monkeypatch, tmp_path: Path, caplog) -> None:
     monkeypatch.setenv("BAMBULAB_TRANSPORT", "cloud_mqtt")
-    monkeypatch.setenv("BAMBULAB_SERIAL", "S123")
-    monkeypatch.setenv("BAMBULAB_CLOUD_ACCESS_TOKEN", "fake-token")
-    monkeypatch.delenv("PRINTER_NAME_LABEL", raising=False)
+    monkeypatch.delenv("BAMBULAB_CLOUD_USER_ID", raising=False)
+    monkeypatch.delenv("BAMBULAB_CLOUD_ACCESS_TOKEN", raising=False)
+    monkeypatch.setenv("BAMBULAB_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("BAMBULAB_SECRET_KEY", "wrong-fake-key")
+    (tmp_path / "credentials.enc.json").write_bytes(b"not a valid token")
 
-    mock_devices = [{"dev_id": "S123", "name": "CloudName", "model": "P1S"}]
-    mock_collector = MagicMock()
-    mock_app = MagicMock()
+    main._bootstrap_cloud_credentials()
 
-    with patch("bambulab_metrics_exporter.main.get_bind_devices", return_value=mock_devices):
-        with patch("bambulab_metrics_exporter.main.PollingCollector", return_value=mock_collector):
-            with patch("bambulab_metrics_exporter.main.build_app", return_value=mock_app):
-                with patch("bambulab_metrics_exporter.main.uvicorn.run"):
-                    with patch("bambulab_metrics_exporter.main.sync_env_file"):
-                        with patch("bambulab_metrics_exporter.main.startup_validate"):
-                            main.run()
-
-    assert os.environ.get("BAMBULAB_PRINTER_NAME") == "CloudName"
-    assert os.environ.get("BAMBULAB_PRINTER_MODEL") == "P1S"
+    assert "could not be read" in caplog.text
+    assert "BAMBULAB_CLOUD_ACCESS_TOKEN" not in os.environ
 
 
-def test_main_run_cloud_discovery_fails_gracefully(monkeypatch, caplog) -> None:
-    """Cloud metadata discovery failure is non-fatal."""
-    monkeypatch.setenv("BAMBULAB_TRANSPORT", "cloud_mqtt")
-    monkeypatch.setenv("BAMBULAB_SERIAL", "S123")
-    monkeypatch.setenv("BAMBULAB_CLOUD_ACCESS_TOKEN", "fake-token")
-
-    with patch("bambulab_metrics_exporter.main.get_bind_devices", side_effect=Exception("API error")):
-        with patch("bambulab_metrics_exporter.main.PollingCollector"):
-            with patch("bambulab_metrics_exporter.main.build_app"):
-                with patch("bambulab_metrics_exporter.main.uvicorn.run"):
-                    with patch("bambulab_metrics_exporter.main.sync_env_file"):
-                        with patch("bambulab_metrics_exporter.main.startup_validate"):
-                            main.run()
-
-    assert "Metadata discovery from cloud failed (non-fatal)" in caplog.text
-
-
-def test_main_shutdown_handler(monkeypatch) -> None:
-    """Shutdown handler is registered and calls collector.stop()."""
-    monkeypatch.setenv("BAMBULAB_HOST", "192.168.1.100")
-    monkeypatch.setenv("BAMBULAB_SERIAL", "S123")
-    monkeypatch.setenv("BAMBULAB_ACCESS_CODE", "A123")
-    monkeypatch.setenv("BAMBULAB_USERNAME", "bblp")
-
-    mock_collector = MagicMock()
-    mock_app = MagicMock()
-    shutdown_handlers: list = []
-
-    def capture_on_event(event_name):
-        def decorator(func):
-            if event_name == "shutdown":
-                shutdown_handlers.append(func)
-            return func
-        return decorator
-
-    mock_app.on_event = capture_on_event
-
-    with patch("bambulab_metrics_exporter.main.PollingCollector", return_value=mock_collector):
-        with patch("bambulab_metrics_exporter.main.build_app", return_value=mock_app):
-            with patch("bambulab_metrics_exporter.main.uvicorn.run"):
-                with patch("bambulab_metrics_exporter.main.sync_env_file"):
-                    with patch("bambulab_metrics_exporter.main.startup_validate"):
-                        main.run()
-
-    assert len(shutdown_handlers) == 1
-    shutdown_handlers[0]()
-    mock_collector.stop.assert_called_once()
+def test_overrides_are_logged_after_logging_is_configured(monkeypatch) -> None:
+    order: list[str] = []
+    monkeypatch.setattr("bambulab_metrics_exporter.main._safe_load_dotenv", lambda: None)
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.main.configure_logging", lambda level: order.append("logging")
+    )
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.main.apply_overrides_to_env", lambda: order.append("overrides")
+    )
+    monkeypatch.setattr("bambulab_metrics_exporter.main.ExporterRuntime.start", lambda self: None)
+    monkeypatch.setattr("bambulab_metrics_exporter.main.uvicorn.run", lambda *a, **k: None)
+    main.run()
+    assert order[:2] == ["logging", "overrides"]

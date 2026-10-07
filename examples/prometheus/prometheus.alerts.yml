@@ -28,6 +28,15 @@ groups:
           summary: "Bambu printer error"
           description: "Printer {{ $labels.printer_name }} has active error code {{ $value }}."
 
+      - alert: BambuHmsSeriousError
+        expr: sum by (printer_name) (bambulab_hms_active_errors{severity=~"fatal|serious"}) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Bambu printer HMS error"
+          description: "Printer {{ $labels.printer_name }} reports {{ $value }} serious or fatal HMS error(s); check the printer screen or Bambu Handy."
+
       - alert: BambuNozzleTooHot
         expr: bambulab_nozzle_temperature_celsius > 320
         for: 30s

@@ -173,15 +173,27 @@ def test_metrics_full_update_with_ams_lights_xcam() -> None:
     assert metrics.ams_slot_tray_info.labels(**labels, ams_id="1", slot_id="3", tray_type="PETG", tray_color="#161616FF")._value.get() == 1.0
 
 
-def test_metrics_work_light_flashing_treated_as_on() -> None:
+def test_metrics_work_light_flashing_is_unknown() -> None:
+    """Printers report the work light as "flashing" constantly, also while it is off
+    (verified on an X1C), so that report is not a light state."""
     metrics = _metrics("p1", "SN123")
     snapshot = PrinterSnapshot(
         connected=True,
-        raw={"print": {"lights_report": [{"node": "work_light", "mode": "flashing"}]}},
+        raw={"print": {"lights_report": [
+            {"node": "work_light", "mode": "flashing"},
+            {"node": "chamber_light", "mode": "flashing"},
+        ]}},
     )
     metrics.update_from_snapshot(snapshot)
     labels = dict(printer_name="p1", serial="SN123")
-    assert metrics.work_light_on.labels(**labels)._value.get() == 1.0
+    assert math.isnan(metrics.work_light_on.labels(**labels)._value.get())
+    assert metrics.chamber_light_on.labels(**labels)._value.get() == 1.0
+    lights = {
+        s.labels["light"]: s.labels["mode"]
+        for m in metrics.registry.collect() if m.name == "bambulab_light_mode_info"
+        for s in m.samples
+    }
+    assert lights == {"chamber_light": "flashing"}
 
 
 # ---------------------------------------------------------------------------
@@ -403,12 +415,12 @@ class TestDoorOpen:
 
     def test_door_open_model_preference_x1_home_flag_over_stat(self) -> None:
         m = self._m()
-        m.update_from_snapshot(_snap({"model_id": "X1C", "home_flag": 0x00800000, "stat": "46258008"}))
+        m.update_from_snapshot(_snap({"sn": "00MFAKE0TEST001", "home_flag": 0x00800000, "stat": "46258008"}))
         assert self._get(m, "door_open") == 1.0
 
     def test_door_open_model_preference_non_x1_stat_over_home_flag(self) -> None:
         m = self._m()
-        m.update_from_snapshot(_snap({"model_id": "H2D", "home_flag": 0x00800000, "stat": "46258008"}))
+        m.update_from_snapshot(_snap({"sn": "094FAKE0TEST001", "home_flag": 0x00800000, "stat": "46258008"}))
         assert self._get(m, "door_open") == 0.0
 
     def test_door_open_none(self) -> None:
@@ -434,22 +446,22 @@ class TestLidOpen:
 
     def test_lid_open_from_h2_stat_bit(self) -> None:
         m = self._m()
-        m.update_from_snapshot(_snap({"model_id": "H2D", "stat": "01000000"}))
+        m.update_from_snapshot(_snap({"sn": "094FAKE0TEST001", "stat": "01000000"}))
         assert self._get(m, "lid_open") == 1.0
 
     def test_lid_closed_from_h2_stat_bit(self) -> None:
         m = self._m()
-        m.update_from_snapshot(_snap({"model_id": "H2D", "stat": "00000000"}))
+        m.update_from_snapshot(_snap({"sn": "094FAKE0TEST001", "stat": "00000000"}))
         assert self._get(m, "lid_open") == 0.0
 
     def test_lid_open_non_h2_without_direct_is_nan(self) -> None:
         m = self._m()
-        m.update_from_snapshot(_snap({"model_id": "P1S", "stat": "01000000"}))
+        m.update_from_snapshot(_snap({"sn": "01PFAKE0TEST001", "stat": "01000000"}))
         assert math.isnan(self._get(m, "lid_open"))
 
     def test_lid_open_prefers_direct_over_stat(self) -> None:
         m = self._m()
-        m.update_from_snapshot(_snap({"model_id": "H2D", "stat": "00000000", "lid_open": True}))
+        m.update_from_snapshot(_snap({"sn": "094FAKE0TEST001", "stat": "00000000", "lid_open": True}))
         assert self._get(m, "lid_open") == 1.0
 
 
@@ -547,14 +559,24 @@ class TestExternalSpoolMetrics:
         labels: dict = {"printer_name": "test", "serial": "SN123"}
         assert math.isnan(m.external_spool_active.labels(**labels)._value.get())
 
-    def test_external_spool_info_unknown_fallback_labels(self) -> None:
+    def test_external_spool_info_omits_empty_virtual_slot(self) -> None:
+        """A virtual slot without a spool (only an id) is not exported."""
         m = ExporterMetrics(printer_name="test", serial="SN123")
         m.update_from_snapshot(_snap({"vt_tray": {"id": "254"}}))
+        samples = [
+            s for metric in m.registry.collect() if metric.name == "bambulab_external_spool_info"
+            for s in metric.samples
+        ]
+        assert samples == []
+
+    def test_external_spool_info_partial_labels_fall_back_to_unknown(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({"vt_tray": {"id": "254", "tray_type": "PLA"}}))
         labels: dict = {"printer_name": "test", "serial": "SN123"}
         assert m.external_spool_info.labels(
             **labels,
             external_id="254",
-            tray_type="unknown",
+            tray_type="PLA",
             tray_info_idx="unknown",
             tray_color="unknown",
         )._value.get() == 1.0
@@ -903,12 +925,28 @@ class TestAmsExistingMetricLabelsUnchanged:
         m = self._m()
         snap = PrinterSnapshot(
             connected=True,
-            raw={"print": {"ams": {"ams": [{"id": "0", "humidity": "3", "sn": "03CABCDEF"}]}}},
+            raw={"print": {"ams": {"ams": [{"id": "0", "humidity": "3", "sn": "006ABCDEF"}]}}},
         )
         m.update_from_snapshot(snap)
         labels = {"printer_name": "test", "serial": "SN123"}
         v = m.ams_unit_humidity_index.labels(**labels, ams_id="0")._value.get()
         assert v == 3.0
+
+    def test_ams_lite_placeholder_sensors_not_exported(self) -> None:
+        """AMS Lite has no sensors; its temp 0 / humidity 5 placeholders are omitted."""
+        m = self._m()
+        snap = PrinterSnapshot(
+            connected=True,
+            raw={"print": {"ams": {"ams": [
+                {"id": "0", "humidity": "5", "humidity_raw": "40", "temp": "0.0", "sn": "03CABCDEF"}
+            ]}}},
+        )
+        m.update_from_snapshot(snap)
+        names = {
+            metric.name for metric in m.registry.collect() for s in metric.samples
+            if metric.name.startswith("bambulab_ams_unit_") and metric.name != "bambulab_ams_unit_info"
+        }
+        assert names == set()
 
     def test_ams_slot_active_labels_unchanged(self) -> None:
         m = self._m()
@@ -1032,7 +1070,7 @@ class TestAmsGen2DryingTelemetry:
         return ExporterMetrics(printer_name="test", serial="SN123")
 
     def _ams_info(
-        self, ams_type: int = 3, dry_heater: int = 2, fan1: int = 1, fan2: int = 2, sub: int = 5
+        self, ams_type: int = 3, dry_heater: int = 2, fan1: int = 1, fan2: int = 2, sub: int = 1
     ) -> int:
         return ams_type | (dry_heater << 4) | (fan1 << 18) | (fan2 << 20) | (sub << 22)
 
@@ -1046,7 +1084,7 @@ class TestAmsGen2DryingTelemetry:
         m.update_from_snapshot(snap)
         labels = {"printer_name": "test", "serial": "SN123"}
         v = m.ams_heater_state_info.labels(
-            **labels, ams_id="0", ams_model="ams_2_pro", ams_series="gen_2", state="2"
+            **labels, ams_id="0", ams_model="ams_2_pro", ams_series="gen_2", state="drying"
         )._value.get()
         assert v == 1.0
 
@@ -1070,7 +1108,7 @@ class TestAmsGen2DryingTelemetry:
 
     def test_dry_sub_status_emitted(self) -> None:
         m = self._m()
-        info = self._ams_info(ams_type=3, sub=7)
+        info = self._ams_info(ams_type=3, sub=2)
         snap = PrinterSnapshot(
             connected=True,
             raw={"print": {"ams": {"ams": [{"id": "0", "ams_info": info}]}}},
@@ -1078,7 +1116,7 @@ class TestAmsGen2DryingTelemetry:
         m.update_from_snapshot(snap)
         labels = {"printer_name": "test", "serial": "SN123"}
         v = m.ams_dry_sub_status_info.labels(
-            **labels, ams_id="0", ams_model="ams_2_pro", ams_series="gen_2", state="7"
+            **labels, ams_id="0", ams_model="ams_2_pro", ams_series="gen_2", state="dehumidifying"
         )._value.get()
         assert v == 1.0
 
@@ -1212,7 +1250,7 @@ class TestAmsGen2DryingTelemetryAdditional:
         m.update_from_snapshot(snap)
         labels = {"printer_name": "test", "serial": "SN123"}
         v = m.ams_heater_state_info.labels(
-            **labels, ams_id="0", ams_model="ams_2_pro", ams_series="gen_2", state="0"
+            **labels, ams_id="0", ams_model="ams_2_pro", ams_series="gen_2", state="off"
         )._value.get()
         assert v == 1.0
 
@@ -1257,7 +1295,7 @@ class TestAmsGen2DryingTelemetryAdditional:
         m.update_from_snapshot(snap)
         labels = {"printer_name": "test", "serial": "SN123"}
         v = m.ams_heater_state_info.labels(
-            **labels, ams_id="0", ams_model="ams_2_pro", ams_series="gen_2", state="3"
+            **labels, ams_id="0", ams_model="ams_2_pro", ams_series="gen_2", state="cooling"
         )._value.get()
         assert v == 1.0
 
@@ -1276,10 +1314,10 @@ class TestAmsGen2DryingTelemetryAdditional:
         m.update_from_snapshot(snap)
         labels = {"printer_name": "test", "serial": "SN123"}
         v0 = m.ams_heater_state_info.labels(
-            **labels, ams_id="0", ams_model="ams_2_pro", ams_series="gen_2", state="1"
+            **labels, ams_id="0", ams_model="ams_2_pro", ams_series="gen_2", state="self_check"
         )._value.get()
         v1 = m.ams_heater_state_info.labels(
-            **labels, ams_id="1", ams_model="ams_ht", ams_series="gen_2", state="2"
+            **labels, ams_id="1", ams_model="ams_ht", ams_series="gen_2", state="drying"
         )._value.get()
         assert v0 == 1.0
         assert v1 == 1.0
@@ -1466,3 +1504,229 @@ class TestXcamHaltPrintSensitivity:
         assert m.xcam_feature_enabled.labels(**base, feature="spaghetti_detector")._value.get() == 0.0
         labels = {**base, "level": "medium"}
         assert m.xcam_halt_print_sensitivity_info.labels(**labels)._value.get() == 1.0
+
+
+class TestPrinterModelInfo:
+    def _series(self, m: ExporterMetrics) -> list[dict[str, str]]:
+        return [
+            dict(s.labels)
+            for metric in m.registry.collect()
+            if metric.name == "bambulab_printer_model_info"
+            for s in metric.samples
+        ]
+
+    def test_emits_resolved_model(self) -> None:
+        m = _metrics()
+        m.update_from_snapshot(
+            PrinterSnapshot(connected=True, raw={"print": {}}, configured_serial="20PFAKE0TEST001")
+        )
+        assert self._series(m) == [{"printer_name": "test", "serial": "SN123", "model": "X2D"}]
+
+    def test_omitted_when_unknown(self) -> None:
+        m = _metrics()
+        m.update_from_snapshot(_snap({"device": {"type": 1}, "model_id": "AB12CD34EF56GH78"}))
+        assert self._series(m) == []
+
+    def test_clears_previous_model(self) -> None:
+        m = _metrics()
+        m.update_from_snapshot(
+            PrinterSnapshot(connected=True, raw={"print": {}}, configured_serial="00MFAKE0TEST001")
+        )
+        m.update_from_snapshot(
+            PrinterSnapshot(connected=True, raw={"print": {}}, configured_serial="094FAKE0TEST001")
+        )
+        assert [s["model"] for s in self._series(m)] == ["H2D"]
+
+
+class TestHotendRackPrintTime:
+    def test_print_time_from_p_t(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        snap = PrinterSnapshot(
+            connected=True,
+            raw={"print": {"device": {"nozzle": {"info": [
+                {"id": 16, "type": "HS00", "diameter": 0.4, "tm": 350, "p_t": 7200, "wear": 0.1}
+            ]}}}},
+        )
+        m.update_from_snapshot(snap)
+        labels = {"printer_name": "test", "serial": "SN123"}
+        assert m.hotend_rack_hotend_print_time_seconds.labels(**labels, slot_id="16")._value.get() == 7200.0
+        assert m.hotend_rack_hotend_max_temperature_celsius.labels(**labels, slot_id="16")._value.get() == 350.0
+
+
+class TestPromptSoundFlags:
+    def test_bits_17_and_18_are_prompt_sound(self) -> None:
+        from bambulab_metrics_exporter.flags import HOME_FLAG_MASKS, decode_home_flags
+
+        flags = decode_home_flags(1 << 18)
+        assert flags["prompt_sound_supported"] is True
+        assert flags["prompt_sound_enabled"] is False
+        assert "wired_network" not in HOME_FLAG_MASKS
+
+
+def test_ams_dry_name_helpers_fall_back_to_unknown() -> None:
+    from bambulab_metrics_exporter.models import ams_dry_state_name, ams_dry_sub_status_name
+
+    assert ams_dry_state_name(6) == "thermal_runaway"
+    assert ams_dry_state_name(12) == "unknown_12"
+    assert ams_dry_sub_status_name(1) == "heating"
+    assert ams_dry_sub_status_name(3) == "unknown_3"
+
+
+class TestHmsAndLoadedSlotEdgeCases:
+    def test_hms_absent_omits_series(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({}))
+        names = {metric.name for metric in m.registry.collect() for _ in metric.samples}
+        assert "bambulab_hms_active_errors" not in names
+
+    def test_hms_malformed_entries_count_as_unknown(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({"hms": [{"attr": "x"}, {"code": 0x00090001}, "bad"]}))
+        labels = {"printer_name": "test", "serial": "SN123"}
+        assert m.hms_active_errors.labels(**labels, severity="unknown")._value.get() == 2.0
+        assert m.hms_active_errors_by_module.labels(**labels, module="other")._value.get() == 2.0
+
+    def test_loaded_slots_clear_between_updates(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({"device": {"extruder": {"info": [{"id": 0, "snow": 0x0102}]}}}))
+        m.update_from_snapshot(_snap({"device": {"extruder": {"info": [{"id": 0, "snow": 0xFFFF}]}}}))
+        samples = [s for metric in m.registry.collect() if metric.name == "bambulab_extruder_loaded_slot_info" for s in metric.samples]
+        assert samples == []
+
+
+class TestDryingAirductNozzleEdgeCases:
+    labels = {"printer_name": "test", "serial": "SN123"}
+
+    def _names(self, m: ExporterMetrics) -> set[str]:
+        return {metric.name for metric in m.registry.collect() for _ in metric.samples}
+
+    def test_drying_settings_converted_to_seconds(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        unit = {
+            "id": "0", "info": "1003", "dry_time": 90,
+            "dry_setting": {"dry_temperature": 55, "dry_duration": 8, "dry_filament": "PLA"},
+        }
+        m.update_from_snapshot(_snap({"ams": {"ams": [unit]}}))
+        assert m.ams_drying_remaining_seconds.labels(**self.labels, ams_id="0")._value.get() == 5400.0
+        assert m.ams_drying_target_temperature.labels(**self.labels, ams_id="0")._value.get() == 55.0
+        assert m.ams_drying_duration_seconds.labels(**self.labels, ams_id="0")._value.get() == 28800.0
+
+    def test_drying_malformed_and_cleared(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        unit = {"id": "0", "info": "1003", "dry_time": 10}
+        m.update_from_snapshot(_snap({"ams": {"ams": [unit]}}))
+        bad = {"id": "0", "info": "1003", "dry_time": "x", "dry_setting": "bad"}
+        m.update_from_snapshot(_snap({"ams": {"ams": [bad]}}))
+        assert "bambulab_ams_drying_remaining_seconds" not in self._names(m)
+
+    def test_airduct_skips_doors_unknown_fans_and_malformed(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        parts = [
+            {"id": 17, "state": 50},  # type 1: door
+            {"id": 0x70, "state": 50},  # fan 7: unknown
+            {"id": "x", "state": 5},
+            {"id": 48},
+            "bad",
+            {"id": 48, "state": 0x1FF},  # only the low byte is the percent
+        ]
+        m.update_from_snapshot(_snap({"device": {"airduct": {"modeCur": 9, "parts": parts}}}))
+        fans = {
+            s.labels["fan"]: s.value
+            for metric in m.registry.collect() if metric.name == "bambulab_airduct_fan_speed_percent"
+            for s in metric.samples
+        }
+        assert fans == {"chamber": 255.0}
+        assert m.airduct_mode_info.labels(**self.labels, mode="unknown")._value.get() == 1.0
+
+    def test_airduct_and_nozzle_series_clear_between_updates(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({"device": {
+            "airduct": {"modeCur": 0, "parts": [{"id": 16, "state": 40}]},
+            "nozzle": {"info": [{"id": 0, "wear": 0.25, "p_t": 3600}, "bad", {"id": "x"}]},
+        }}))
+        assert m.nozzle_wear.labels(**self.labels, extruder_id="0")._value.get() == 0.25
+        assert m.nozzle_print_time_seconds.labels(**self.labels, extruder_id="0")._value.get() == 3600.0
+        m.update_from_snapshot(_snap({"device": {"airduct": {"modeCur": -1}, "nozzle": {"info": "bad"}}}))
+        names = self._names(m)
+        for name in (
+            "bambulab_airduct_mode_info", "bambulab_airduct_fan_speed_percent",
+            "bambulab_nozzle_wear_ratio", "bambulab_nozzle_print_time_seconds",
+        ):
+            assert name not in names
+
+
+class TestFirmwareAccessoryStageEdgeCases:
+    labels = {"printer_name": "test", "serial": "SN123"}
+
+    def _series(self, m: ExporterMetrics, name: str) -> list[dict[str, str]]:
+        return [
+            s.labels for metric in m.registry.collect() if metric.name == name for s in metric.samples
+        ]
+
+    def test_update_available_from_state_or_flag(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({"upgrade_state": {"new_version_state": 1}}))
+        assert m.firmware_update_available.labels(**self.labels)._value.get() == 1.0
+        m.update_from_snapshot(_snap({"upgrade_state": {"new_version_state": 2, "new_version": True}}))
+        assert m.firmware_update_available.labels(**self.labels)._value.get() == 1.0
+        m.update_from_snapshot(_snap({"upgrade_state": "bad"}))
+        assert math.isnan(m.firmware_update_available.labels(**self.labels)._value.get())
+
+    def test_module_versions_skip_unexpected_shapes(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        modules = [
+            {"name": "ota", "sw_ver": "01.02.03.04"},
+            {"name": "mc", "sw_ver": "beta build"},
+            {"name": "Some Name With Spaces", "sw_ver": "01.00.00.00"},
+            {"name": 5, "sw_ver": "01.00.00.00"},
+            {"name": "n3f/0", "sw_ver": "02.00.19.47"},
+        ]
+        m.update_from_snapshot(
+            PrinterSnapshot(connected=True, raw={"print": {}, "info": {"module": modules}})
+        )
+        got = {(s["module"], s["version"]) for s in self._series(m, "bambulab_module_firmware_info")}
+        assert got == {("ota", "01.02.03.04"), ("n3f/0", "02.00.19.47")}
+
+    def test_tool_head_unknown_type_and_cleared(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({"device": {"ext_tool": {"mount": 1, "type": "ZZ99"}}}))
+        assert [s["tool"] for s in self._series(m, "bambulab_tool_head_info")] == ["other"]
+        m.update_from_snapshot(_snap({"device": {"ext_tool": {"mount": 1, "type": None}}}))
+        assert [s["tool"] for s in self._series(m, "bambulab_tool_head_info")] == ["other"]
+        m.update_from_snapshot(_snap({}))
+        assert self._series(m, "bambulab_tool_head_info") == []
+
+    def test_accessory_flags_without_module_list(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        payload = {
+            "aux": "20000000",  # bit 29: filament switch installed
+            "device": {"fire_ext": {"connect_flag": 1}, "fourth_axis": {"connect_flag": "x"}},
+        }
+        m.update_from_snapshot(_snap(payload))
+        got = {s["accessory"] for s in self._series(m, "bambulab_accessory_present")}
+        assert got == {"fire_extinguisher", "filament_switch"}
+        assert m.accessory_present.labels(**self.labels, accessory="filament_switch")._value.get() == 1.0
+        m.update_from_snapshot(_snap({"aux": "zz"}))
+        assert self._series(m, "bambulab_accessory_present") == []
+
+    def test_light_modes_unknown_and_foreign_nodes(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        lights = [{"node": "heatbed_light", "mode": "pulse"}, {"node": "laser_light", "mode": "on"}]
+        m.update_from_snapshot(_snap({"lights_report": lights}))
+        got = {(s["light"], s["mode"]) for s in self._series(m, "bambulab_light_mode_info")}
+        assert got == {("heatbed_light", "unknown")}
+
+    def test_storage_from_device_cam_and_unknown_values(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        cam = {"tl_internal_free_kb": -1, "tl_internal_total_kb": 100, "tl_external_free_kb": 10, "tl_external_total_kb": 20}
+        m.update_from_snapshot(_snap({"device": {"cam": cam}}))
+        got = {s["storage"] for s in self._series(m, "bambulab_timelapse_storage_total_bytes")}
+        assert got == {"external"}
+        assert m.timelapse_storage_free_bytes.labels(**self.labels, storage="external")._value.get() == 10240.0
+
+    def test_new_stage_names_and_unknown_gap(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({"stg_cur": 77}))
+        assert [s["stage"] for s in self._series(m, "bambulab_print_stage_info")] == ["preparing_ams"]
+        m.update_from_snapshot(_snap({"stg_cur": 80}))
+        assert [s["stage"] for s in self._series(m, "bambulab_print_stage_info")] == ["unknown_80"]

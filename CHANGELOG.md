@@ -4,6 +4,230 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-08
+
+### Added
+- Grafana dashboard (`examples/grafana/dashboard.sample.json`): new rows for health and
+  firmware (HMS errors, firmware update, module versions), chamber/airduct/accessories,
+  extruders and nozzles, and AMS drying, plus HMS and airduct fan trends.
+- Firmware: `bambulab_firmware_update_available` and
+  `bambulab_module_firmware_info{module,version}` (from `get_version`).
+- Accessories: `bambulab_tool_head_info{tool}` (laser, cutter, cooling fan) and
+  `bambulab_accessory_present{accessory}` (filament buffer, external exhaust fan, fire
+  extinguisher, rotary attachment, filament switch, air pump).
+- `bambulab_light_mode_info{light,mode}` covering `chamber_light2` and `heatbed_light`.
+- `bambulab_toolhead_filament_present{extruder_id}` and X2D timelapse storage
+  (`bambulab_timelapse_storage_{free,total}_bytes{storage}`).
+- Print stage names for codes 59-84 and 88 (previously `unknown_<n>`).
+- AMS drying (AMS 2 Pro, AMS HT): `bambulab_ams_drying_remaining_seconds{ams_id}`,
+  `bambulab_ams_drying_target_temperature_celsius{ams_id}` and
+  `bambulab_ams_drying_duration_seconds{ams_id}`.
+- Airduct (P2S, X2D, H2 family): `bambulab_airduct_mode_info{mode}` and
+  `bambulab_airduct_fan_speed_percent{fan}` with a fixed fan name set.
+- Mounted nozzles: `bambulab_nozzle_wear_ratio{extruder_id}` (raw value, unit unconfirmed)
+  and `bambulab_nozzle_print_time_seconds{extruder_id}`.
+- `bambulab_chamber_target_temperature_celsius` and `bambulab_chamber_heater_state` for
+  models with a chamber heater (X1E, X2D, H2D, H2D Pro, H2S, H2C).
+- `bambulab_extruder_loaded_slot_info{extruder_id,ams_id,slot_id}`: filament loaded in each
+  extruder (AMS slot or external spool).
+- HMS error counts: `bambulab_hms_active_errors{severity}` and
+  `bambulab_hms_active_errors_by_module{module}`, with fixed label sets (full HMS codes are
+  never used as labels). New example alert `BambuHmsSeriousError`.
+- Per-model capability table (`capabilities.py`, documented in the wiki Metrics Reference as
+  "Supported models"), replacing scattered model checks.
+- Model codes: `O2D` and the cloud short name `H2DP` (H2D Pro), `A1M`, `A04`, `A12`, `N2`
+  (A1 mini), `A11` (A1), and `-V2` hardware revisions (`N6-V2`, `O1D-V2`, `O1C2-V2`, ...).
+- R1 laser engraver (serial prefix `35F`, Bambu Studio code `N8`) is recognized as model `R1`;
+  no FDM metrics are reported for it.
+- `bambulab_filament_tangle_detection_enabled`: the tangle-detection setting, NaN when the
+  printer does not support it.
+- `bambulab_hotend_rack_hotend_print_time_seconds` (`p_t`) and
+  `bambulab_hotend_rack_hotend_max_temperature_celsius` (`tm`) for H2C hotend rack slots.
+- Model detection for **X2D** (`20P`), **A2L** (`26A`), **H2D Pro** (`239`) and **H2C**
+  (`31B`) by serial prefix, plus `Bambu Lab X2D` and `Bambu Lab A2L` product names.
+  Detection only: these models are not hardware-validated.
+- Model detection from the configured `BAMBULAB_SERIAL`. Regular `pushall` reports omit
+  `print.sn`, so the configured serial is now the main identity source.
+- `BAMBULAB_PRINTER_MODEL` (set manually or by cloud discovery) is used as a model hint
+  when the serial prefix is unknown. Accepts marketing names (`X1 Carbon`), internal codes
+  (`BL-P001`, `N6`) and normalized names (`H2DPRO`); unrecognized values are ignored.
+- AMS info type 5 (AMS Lite on the A2L) maps to `ams_lite`.
+- On each successful MQTT connect the exporter sends one read-only `get_version` request.
+  The reply's module list supplies the printer product name for model detection. Disabled
+  together with `pushall` by `BAMBULAB_REQUEST_PUSHALL=false`.
+- Development images: every push to the `develop` branch publishes
+  `ghcr.io/theblackbush/bambulab_metrics_exporter:develop` and `:develop-<short-sha>`
+  (amd64/arm64) after the full test suite passes. Stable `latest` and version tags are
+  unchanged.
+- **`/auth` connection page:** choose local (IP, serial, access code) or Bambu Cloud (email
+  verification code) in the browser; the exporter reconnects without a restart. Linked from
+  the landing page. `GET /auth/status` returns the connection state as JSON. The page has no
+  login of its own: anyone who can reach port 9109 can change the connection, so keep the port
+  on a trusted network. Protections: saved secrets are never displayed, verification emails
+  are limited to one per minute and login attempts to five per minute, cross-site form posts
+  are rejected, only IP addresses and local-network host names are accepted (DNS-rebinding
+  protection; add others with `AUTH_ALLOWED_HOSTS`), pages cannot be framed by other sites,
+  form bodies are capped at 8 KB, and each visitor only sees their own results.
+- Settings saved on `/auth` are stored encrypted (`connection-overrides.enc.json` in
+  `BAMBULAB_CONFIG_DIR`, requires `BAMBULAB_SECRET_KEY`) and override env vars, including
+  container template values, after restarts. They are never written to `.env`.
+  **Reset to env vars** removes them and also undoes a cloud login made on the page
+  (the previous credentials file and the container's tokens are restored).
+- `AUTH_ALLOWED_HOSTS` setting: extra host names allowed for the `/auth` page.
+- Landing page redesign: shows the printer connection state (Connected, Connecting, Login
+  required, ...), the mode (Local or Bambu Cloud), and the time since the last successful
+  poll. A banner links to `/auth` when a login or setup is needed. The page refreshes itself.
+- The startup log lists the web UI addresses: status page `/`, printer connection `/auth`,
+  `/metrics`, `/health` and `/ready`.
+- `bambulab-reauth` command for cloud re-authentication inside the running container:
+  `docker exec -it <container> bambulab-reauth`. It sends (or accepts) the email
+  verification code and saves encrypted credentials; a waiting exporter resumes without a
+  restart. Files are handed back to `PUID`/`PGID`, or to the owner of the config folder when
+  those are not set in the container (Compose default). It refuses to write through symlinks.
+
+### Changed
+- **The web server starts immediately** and the printer connection runs in the background.
+  The process no longer exits on connection problems:
+  - Rejected cloud credentials (the Bambu broker refuses the login): logs a
+    `BAMBU CLOUD RE-AUTHENTICATION REQUIRED` banner and waits for a login on `/auth` or
+    `bambulab-reauth`, re-checking every 5 minutes. This ends restart loops and repeated
+    verification emails: at most one code is sent per container start when
+    `BAMBULAB_CLOUD_EMAIL` is set without a code, and each `BAMBULAB_CLOUD_CODE` is tried once.
+  - Local connection failures, cloud API or broker outages, and a cloud printer that does not
+    answer (powered off): retried every 60 seconds, never treated as expired credentials and
+    never sending a code (previously the process exited and relied on the restart policy).
+  - Missing settings: reported as `setup_required` on `/auth` instead of exiting.
+  - Invalid values (for example `BAMBULAB_TRANSPORT=lan`) and an unreadable credentials file:
+    logged, with `/auth` still reachable, instead of exiting.
+  `/health` stays `ok` (process liveness) and `/ready` stays 503 until the first data, then
+  stays ready (sticky), as before.
+- Startup tries the encrypted credential file when env tokens are rejected, so stale tokens in
+  a container template (for example Unraid) no longer hide newer rotated credentials.
+- The `BAMBULAB_CLOUD_EMAIL` + `BAMBULAB_CLOUD_CODE` env flow is unchanged and still supported.
+
+### Fixed
+- An expired or revoked cloud token (or a changed LAN access code) while the exporter is
+  running is now detected: the exporter re-validates (token refresh first, then the
+  re-authentication state on `/auth`) instead of reconnecting with rejected credentials and
+  reporting `running`.
+- "Reset to env vars" on `/auth` is no longer undone after a restart: the cloud token
+  refresh no longer writes page settings into `.env`, and tokens from a page cloud login stay
+  in the encrypted store (never `.env`). A page login still survives restarts, and reset
+  returns to the container's own credentials.
+- A1 / A1 mini AMS Lite no longer exports placeholder temperature 0 and humidity index 5
+  before the `get_version` reply arrives or with `BAMBULAB_REQUEST_PUSHALL=false`; AMS HT
+  units (ids 128-135) on legacy firmware are recognized without it.
+- R1 laser engravers no longer report nozzle, bed, part-cooling/heatbreak fan, extruder or
+  AMS metrics.
+- Shutdown and reconnect: a stop during connection validation no longer starts a collector,
+  a fetch that outlives a reconnect no longer writes into the new registry, and credentials
+  written by `bambulab-reauth` during validation are used right away.
+- `examples/sample_metrics.prom` regenerated from the sanitized X1C fixture (current labels
+  and metrics); missing Metrics Reference rows added (`bambulab_lid_open`,
+  `bambulab_print_error_code`, `bambulab_mc_stage`, `bambulab_mc_print_sub_stage`,
+  `bambulab_print_real_action`, `bambulab_print_gcode_action`, `bambulab_online_ahb`,
+  `bambulab_online_ext`).
+- Fixture sanitizer now replaces AMS `chip_id` and serial-style `ams_id` values.
+- `bambulab_work_light_on` is NaN (was 1) while the printer reports the work light as
+  `flashing`, and `bambulab_light_mode_info` omits it then: printers send `flashing`
+  constantly, also while the light is off (verified on an X1C). Real `on`/`off` reports are
+  unchanged.
+- Grafana "Lights" panel shows one readable entry per light with a colored state (Off,
+  On, Flashing) instead of the same green text for every mode.
+- Grafana dashboard: target temperature, total layer, stage and error queries now filter on
+  `$printer` (they mixed printers sharing a job); remaining-time trend uses seconds (was
+  minutes, 60x too large); AMS temperature and humidity show one value per unit instead of
+  the maximum; removed an empty query that made "Print Errors" fail; "Print Percentage
+  Remaining" renamed to "Print Progress"; AMS "Printer Model" renamed to "AMS Model"; the
+  tangle panel shows Enabled/Disabled for the detection setting.
+- `bambulab_fan_big_1_speed_percent` / `bambulab_fan_big_2_speed_percent` are NaN on A1,
+  A1 mini and A2L, which have no aux or chamber fan but report 0.
+- X1-family door state no longer falls back to `stat` bit 23 when `home_flag` is missing;
+  that bit is always set on the X1C and reported the door as open.
+- **Chamber temperature on heated printers** (H2C, H2D, H2D Pro, H2S, X2D, P2S): the packed
+  `device.ctc` value (target << 16 | current) is unpacked; an H2S heating to 60 °C reported
+  3,932,220 °C. Models without a chamber sensor (A1, A1 mini, A2L, P1P, P1S) report NaN
+  instead of a firmware placeholder (5 °C).
+- **Secondary aux fan** (X2D) read a field that does not exist and was always NaN; it now
+  reads the airduct part `state` percentage.
+- **Active AMS slot and external spool on dual-extruder printers** (H2D, H2D Pro, H2C, X2D):
+  read from the active extruder's loaded slot instead of `ams.tray_now`, which only holds the
+  local slot (an H2D printing from AMS 1 slot 3 showed AMS 0 slot 3). AMS HT units
+  (`tray_now` 128 and up) now show as active.
+- **AMS 2 Pro / AMS HT drying state**: `info` strings are always hexadecimal; digit-only
+  values such as `2003` were read as decimal and produced impossible states.
+- **Unknown remaining filament** (`remain` -1) is exported as NaN instead of -1 %, so the
+  documented `< 15` alert no longer fires for spools without an estimate.
+- AMS Lite no longer exports placeholder temperature and humidity (it has no sensors), and
+  drying metrics are only exported for AMS 2 Pro and AMS HT.
+- `bambulab_door_open` is NaN on models without a door sensor (A1, A1 mini, A2L, P1P, P1S).
+- `bambulab_camera_recording` follows the camera setting (`ipcam.ipcam_record`); newer
+  firmware no longer sets home_flag bit 5 (verified on an X1C with firmware 01.12.00.00).
+- AMS model is taken from `get_version` module names when units carry no `info` or serial
+  (A1 AMS Lite, AMS HT on older firmware).
+- Early H2C units with the H2D serial prefix `094` are detected as H2C (hotend rack present).
+- Empty external-spool virtual slots are no longer exported with `unknown` labels.
+- Nozzle type and diameter are exported on A1, P1 and older X1 firmware (top-level
+  `nozzle_type`).
+- **MQTT TLS is capped at version 1.2**: P2S firmware 01.02.00.00 never answers a TLS 1.3
+  handshake, so the connection hung. All Bambu brokers support TLS 1.2; certificate checking
+  is unchanged.
+- **Expired cloud tokens caused an endless restart loop.** A refresh rejected with HTTP 401
+  by one API endpoint and a DNS failure on another was classified as a transient outage, so
+  re-authentication never started. Any 401/403 with no successful endpoint now counts as
+  rejected credentials.
+- Removed the `api-eu.bambulab.com` API endpoint: the host does not exist (it never resolved)
+  and caused the DNS failure above. Bambu Studio and ha-bambulab use only `api.bambulab.com`
+  outside China.
+- After a successful token refresh at startup, the MQTT client was still built with the old
+  token and failed with `Not authorized`. Refreshed credentials now apply to the running
+  configuration.
+- A token refresh response without a `refreshToken` (or with `null`) no longer replaces the
+  stored refresh token with the text `None`; the previous refresh token is kept.
+- A refresh rejected with HTTP 400 counts as an invalid refresh token (re-authentication)
+  instead of a transient error retried forever.
+- **Most LAN-connected printers were reported as `X1C`.** Without identity fields in the
+  payload, detection fell through to `print.device.type`, a mode bitmask (FDM=0x1,
+  laser=0x10, cut=0x100) that reads 1 on every FDM printer and was mapped to `X1C`.
+  Affected H2D, H2D Pro, H2S, H2C, P2S, X2D and A2L. These printers also read the door from
+  `home_flag` (X1 logic) instead of `stat`, and H2 printers reported `lid_open` as NaN.
+- The `Bambu Lab X1-Carbon` product name (with hyphen, as sent by firmware) now matches.
+- X1E reads the door sensor from `home_flag` like the X1 and X1C.
+
+### Removed
+- `print.device.type` and `print.model_id` are no longer used for model detection
+  (`model_id` is an opaque per-job id and could leak into the `model` label). The ambiguous
+  `AP05` hardware-version fallback to `X1C` is removed; `AP05` is shared by X1C, H2D, H2S,
+  H2C and A1.
+
+### Security
+- Cloud API error messages and logs no longer include HTTP response bodies.
+- The printer name on the landing page is HTML-escaped.
+
+### Migration notes
+- **AMS dryer state labels are names now** (AMS 2 Pro / AMS HT only):
+  `bambulab_ams_heater_state_info{state}` uses `off`, `self_check`, `drying`, `cooling`,
+  `stopped`, `error`, `thermal_runaway`, `test_mode` instead of `0`-`7`, and
+  `bambulab_ams_dry_sub_status_info{state}` uses `none`, `heating`, `dehumidifying`. The
+  sub-status is a 2-bit field (bits 22-23); values above 2 were misread before. Update
+  queries that select on numeric `state` values.
+- **Deprecated, removed in a future release:**
+  - `bambulab_filament_tangle_detected`: it is the tangle-detection setting (home_flag
+    bit 20), not a detected tangle. Use `bambulab_filament_tangle_detection_enabled`. Both
+    are now NaN on printers that report no tangle-detection support (for example the X1C),
+    where the bit carries no meaning. The sample Grafana panel is renamed "Tangle Detection".
+  - `bambulab_hotend_rack_hotend_runtime_minutes`: it carries the hotend's maximum
+    temperature (`tm`, 350 on H2C), not a runtime. Use
+    `bambulab_hotend_rack_hotend_print_time_seconds` or
+    `bambulab_hotend_rack_hotend_max_temperature_celsius`.
+- The `model` label of `bambulab_printer_model_info` changes for printers that were
+  mislabelled `X1C` (see Fixed), which starts a new series. Update Grafana panels and alerts
+  that select on `model`.
+- `bambulab_door_open` changes source for those printers (from `home_flag` to `stat`), and
+  `bambulab_lid_open` starts reporting for H2 printers.
+- A printer whose serial prefix, product name and `BAMBULAB_PRINTER_MODEL` are all
+  unrecognized now has no `bambulab_printer_model_info` series instead of a guessed model.
+
 ## [0.1.40] - 2026-03-22
 
 ### Added

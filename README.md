@@ -50,6 +50,8 @@ Full operator documentation lives in the [GitHub Wiki](https://github.com/TheBla
 - Parses print state/telemetry into stable Prometheus metrics
 - Exposes:
   - `GET /`: landing page with version and status
+  - `GET /auth`: connection page to choose local or cloud mode and log in (no login of its own; keep port 9109 on a trusted network)
+  - `GET /auth/status`: JSON connection state (`running`, `connecting`, `auth_required`, `setup_required`, `error`)
   - `GET /metrics`
   - `GET /health`
   - `GET /ready`
@@ -58,8 +60,9 @@ Full operator documentation lives in the [GitHub Wiki](https://github.com/TheBla
 
 - Supports both LAN MQTT (`local_mqtt`) and Cloud MQTT (`cloud_mqtt`).
 - Uses `device/<serial>/report` and `device/<serial>/request` topics.
-- Requests full snapshots with `pushall` and maps stable telemetry fields to Prometheus metrics.
-- Printer model detection uses a table-driven resolver pipeline (`product_name` → `hw_ver+project_name` → `SN prefix` → legacy fallbacks), including newer SN prefixes such as `22E` (P2S), `093` (H2S), and `094` (H2D).
+- Requests full snapshots with `pushall`, requests the module list once per connection with `get_version` (read-only; used for model detection), and maps stable telemetry fields to Prometheus metrics.
+- Printer model detection order: `product_name` from the module list → serial prefix (payload `print.sn`, then the configured `BAMBULAB_SERIAL`) → `BAMBULAB_PRINTER_MODEL` → unambiguous `hw_ver`+`project_name` pairs. Recognized models: X1, X1C, X1E, X2D, P1P, P1S, P2S, A1, A1 mini, A2L, H2D, H2D Pro, H2S, H2C, plus the R1 laser engraver (model label only). Detection is not the same as validation: only the X1C has been tested on real hardware.
+- Each model has a capability profile (`capabilities.py`): metrics for hardware a model does not have (chamber sensor, door sensor, aux/chamber fan, lid) report NaN instead of the firmware's placeholder values. See the supported models table in the wiki Metrics Reference.
 
 > **Deployment:** This project is deployed via Docker. There is no pip/PyPI distribution.
 > See [Installation](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Installation) for full setup instructions.
@@ -127,12 +130,43 @@ BAMBULAB_CLOUD_EMAIL=you@example.com
 
 Cloud credentials are obtained via the `bambulab-cloud-auth` CLI bundled in the container image. No local Python installation is required.
 
-### Container-native OTP flow (recommended)
+### Connecting from the browser: the `/auth` page (recommended)
+
+Open `http://<docker-host>:9109/auth` (also linked from the landing page). Choose:
+
+- **Local (LAN):** enter the printer IP, serial number and LAN access code.
+- **Bambu Cloud:** enter your account email, click **Send code**, then enter the emailed code in the same form and click **Log in**.
+  The serial is optional when the account has a single printer.
+
+The exporter reconnects immediately; no restart needed. When the cloud login fails later
+(expired session, changed password, new config volume) the exporter does **not** exit: it logs
+a `BAMBU CLOUD RE-AUTHENTICATION REQUIRED` banner and waits until you log in again on the page.
+
+Settings saved on the page are stored encrypted in the config volume and **override** the
+container's env vars (including Unraid template values) after restarts. **Reset to env vars**
+on the page removes them. Persisting requires `BAMBULAB_SECRET_KEY`; without it, page settings
+apply until the next restart.
+
+> **Security:** the page has no login. Anyone who can reach port 9109 can change which printer
+> or account the exporter uses. Do not expose the port outside a trusted network. Saved
+> secrets are never shown on the page.
+
+Shell alternative (same result, no browser):
+
+```bash
+docker exec -it <container> bambulab-reauth
+```
+
+Replace `<container>` with your container name (`bambulab-exporter` in the `docker run`
+examples, `bambulab-metrics-exporter` with the Compose file). On Unraid, open the container's
+**Console** and run `bambulab-reauth`.
+
+### Env-variable OTP flow
 
 1. Set `BAMBULAB_CLOUD_EMAIL` in your `.env`. **Do not set `BAMBULAB_CLOUD_CODE` yet.**
-2. Start the container. It detects no valid credentials, sends a verification code to your Bambu account email, and exits.
+2. Start the container. It detects no valid credentials, sends one verification code to your Bambu account email, and waits.
 3. Check your email for the code.
-4. Add `BAMBULAB_CLOUD_CODE=<code>` to `.env` and restart the container.
+4. Add `BAMBULAB_CLOUD_CODE=<code>` to `.env` and recreate the container (or use the `/auth` page instead).
 5. The container authenticates, stores encrypted credentials to the config volume, and starts normally.
 6. **Remove `BAMBULAB_CLOUD_CODE` from `.env`**: codes are single-use; it is not needed for normal operation.
 
@@ -146,7 +180,7 @@ On every subsequent restart, stored credentials are loaded automatically.
 - The Bambu Cloud session expired or account password changed.
 - `BAMBULAB_SECRET_KEY` was changed: the encrypted credential file can no longer be decrypted.
 
-In any of these cases, start the container without `BAMBULAB_CLOUD_CODE` to trigger a new code delivery, then follow steps 3–6 above.
+In any of these cases, use the `/auth` page (above), or start the container without `BAMBULAB_CLOUD_CODE` to trigger a new code delivery and follow steps 3–6.
 
 > For the manual `bambulab-cloud-auth` flow and full credential lifecycle details, see [Installation](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Installation) and [Quick Start](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Quick-Start).
 
@@ -160,7 +194,7 @@ In any of these cases, start the container without `BAMBULAB_CLOUD_CODE` to trig
 | `BAMBULAB_SERIAL` | yes | - | Printer serial/device id |
 | `BAMBULAB_ACCESS_CODE` | yes (local) | - | Printer LAN access code |
 | `BAMBULAB_USERNAME` | no | `bblp` | MQTT username |
-| `BAMBULAB_REQUEST_PUSHALL` | no | `true` | Request full snapshot every poll |
+| `BAMBULAB_REQUEST_PUSHALL` | no | `true` | Request full snapshot every poll, and the module list (`get_version`) on each connect |
 | `BAMBULAB_SECRET_KEY` | yes (cloud) | - | Encrypts stored cloud credentials; keep stable |
 | `BAMBULAB_CLOUD_EMAIL` | yes (cloud) | - | Bambu account email for OTP flow |
 | `BAMBULAB_CLOUD_CODE` | bootstrap only | - | One-time OTP code; remove after first auth |
@@ -307,25 +341,38 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 | `bambulab_bed_temperature_celsius` | Gauge | Current bed temperature. |
 | `bambulab_bed_target_temperature_celsius` | Gauge | Target bed temperature. |
 | `bambulab_chamber_temperature_celsius` | Gauge | Chamber temperature. |
-| `bambulab_fan_big_1_speed_percent` | Gauge | Big fan 1 speed percent. |
-| `bambulab_fan_big_2_speed_percent` | Gauge | Big fan 2 speed percent. |
+| `bambulab_chamber_target_temperature_celsius` | Gauge | Chamber heater target (models with a chamber heater). |
+| `bambulab_chamber_heater_state` | Gauge | Chamber heater state (0 idle, 1 heating, 2 holding, 3 cooling). |
+| `bambulab_fan_big_1_speed_percent` | Gauge | Big fan 1 (aux) speed percent. NaN on A1, A1 mini, A2L (no aux fan). |
+| `bambulab_fan_big_2_speed_percent` | Gauge | Big fan 2 (chamber) speed percent. NaN on A1, A1 mini, A2L (no chamber fan). |
 | `bambulab_fan_cooling_speed_percent` | Gauge | Cooling fan speed percent. |
 | `bambulab_fan_heatbreak_speed_percent` | Gauge | Heatbreak fan speed percent. |
 | `bambulab_fan_secondary_aux_speed_percent` | Gauge | Secondary auxiliary fan speed percent from `print.device.airduct.parts[id=160]`. |
+| `bambulab_airduct_mode_info{mode}` | Info Gauge | Airduct mode (`cooling`, `heating`, `exhaust`, `full_cooling`, `init`, `unknown`). |
+| `bambulab_airduct_fan_speed_percent{fan}` | Gauge | Airduct fan speed by fan (`part_cooling`, `aux`, `chamber`, `inner_loop`, `aux_2`, ...). |
 | `bambulab_printer_error` | Gauge | 1 when printer error code is non-zero. |
 | `bambulab_printer_error_code` | Gauge | Raw printer error code (`mc_print_error_code`). |
 | `bambulab_print_error_code` | Gauge | Raw `print_error` value from MQTT (legacy alias). |
+| `bambulab_hms_active_errors{severity}` | Gauge | Active HMS errors by severity (`fatal`, `serious`, `common`, `info`, `unknown`). |
+| `bambulab_hms_active_errors_by_module{module}` | Gauge | Active HMS errors by module (`mc`, `mainboard`, `ams`, `toolhead`, `xcam`, `other`). |
 | `bambulab_print_error` | Gauge | Raw `print_error` value from MQTT. |
 | `bambulab_ap_error_code` | Gauge | Raw `ap_err` value from MQTT. |
 | `bambulab_printer_gcode_state{state}` | One-hot Gauge | Current gcode state as one-hot labels. |
 | `bambulab_subtask_name_info{subtask_name}` | Info Gauge | Current subtask name. |
 | `bambulab_fail_reason_info{fail_reason}` | Info Gauge | Current fail reason. |
 | `bambulab_printer_model_info{model}` | Info Gauge | Detected printer model. |
+| `bambulab_firmware_update_available` | Gauge | 1 when a firmware update is available. |
+| `bambulab_module_firmware_info{module,version}` | Info Gauge | Firmware version per module (`ota` is the printer). |
 | `bambulab_wifi_signal` | Gauge | Wi-Fi signal value (dBm when available). |
 | `bambulab_online_ahb` | Gauge | Online AHB flag. |
 | `bambulab_online_ext` | Gauge | Online external flag. |
 | `bambulab_chamber_light_on` | Gauge | Chamber light status (1/0). |
-| `bambulab_work_light_on` | Gauge | Work light status (1/0). |
+| `bambulab_work_light_on` | Gauge | Work light status (1/0); NaN while the printer reports the meaningless `flashing`. |
+| `bambulab_light_mode_info{light,mode}` | Info Gauge | Mode per light (`on`, `off`, `flashing`, `unknown`). |
+| `bambulab_tool_head_info{tool}` | Info Gauge | Mounted tool head (`none`, `laser_10w`, `laser_40w`, `cutter`, `cooling_fan`, `other`). |
+| `bambulab_accessory_present{accessory}` | Gauge | Installed accessories (filament buffer, exhaust fan, fire extinguisher, ...). |
+| `bambulab_toolhead_filament_present{extruder_id}` | Gauge | Filament detected at each extruder (1/0). |
+| `bambulab_timelapse_storage_free_bytes{storage}` / `_total_bytes` | Gauge | Timelapse storage space (X2D). |
 | `bambulab_xcam_feature_enabled{feature}` | Gauge | XCam feature enable flags. |
 | `bambulab_xcam_halt_print_sensitivity_info{level}` | Info Gauge | XCam halt-print sensitivity level (`low`/`medium`/`high`). |
 | `bambulab_ams_status_id` | Gauge | AMS status numeric code. |
@@ -339,12 +386,18 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 | `bambulab_ams_slot_active{ams_id,slot_id}` | Gauge | AMS slot active flag. |
 | `bambulab_ams_slot_remaining_percent{ams_id,slot_id}` | Gauge | AMS slot remaining filament %. |
 | `bambulab_ams_slot_tray_info{ams_id,slot_id,tray_type,tray_color}` | Info Gauge | AMS slot filament type and color. |
-| `bambulab_ams_heater_state_info{ams_id,ams_model,ams_series,state}` | Info Gauge | Gen2 AMS heater/dry state. |
+| `bambulab_ams_heater_state_info{ams_id,ams_model,ams_series,state}` | Info Gauge | AMS dryer state (`off`, `self_check`, `drying`, `cooling`, `stopped`, `error`, `thermal_runaway`, `test_mode`); AMS 2 Pro and AMS HT only. |
 | `bambulab_ams_dry_fan_status{ams_id,ams_model,ams_series,fan_id}` | Gauge | Gen2 AMS drying fan status. |
-| `bambulab_ams_dry_sub_status_info{ams_id,ams_model,ams_series,state}` | Info Gauge | Gen2 AMS drying sub-status. |
+| `bambulab_ams_dry_sub_status_info{ams_id,ams_model,ams_series,state}` | Info Gauge | AMS drying sub-status (`none`, `heating`, `dehumidifying`). |
+| `bambulab_ams_drying_remaining_seconds{ams_id}` | Gauge | Remaining AMS drying time (AMS 2 Pro, AMS HT). |
+| `bambulab_ams_drying_target_temperature_celsius{ams_id}` | Gauge | Configured AMS drying temperature. |
+| `bambulab_ams_drying_duration_seconds{ams_id}` | Gauge | Configured AMS drying duration. |
 | `bambulab_external_spool_active` | Gauge | 1 when external spool is active. |
 | `bambulab_external_spool_info{external_id,tray_type,tray_info_idx,tray_color}` | Info Gauge | External spool metadata. |
 | `bambulab_active_extruder_index` | Gauge | Active extruder index (dual-extruder models). |
+| `bambulab_extruder_loaded_slot_info{extruder_id,ams_id,slot_id}` | Info Gauge | Filament loaded in each extruder (AMS slot or `external`). |
+| `bambulab_nozzle_wear_ratio{extruder_id}` | Gauge | Wear value of the mounted nozzle (raw). |
+| `bambulab_nozzle_print_time_seconds{extruder_id}` | Gauge | Total print time of the mounted nozzle. |
 | `bambulab_extruder_temperature_celsius{extruder_id}` | Gauge | Per-extruder current temperature. |
 | `bambulab_extruder_target_temperature_celsius{extruder_id}` | Gauge | Per-extruder target temperature. |
 | `bambulab_extruder_nozzle_info{extruder_id,nozzle_type,nozzle_diameter}` | Info Gauge | Per-extruder nozzle metadata. |
@@ -354,14 +407,17 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 | `bambulab_hotend_rack_slot_state_info{slot_id,state}` | Info Gauge | Hotend rack slot state (`mounted/docked/empty`). |
 | `bambulab_hotend_rack_hotend_info{slot_id,nozzle_type,nozzle_diameter}` | Info Gauge | Hotend rack slot nozzle metadata. |
 | `bambulab_hotend_rack_hotend_wear_ratio{slot_id}` | Gauge | Hotend rack nozzle wear ratio. |
-| `bambulab_hotend_rack_hotend_runtime_minutes{slot_id}` | Gauge | Hotend rack nozzle runtime minutes. |
+| `bambulab_hotend_rack_hotend_print_time_seconds{slot_id}` | Gauge | Hotend rack nozzle total print time. |
+| `bambulab_hotend_rack_hotend_max_temperature_celsius{slot_id}` | Gauge | Hotend rack nozzle maximum temperature. |
+| `bambulab_hotend_rack_hotend_runtime_minutes{slot_id}` | Gauge | Deprecated: carries the maximum temperature, not a runtime. Use the two metrics above. |
 | `bambulab_sdcard_status_info{status}` | Info Gauge | SD-card status (`present/abnormal/absent`). |
 | `bambulab_door_open` | Gauge | Door open flag. |
-| `bambulab_lid_open` | Gauge | Lid open flag (H2 family via `stat` bit 24, or direct `lid_open`). |
+| `bambulab_lid_open` | Gauge | Lid open flag (H2D, H2D Pro, H2S, H2C via `stat` bit 24, or direct `lid_open`). |
 | `bambulab_wired_network` | Gauge | Wired network detected flag. |
 | `bambulab_camera_recording` | Gauge | Camera recording flag. |
 | `bambulab_ams_auto_switch` | Gauge | AMS auto-switch flag. |
-| `bambulab_filament_tangle_detected` | Gauge | Filament tangle detected flag. |
+| `bambulab_filament_tangle_detection_enabled` | Gauge | Filament tangle detection setting; NaN when the printer does not support it. |
+| `bambulab_filament_tangle_detected` | Gauge | Deprecated alias of `bambulab_filament_tangle_detection_enabled` (it never meant a detected tangle). |
 | `bambulab_filament_tangle_detect_supported` | Gauge | Filament tangle detection support flag. |
 | `bambulab_queue_total` | Gauge | Total queued jobs. |
 | `bambulab_queue_estimated_seconds` | Gauge | Estimated queue seconds. |

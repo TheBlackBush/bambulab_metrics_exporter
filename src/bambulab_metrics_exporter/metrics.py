@@ -4,7 +4,16 @@ import math
 
 from prometheus_client import CollectorRegistry, Gauge
 
-from bambulab_metrics_exporter.models import PrinterSnapshot, _extract_ams_info, parse_ams_info
+from bambulab_metrics_exporter.models import (
+    AMS_MODELS_WITH_DRYER,
+    AMS_MODELS_WITHOUT_SENSORS,
+    PrinterSnapshot,
+    _extract_ams_info,
+    ams_dry_state_name,
+    ams_dry_sub_status_name,
+    parse_ams_drying,
+    parse_ams_info,
+)
 
 
 class ExporterMetrics:
@@ -29,6 +38,108 @@ class ExporterMetrics:
         self.bed_temp = Gauge("bambulab_bed_temperature_celsius", "Bed temperature", label_names, registry=self.registry)
         self.bed_target_temp = Gauge("bambulab_bed_target_temperature_celsius", "Bed target temperature", label_names, registry=self.registry)
         self.chamber_temp = Gauge("bambulab_chamber_temperature_celsius", "Chamber temperature", label_names, registry=self.registry)
+        self.chamber_target_temp = Gauge(
+            "bambulab_chamber_target_temperature_celsius",
+            "Chamber heater target temperature (0 while the heater is off)",
+            label_names,
+            registry=self.registry,
+        )
+        self.chamber_heater_state = Gauge(
+            "bambulab_chamber_heater_state",
+            "Chamber heater state: 0 idle, 1 heating, 2 holding, 3 cooling",
+            label_names,
+            registry=self.registry,
+        )
+        self.extruder_loaded_slot_info = Gauge(
+            "bambulab_extruder_loaded_slot_info",
+            "Filament source loaded in each extruder (ams_id/slot_id, or external)",
+            [*label_names, "extruder_id", "ams_id", "slot_id"],
+            registry=self.registry,
+        )
+        self.hms_active_errors = Gauge(
+            "bambulab_hms_active_errors",
+            "Active HMS errors by severity (fatal, serious, common, info, unknown)",
+            [*label_names, "severity"],
+            registry=self.registry,
+        )
+        self.hms_active_errors_by_module = Gauge(
+            "bambulab_hms_active_errors_by_module",
+            "Active HMS errors by module (mc, mainboard, ams, toolhead, xcam, other)",
+            [*label_names, "module"],
+            registry=self.registry,
+        )
+        self.airduct_mode_info = Gauge(
+            "bambulab_airduct_mode_info",
+            "Airduct mode (cooling, heating, exhaust, full_cooling, init, unknown)",
+            [*label_names, "mode"],
+            registry=self.registry,
+        )
+        self.airduct_fan_speed = Gauge(
+            "bambulab_airduct_fan_speed_percent",
+            "Airduct fan speed percent by fan (part_cooling, aux, chamber, aux_2, ...)",
+            [*label_names, "fan"],
+            registry=self.registry,
+        )
+        self.nozzle_wear = Gauge(
+            "bambulab_nozzle_wear_ratio",
+            "Wear value of the nozzle mounted on each extruder (raw, unit unconfirmed)",
+            [*label_names, "extruder_id"],
+            registry=self.registry,
+        )
+        self.nozzle_print_time_seconds = Gauge(
+            "bambulab_nozzle_print_time_seconds",
+            "Total print time of the nozzle mounted on each extruder",
+            [*label_names, "extruder_id"],
+            registry=self.registry,
+        )
+        self.firmware_update_available = Gauge(
+            "bambulab_firmware_update_available",
+            "1 when a firmware update is available, 0 when up to date",
+            label_names,
+            registry=self.registry,
+        )
+        self.module_firmware_info = Gauge(
+            "bambulab_module_firmware_info",
+            "Firmware version per module from get_version (module ota is the printer)",
+            [*label_names, "module", "version"],
+            registry=self.registry,
+        )
+        self.tool_head_info = Gauge(
+            "bambulab_tool_head_info",
+            "Mounted tool head (none, laser_10w, laser_40w, cutter, cooling_fan, other)",
+            [*label_names, "tool"],
+            registry=self.registry,
+        )
+        self.accessory_present = Gauge(
+            "bambulab_accessory_present",
+            "1 if the accessory is installed, 0 if not",
+            [*label_names, "accessory"],
+            registry=self.registry,
+        )
+        self.light_mode_info = Gauge(
+            "bambulab_light_mode_info",
+            "Light mode per light (on, off, flashing, unknown)",
+            [*label_names, "light", "mode"],
+            registry=self.registry,
+        )
+        self.timelapse_storage_free_bytes = Gauge(
+            "bambulab_timelapse_storage_free_bytes",
+            "Free timelapse storage space",
+            [*label_names, "storage"],
+            registry=self.registry,
+        )
+        self.timelapse_storage_total_bytes = Gauge(
+            "bambulab_timelapse_storage_total_bytes",
+            "Total timelapse storage space",
+            [*label_names, "storage"],
+            registry=self.registry,
+        )
+        self.toolhead_filament_present = Gauge(
+            "bambulab_toolhead_filament_present",
+            "1 if the extruder filament sensor detects filament",
+            [*label_names, "extruder_id"],
+            registry=self.registry,
+        )
         self.fan_big_1_speed = Gauge("bambulab_fan_big_1_speed_percent", "Big fan 1 speed percent", label_names, registry=self.registry)
         self.fan_big_2_speed = Gauge("bambulab_fan_big_2_speed_percent", "Big fan 2 speed percent", label_names, registry=self.registry)
         self.fan_cooling_speed = Gauge("bambulab_fan_cooling_speed_percent", "Cooling fan speed percent", label_names, registry=self.registry)
@@ -161,6 +272,24 @@ class ExporterMetrics:
             [*label_names, "ams_id", "ams_model", "ams_series", "state"],
             registry=self.registry,
         )
+        self.ams_drying_remaining_seconds = Gauge(
+            "bambulab_ams_drying_remaining_seconds",
+            "Remaining AMS drying time (0 when not drying)",
+            [*label_names, "ams_id"],
+            registry=self.registry,
+        )
+        self.ams_drying_target_temperature = Gauge(
+            "bambulab_ams_drying_target_temperature_celsius",
+            "Configured AMS drying temperature",
+            [*label_names, "ams_id"],
+            registry=self.registry,
+        )
+        self.ams_drying_duration_seconds = Gauge(
+            "bambulab_ams_drying_duration_seconds",
+            "Configured AMS drying duration",
+            [*label_names, "ams_id"],
+            registry=self.registry,
+        )
 
         # Phase 1: New metrics
         self.sdcard_status_info = Gauge(
@@ -241,13 +370,28 @@ class ExporterMetrics:
         )
         self.hotend_rack_hotend_runtime_minutes = Gauge(
             "bambulab_hotend_rack_hotend_runtime_minutes",
-            "Hotend rack hotend runtime minutes per slot",
+            "Deprecated: carries the hotend's maximum temperature (payload tm), not a runtime; "
+            "use bambulab_hotend_rack_hotend_print_time_seconds or "
+            "bambulab_hotend_rack_hotend_max_temperature_celsius",
+            [*label_names, "slot_id"],
+            registry=self.registry,
+        )
+        self.hotend_rack_hotend_print_time_seconds = Gauge(
+            "bambulab_hotend_rack_hotend_print_time_seconds",
+            "Total print time of the hotend in a rack slot",
+            [*label_names, "slot_id"],
+            registry=self.registry,
+        )
+        self.hotend_rack_hotend_max_temperature_celsius = Gauge(
+            "bambulab_hotend_rack_hotend_max_temperature_celsius",
+            "Maximum temperature of the hotend in a rack slot",
             [*label_names, "slot_id"],
             registry=self.registry,
         )
         self.camera_recording = Gauge("bambulab_camera_recording", "1 if camera recording flag is set", label_names, registry=self.registry)
         self.ams_auto_switch = Gauge("bambulab_ams_auto_switch", "1 if AMS auto switch flag is set", label_names, registry=self.registry)
-        self.filament_tangle_detected = Gauge("bambulab_filament_tangle_detected", "1 if filament tangle detected flag is set", label_names, registry=self.registry)
+        self.filament_tangle_detected = Gauge("bambulab_filament_tangle_detected", "Deprecated alias of bambulab_filament_tangle_detection_enabled (this is the tangle-detection setting, not a detected tangle)", label_names, registry=self.registry)
+        self.filament_tangle_detection_enabled = Gauge("bambulab_filament_tangle_detection_enabled", "1 if filament tangle detection is enabled; NaN when the printer does not support it", label_names, registry=self.registry)
         self.filament_tangle_detect_supported = Gauge("bambulab_filament_tangle_detect_supported", "1 if filament tangle detect supported flag is set", label_names, registry=self.registry)
 
         # Phase 3: Stage info
@@ -281,6 +425,12 @@ class ExporterMetrics:
     def _labels(self) -> dict[str, str]:
         return self._base_labels
 
+    def last_success_timestamp(self) -> float | None:
+        """Unix time of the last successful polling cycle, or None before the first."""
+        return self.registry.get_sample_value(
+            "bambulab_exporter_last_success_unixtime", self._base_labels
+        )
+
     def update_from_snapshot(self, snapshot: PrinterSnapshot) -> None:
         labels = self._labels()
         has_payload = 1.0 if snapshot.raw else 0.0
@@ -298,6 +448,63 @@ class ExporterMetrics:
         self._set_optional(self.bed_temp, snapshot.bed_temp)
         self._set_optional(self.bed_target_temp, snapshot.bed_target_temp)
         self._set_optional(self.chamber_temp, snapshot.chamber_temp)
+        self._set_optional(self.chamber_target_temp, snapshot.chamber_target_temp)
+        self._set_optional(self.chamber_heater_state, snapshot.chamber_heater_state)
+
+        self.extruder_loaded_slot_info.clear()
+        for slot in snapshot.extruder_loaded_slots:
+            self.extruder_loaded_slot_info.labels(**labels, **slot).set(1.0)
+
+        self.hms_active_errors.clear()
+        self.hms_active_errors_by_module.clear()
+        hms = snapshot.hms_counts
+        if hms is not None:
+            by_severity, by_module = hms
+            for severity, count in by_severity.items():
+                self.hms_active_errors.labels(**labels, severity=severity).set(float(count))
+            for module, count in by_module.items():
+                self.hms_active_errors_by_module.labels(**labels, module=module).set(float(count))
+
+        self.airduct_mode_info.clear()
+        mode = snapshot.airduct_mode_name
+        if mode is not None:
+            self.airduct_mode_info.labels(**labels, mode=mode).set(1.0)
+        self.airduct_fan_speed.clear()
+        for fan, speed in snapshot.airduct_fan_speeds.items():
+            self.airduct_fan_speed.labels(**labels, fan=fan).set(speed)
+
+        self._set_optional(self.firmware_update_available, snapshot.firmware_update_available)
+        self.module_firmware_info.clear()
+        for module, version in snapshot.module_firmware_versions.items():
+            self.module_firmware_info.labels(**labels, module=module, version=version).set(1.0)
+        self.tool_head_info.clear()
+        if snapshot.tool_head_name is not None:
+            self.tool_head_info.labels(**labels, tool=snapshot.tool_head_name).set(1.0)
+        self.accessory_present.clear()
+        for accessory, present in snapshot.accessories_present.items():
+            self.accessory_present.labels(**labels, accessory=accessory).set(present)
+        self.light_mode_info.clear()
+        for light_node, light_mode in snapshot.light_modes.items():
+            self.light_mode_info.labels(**labels, light=light_node, mode=light_mode).set(1.0)
+        self.timelapse_storage_free_bytes.clear()
+        self.timelapse_storage_total_bytes.clear()
+        for storage, (free, total) in snapshot.timelapse_storage.items():
+            self.timelapse_storage_free_bytes.labels(**labels, storage=storage).set(free)
+            self.timelapse_storage_total_bytes.labels(**labels, storage=storage).set(total)
+        self.toolhead_filament_present.clear()
+        for extruder, present in snapshot.toolhead_filament_present.items():
+            self.toolhead_filament_present.labels(**labels, extruder_id=extruder).set(present)
+
+        self.nozzle_wear.clear()
+        self.nozzle_print_time_seconds.clear()
+        for nozzle in snapshot.mounted_nozzle_entries:
+            extruder = nozzle["extruder_id"]
+            if nozzle["wear"] is not None:
+                self.nozzle_wear.labels(**labels, extruder_id=extruder).set(nozzle["wear"])
+            if nozzle["print_time_seconds"] is not None:
+                self.nozzle_print_time_seconds.labels(**labels, extruder_id=extruder).set(
+                    nozzle["print_time_seconds"]
+                )
         self._set_optional(self.fan_big_1_speed, snapshot.fan_big_1_percent)
         self._set_optional(self.fan_big_2_speed, snapshot.fan_big_2_percent)
         self._set_optional(self.fan_cooling_speed, snapshot.fan_cooling_percent)
@@ -338,7 +545,9 @@ class ExporterMetrics:
             if node == "chamber_light":
                 chamber_light = light_state
             if node == "work_light":
-                work_light = light_state
+                # Printers report the work light as "flashing" constantly, also while it is
+                # off (verified on an X1C); that report carries no state.
+                work_light = float("nan") if mode == "flashing" else light_state
         self._set_optional(self.chamber_light_on, chamber_light)
         self._set_optional(self.work_light_on, work_light)
 
@@ -433,6 +642,8 @@ class ExporterMetrics:
         self.hotend_rack_hotend_info.clear()
         self.hotend_rack_hotend_wear_ratio.clear()
         self.hotend_rack_hotend_runtime_minutes.clear()
+        self.hotend_rack_hotend_print_time_seconds.clear()
+        self.hotend_rack_hotend_max_temperature_celsius.clear()
         if snapshot.hotend_rack_present:
             if snapshot.hotend_rack_holder_position_name:
                 self.hotend_rack_holder_position_info.labels(
@@ -459,15 +670,25 @@ class ExporterMetrics:
                     nozzle_diameter=str(hotend.get("nozzle_diameter", "")).strip() or "unknown",
                 ).set(1.0)
                 wear = hotend.get("wear")
-                runtime = hotend.get("runtime_minutes")
+                max_temp = hotend.get("max_temperature")
+                print_time = hotend.get("print_time_seconds")
                 if isinstance(wear, (int, float)):
                     self.hotend_rack_hotend_wear_ratio.labels(**labels, slot_id=slot_id).set(float(wear))
-                if isinstance(runtime, (int, float)):
-                    self.hotend_rack_hotend_runtime_minutes.labels(**labels, slot_id=slot_id).set(float(runtime))
+                if isinstance(max_temp, (int, float)):
+                    self.hotend_rack_hotend_max_temperature_celsius.labels(
+                        **labels, slot_id=slot_id
+                    ).set(float(max_temp))
+                    # Deprecated alias, same value as before.
+                    self.hotend_rack_hotend_runtime_minutes.labels(**labels, slot_id=slot_id).set(float(max_temp))
+                if isinstance(print_time, (int, float)):
+                    self.hotend_rack_hotend_print_time_seconds.labels(
+                        **labels, slot_id=slot_id
+                    ).set(float(print_time))
 
-        self._set_optional(self.camera_recording, self._flag_to_float(snapshot.home_flags.get("camera_recording")))
+        self._set_optional(self.camera_recording, snapshot.camera_recording)
         self._set_optional(self.ams_auto_switch, self._flag_to_float(snapshot.home_flags.get("ams_auto_switch")))
-        self._set_optional(self.filament_tangle_detected, self._flag_to_float(snapshot.home_flags.get("filament_tangle_detected")))
+        self._set_optional(self.filament_tangle_detection_enabled, snapshot.filament_tangle_detection_enabled)
+        self._set_optional(self.filament_tangle_detected, snapshot.filament_tangle_detection_enabled)
         self._set_optional(self.filament_tangle_detect_supported, self._flag_to_float(snapshot.home_flags.get("filament_tangle_detect_supported")))
 
         self.sdcard_status_info.clear()
@@ -482,18 +703,13 @@ class ExporterMetrics:
 
         self._clear_ams(labels)
 
-        # Decode active slot from top-level tray_now (outside the per-unit loop)
-        raw_tray_now = snapshot.ams_tray_now  # int | None, from print_block["ams"]["tray_now"]
-        tray_now_int = raw_tray_now if raw_tray_now is not None else 255
-
-        if tray_now_int in (254, 255):
-            # 255 = nothing active, 254 = external spool active
-            _active_ams_id = -1
-            _active_slot_id = -1
+        # Active slot: per-extruder `snow` on new firmware, `tray_now` on older payloads
+        # (decoded in PrinterSnapshot.active_filament_source).
+        source = snapshot.active_filament_source
+        if source is not None and source[0] == "ams":
+            _active_ams_id, _active_slot_id = source[1], source[2]
         else:
-            # Encoding: upper bits = AMS index, lower 2 bits = slot index
-            _active_ams_id = tray_now_int >> 2
-            _active_slot_id = tray_now_int & 0x3
+            _active_ams_id = _active_slot_id = -1
 
         for ams in snapshot.ams_units_with_model:
             ams_id = str(ams.get("id", "0"))
@@ -505,10 +721,13 @@ class ExporterMetrics:
                 **labels, ams_id=ams_id, ams_model=ams_model, ams_series=ams_series
             ).set(1.0)
 
+            # AMS Lite has no sensors; its temperature/humidity fields are placeholders.
+            has_sensors = ams_model not in AMS_MODELS_WITHOUT_SENSORS
+
             # Strict MQTT mapping:
             # - humidity_index metric follows MQTT "humidity" (index 1..5)
             # - humidity metric follows MQTT "humidity_raw" (raw % 1..100)
-            humidity_raw = ams.get("humidity_raw")
+            humidity_raw = ams.get("humidity_raw") if has_sensors else None
             if isinstance(humidity_raw, (int, float, str)):
                 try:
                     humidity_raw_value = float(humidity_raw)
@@ -517,25 +736,29 @@ class ExporterMetrics:
                 except (TypeError, ValueError):
                     pass
 
-            humidity_index = self._extract_ams_humidity_index(ams)
+            humidity_index = self._extract_ams_humidity_index(ams) if has_sensors else None
             if humidity_index is not None and 1.0 <= humidity_index <= 5.0:
                 self.ams_unit_humidity_index.labels(**labels, ams_id=ams_id).set(humidity_index)
 
-            temp = ams.get("temp")
+            temp = ams.get("temp") if has_sensors else None
             if isinstance(temp, (int, float, str)):
                 try:
                     self.ams_unit_temperature_celsius.labels(**labels, ams_id=ams_id).set(float(temp))
                 except (TypeError, ValueError):
                     pass
 
-            # Gen2 drying telemetry from ams_info/info bits
+            # Drying telemetry from ams_info/info bits, only for units with a dryer.
             ams_info_raw = _extract_ams_info(ams)
-            if isinstance(ams_info_raw, int) and ams_info_raw > 0:
+            if (
+                ams_model in AMS_MODELS_WITH_DRYER
+                and isinstance(ams_info_raw, int)
+                and ams_info_raw > 0
+            ):
                 parsed = parse_ams_info(ams_info_raw)
                 dry_heater_state = parsed["dry_heater_state"]
                 self.ams_heater_state_info.labels(
                     **labels, ams_id=ams_id, ams_model=ams_model, ams_series=ams_series,
-                    state=str(dry_heater_state)
+                    state=ams_dry_state_name(dry_heater_state)
                 ).set(1.0)
                 self.ams_dry_fan_status.labels(
                     **labels, ams_id=ams_id, ams_model=ams_model, ams_series=ams_series, fan_id="fan1"
@@ -545,8 +768,19 @@ class ExporterMetrics:
                 ).set(float(parsed["dry_fan2"]))
                 self.ams_dry_sub_status_info.labels(
                     **labels, ams_id=ams_id, ams_model=ams_model, ams_series=ams_series,
-                    state=str(parsed["dry_sub_status"])
+                    state=ams_dry_sub_status_name(parsed["dry_sub_status"])
                 ).set(1.0)
+
+            if ams_model in AMS_MODELS_WITH_DRYER:
+                drying = parse_ams_drying(ams)
+                for gauge, key in (
+                    (self.ams_drying_remaining_seconds, "remaining_seconds"),
+                    (self.ams_drying_target_temperature, "target_temperature"),
+                    (self.ams_drying_duration_seconds, "duration_seconds"),
+                ):
+                    value = drying[key]
+                    if value is not None:
+                        gauge.labels(**labels, ams_id=ams_id).set(value)
 
             raw_trays = ams.get("tray")
             trays = [t for t in raw_trays if isinstance(t, dict)] if isinstance(raw_trays, list) else []
@@ -560,11 +794,14 @@ class ExporterMetrics:
                 remain = tray.get("remain")
                 if isinstance(remain, (int, float, str)):
                     try:
+                        remain_value = float(remain)
+                    except (TypeError, ValueError):
+                        remain_value = None
+                    if remain_value is not None:
+                        # -1 means unknown (no RFID estimate), not -1 %.
                         self.ams_slot_remaining_percent.labels(
                             **labels, ams_id=ams_id, slot_id=tray_id
-                        ).set(float(remain))
-                    except (TypeError, ValueError):
-                        pass
+                        ).set(remain_value if remain_value >= 0 else float("nan"))
 
                 tray_type_raw = tray.get("tray_type", tray.get("ctype", ""))
                 tray_type = str(tray_type_raw).strip() or "unknown"
@@ -616,6 +853,9 @@ class ExporterMetrics:
         self.ams_heater_state_info.clear()
         self.ams_dry_fan_status.clear()
         self.ams_dry_sub_status_info.clear()
+        self.ams_drying_remaining_seconds.clear()
+        self.ams_drying_target_temperature.clear()
+        self.ams_drying_duration_seconds.clear()
 
     def mark_scrape(self, duration_seconds: float, success: bool, now_ts: float | None = None) -> None:
         labels = self._labels()

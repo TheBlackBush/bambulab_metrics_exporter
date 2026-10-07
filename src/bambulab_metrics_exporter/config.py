@@ -36,6 +36,9 @@ class Settings(BaseSettings):
 
     listen_host: str = "0.0.0.0"
     listen_port: int = 9109
+    # Extra host names allowed for the /auth page (comma separated), e.g. a reverse-proxy
+    # name. IP addresses, localhost and local-network names are always allowed.
+    auth_allowed_hosts: str = ""
 
     printer_name_label: str = ""
     bambulab_printer_name: str = ""

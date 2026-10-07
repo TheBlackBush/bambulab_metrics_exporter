@@ -38,7 +38,18 @@ Set `$printer` variable to your `printer_name` label value.
 - **Fans**: big1, big2, cooling, heatbreak, secondary aux
 - **AMS**: humidity index per unit, remaining % per slot, filament type/color
 - **Print stage**: current stage name
+- **Health & Firmware**: active HMS errors by severity and module, firmware update
+  available, printer and module firmware versions
+- **Chamber, Airduct & Accessories**: chamber heater state and target, airduct mode and
+  fan speeds, mounted tool head, installed accessories, light modes, timelapse storage
+- **Extruders & Nozzles**: filament sensor and loaded AMS slot per extruder, nozzle print
+  time and wear
+- **AMS Drying**: drying time left, target temperature and dryer state per unit
 - **Exporter health**: last success, scrape duration, connectivity
+
+Panels for hardware a printer does not have show a placeholder such as "No heater" or
+"N/A" instead of an error. All queries filter on both `$job` and `$printer`, so one job can
+scrape several exporters without mixing printers.
 
 ---
 
