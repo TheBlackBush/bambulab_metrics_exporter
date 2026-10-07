@@ -17,6 +17,10 @@ All notable changes to this project are documented in this file.
 - On each successful MQTT connect the exporter sends one read-only `get_version` request.
   The reply's module list supplies the printer product name for model detection. Disabled
   together with `pushall` by `BAMBULAB_REQUEST_PUSHALL=false`.
+- Development images: every push to the `develop` branch publishes
+  `ghcr.io/theblackbush/bambulab_metrics_exporter:develop` and `:develop-<short-sha>`
+  (amd64/arm64) after the full test suite passes. Stable `latest` and version tags are
+  unchanged.
 
 ### Fixed
 - **Most LAN-connected printers were reported as `X1C`.** Without identity fields in the

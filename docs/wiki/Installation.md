@@ -25,6 +25,24 @@ Or with Docker Compose:
 docker compose up -d
 ```
 
+### Development builds
+
+Every push to the `develop` branch publishes a pre-release image after the full test suite
+passes:
+
+| Tag | Meaning |
+|-----|---------|
+| `latest`, `<version>` | Stable releases (recommended) |
+| `develop` | Newest `develop` build; changes with every push |
+| `develop-<short-sha>` | A specific `develop` commit; never changes |
+
+```bash
+docker pull ghcr.io/theblackbush/bambulab_metrics_exporter:develop
+```
+
+Development builds can contain unreleased and breaking changes. Use them for testing, and
+pin a `develop-<short-sha>` tag if you need a reproducible deployment.
+
 ---
 
 ## Option 2: Build Locally
