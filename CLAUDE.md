@@ -86,6 +86,10 @@ Important boundaries:
   `error`). It validates, starts the collector, retries every 60 s, waits for credentials,
   and rebuilds settings/metrics/client on `reconfigure()`. The process never exits on
   connection problems.
+- `capabilities.py`: per-model hardware table (chamber sensor/heater, door source, lid, aux
+  and chamber fans, extruders, hotend rack, laser/cutter). Gate model-specific metrics with
+  `PrinterSnapshot.capabilities` instead of checking model names; unknown models are
+  permissive. Keep it in sync with the wiki "Supported models" table.
 - `auth_actions.py` and `overrides.py`: backend for the `/auth` page. Overrides are stored
   encrypted (`connection-overrides.enc.json`) and take precedence over env vars;
   `overrides.set_env` records original values so reset can restore them.

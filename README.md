@@ -61,7 +61,8 @@ Full operator documentation lives in the [GitHub Wiki](https://github.com/TheBla
 - Supports both LAN MQTT (`local_mqtt`) and Cloud MQTT (`cloud_mqtt`).
 - Uses `device/<serial>/report` and `device/<serial>/request` topics.
 - Requests full snapshots with `pushall`, requests the module list once per connection with `get_version` (read-only; used for model detection), and maps stable telemetry fields to Prometheus metrics.
-- Printer model detection order: `product_name` from the module list → serial prefix (payload `print.sn`, then the configured `BAMBULAB_SERIAL`) → `BAMBULAB_PRINTER_MODEL` → unambiguous `hw_ver`+`project_name` pairs. Recognized models: X1, X1C, X1E, X2D, P1P, P1S, P2S, A1, A1 mini, A2L, H2D, H2D Pro, H2S, H2C. Detection is not the same as validation: only the X1C has been tested on real hardware.
+- Printer model detection order: `product_name` from the module list → serial prefix (payload `print.sn`, then the configured `BAMBULAB_SERIAL`) → `BAMBULAB_PRINTER_MODEL` → unambiguous `hw_ver`+`project_name` pairs. Recognized models: X1, X1C, X1E, X2D, P1P, P1S, P2S, A1, A1 mini, A2L, H2D, H2D Pro, H2S, H2C, plus the R1 laser engraver (model label only). Detection is not the same as validation: only the X1C has been tested on real hardware.
+- Each model has a capability profile (`capabilities.py`): metrics for hardware a model does not have (chamber sensor, door sensor, aux/chamber fan, lid) report NaN instead of the firmware's placeholder values. See the supported models table in the wiki Metrics Reference.
 
 > **Deployment:** This project is deployed via Docker. There is no pip/PyPI distribution.
 > See [Installation](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Installation) for full setup instructions.
@@ -340,8 +341,8 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 | `bambulab_bed_temperature_celsius` | Gauge | Current bed temperature. |
 | `bambulab_bed_target_temperature_celsius` | Gauge | Target bed temperature. |
 | `bambulab_chamber_temperature_celsius` | Gauge | Chamber temperature. |
-| `bambulab_fan_big_1_speed_percent` | Gauge | Big fan 1 speed percent. |
-| `bambulab_fan_big_2_speed_percent` | Gauge | Big fan 2 speed percent. |
+| `bambulab_fan_big_1_speed_percent` | Gauge | Big fan 1 (aux) speed percent. NaN on A1, A1 mini, A2L (no aux fan). |
+| `bambulab_fan_big_2_speed_percent` | Gauge | Big fan 2 (chamber) speed percent. NaN on A1, A1 mini, A2L (no chamber fan). |
 | `bambulab_fan_cooling_speed_percent` | Gauge | Cooling fan speed percent. |
 | `bambulab_fan_heatbreak_speed_percent` | Gauge | Heatbreak fan speed percent. |
 | `bambulab_fan_secondary_aux_speed_percent` | Gauge | Secondary auxiliary fan speed percent from `print.device.airduct.parts[id=160]`. |
@@ -392,7 +393,7 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 | `bambulab_hotend_rack_hotend_runtime_minutes{slot_id}` | Gauge | Deprecated: carries the maximum temperature, not a runtime. Use the two metrics above. |
 | `bambulab_sdcard_status_info{status}` | Info Gauge | SD-card status (`present/abnormal/absent`). |
 | `bambulab_door_open` | Gauge | Door open flag. |
-| `bambulab_lid_open` | Gauge | Lid open flag (H2 family via `stat` bit 24, or direct `lid_open`). |
+| `bambulab_lid_open` | Gauge | Lid open flag (H2D, H2D Pro, H2S, H2C via `stat` bit 24, or direct `lid_open`). |
 | `bambulab_wired_network` | Gauge | Wired network detected flag. |
 | `bambulab_camera_recording` | Gauge | Camera recording flag. |
 | `bambulab_ams_auto_switch` | Gauge | AMS auto-switch flag. |

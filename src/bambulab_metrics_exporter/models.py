@@ -1,6 +1,12 @@
 from dataclasses import dataclass
 from typing import Any
 
+from bambulab_metrics_exporter.capabilities import (
+    DOOR_HOME_FLAG,
+    DOOR_STAT,
+    ModelCapabilities,
+    capabilities_for,
+)
 from bambulab_metrics_exporter.flags import (
     HOME_FLAG_MASKS,
     STAT_FLAG_MASKS,
@@ -12,13 +18,6 @@ from bambulab_metrics_exporter.flags import (
 
 
 # X1-family printers report the door sensor in home_flag; other models use stat.
-X1_HOMEFLAG_MODELS = {"X1", "X1C", "X1E"}
-H2_MODEL_PREFIX = "H2"
-
-# Models without a chamber temperature sensor or a door sensor. Their firmware still sends
-# placeholder values (for example chamber_temper 5), which must not be exported as data.
-NO_CHAMBER_SENSOR_MODELS: frozenset[str] = frozenset({"A1", "A1MINI", "A2L", "P1P", "P1S"})
-NO_DOOR_SENSOR_MODELS: frozenset[str] = frozenset({"A1", "A1MINI", "A2L", "P1P", "P1S"})
 
 # product_name → model (priority 1 in resolver). Keys are normalized with
 # _normalize_product_name, so firmware strings like "Bambu Lab X1-Carbon" match.
@@ -57,6 +56,8 @@ _SN_PREFIX_TO_PRINTER: dict[str, str] = {
     "094": "H2D",
     "239": "H2DPRO",
     "31B": "H2C",
+    # Laser engraver; Bambu Studio code N8, Bambu Handy groups it with R1.
+    "35F": "R1",
 }
 
 # Internal model codes (Bambu Studio printer model ids, also returned by the cloud
@@ -77,6 +78,16 @@ _MODEL_CODE_TO_PRINTER: dict[str, str] = {
     "O1D": "H2D",
     "O1E": "H2DPRO",
     "O1S": "H2S",
+    # Alternate codes from newer firmware and the cloud device list.
+    "O2D": "H2DPRO",
+    "N2": "A1MINI",
+    "A04": "A1MINI",
+    "A12": "A1MINI",
+    "A11": "A1",
+    "N8": "R1",
+    # Cloud short names (2026).
+    "A1M": "A1MINI",
+    "H2DP": "H2DPRO",
 }
 
 KNOWN_PRINTER_MODELS: frozenset[str] = frozenset(_SN_PREFIX_TO_PRINTER.values())
@@ -452,6 +463,9 @@ def normalize_model_hint(value: Any) -> str | None:
     if mapped:
         return mapped
     code = str(value).strip().upper()
+    # Hardware revisions carry a "-V2" suffix (N6-V2, O1D-V2, O1C2-V2).
+    if code.endswith("-V2"):
+        code = code[: -len("-V2")]
     if code in _MODEL_CODE_TO_PRINTER:
         return _MODEL_CODE_TO_PRINTER[code]
     compact = name.replace(" ", "").upper()
@@ -558,6 +572,11 @@ class PrinterSnapshot:
         return self.printer_type
 
     @property
+    def capabilities(self) -> ModelCapabilities:
+        """Hardware capabilities of the detected model (permissive when unknown)."""
+        return capabilities_for(self.printer_type)
+
+    @property
     def progress_percent(self) -> float | None:
         return _to_float(self.print_block.get("mc_percent"))
 
@@ -594,7 +613,7 @@ class PrinterSnapshot:
         while the chamber heater has a target (H2S sample: 3932220 = 60 °C / 60 °C).
         Models without a chamber sensor send a placeholder and report None.
         """
-        if self.printer_type in NO_CHAMBER_SENSOR_MODELS:
+        if not self.capabilities.chamber_sensor:
             return None
         raw: Any = None
         device = self.print_block.get("device")
@@ -629,10 +648,16 @@ class PrinterSnapshot:
 
     @property
     def fan_big_1_percent(self) -> float | None:
+        """Aux fan. A1-family printers have none but still report 0."""
+        if not self.capabilities.aux_fan:
+            return None
         return _fan_percent_normalized(self.print_block.get("big_fan1_speed"))
 
     @property
     def fan_big_2_percent(self) -> float | None:
+        """Chamber fan. A1-family printers have none but still report 0."""
+        if not self.capabilities.chamber_fan:
+            return None
         return _fan_percent_normalized(self.print_block.get("big_fan2_speed"))
 
     @property
@@ -1267,13 +1292,12 @@ class PrinterSnapshot:
 
     @property
     def door_open(self) -> float | None:
-        """1.0 if door is open, 0.0 if closed.
+        """1.0 if door is open, 0.0 if closed, None without a door sensor.
 
-        Source selection mirrors upstream behavior:
-        - Direct `door_open` value if present
-        - X1/X1C prefer `home_flag` bitmask
-        - Other models prefer `stat` hex bitmask
-        - Fallback to whichever bitmask source is available
+        Source per model (capabilities.door_source): a direct `door_open` value wins;
+        X1 family reads home_flag bit 23 only (stat bit 23 is always set there); P2S,
+        H2 family and X2D read stat bit 23; P1 and A1 families have no sensor; unknown
+        models use whichever source is present.
         """
         val = self.print_block.get("door_open")
         if isinstance(val, bool):
@@ -1282,16 +1306,19 @@ class PrinterSnapshot:
             return 1.0 if val else 0.0
 
         # P1 and A1-family printers have no door sensor; their flag bits are not a door.
-        if self.printer_type in NO_DOOR_SENSOR_MODELS:
+        source = self.capabilities.door_source
+        if source is None:
             return None
 
         home_flag = to_int(self.print_block.get("home_flag"))
         stat_flag = to_hex_int(self.print_block.get("stat"))
-        ptype = self.printer_type
 
-        if ptype in X1_HOMEFLAG_MODELS:
+        if source == DOOR_HOME_FLAG:
+            # X1 family: stat bit 23 is always set there, so never fall back to it.
             if home_flag is not None:
                 return 1.0 if (home_flag & HOME_FLAG_MASKS["door_open"]) else 0.0
+            return None
+        if source == DOOR_STAT:
             if stat_flag is not None:
                 return 1.0 if (stat_flag & STAT_FLAG_MASKS["door_open"]) else 0.0
             return None
@@ -1317,8 +1344,7 @@ class PrinterSnapshot:
         if isinstance(val, (int, float)):
             return 1.0 if val else 0.0
 
-        ptype = self.printer_type
-        if isinstance(ptype, str) and ptype.startswith(H2_MODEL_PREFIX):
+        if self.capabilities.lid_sensor:
             stat_flag = to_hex_int(self.print_block.get("stat"))
             if stat_flag is not None:
                 return 1.0 if (stat_flag & STAT_FLAG_MASKS["lid_open"]) else 0.0
