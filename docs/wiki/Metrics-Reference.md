@@ -58,6 +58,10 @@ Unknown models export whatever the payload carries.
 | `bambulab_fail_reason_info{fail_reason}` | Info Gauge | Current fail reason |
 | `bambulab_stg_cur` | Gauge | Current stage numeric ID |
 | `bambulab_print_stage_info{stage}` | Info Gauge | Current stage name (stages 0-84 and 88; unlisted codes are `unknown_<n>`) |
+| `bambulab_mc_stage` | Gauge | Raw `mc_stage` code |
+| `bambulab_mc_print_sub_stage` | Gauge | Raw `mc_print_sub_stage` code |
+| `bambulab_print_real_action` | Gauge | Raw `print_real_action` code |
+| `bambulab_print_gcode_action` | Gauge | Raw `print_gcode_action` code |
 | `bambulab_firmware_update_available` | Gauge | 1 when the printer offers a firmware update (`upgrade_state.new_version_state` 1), 0 when up to date (2), NaN when unknown (0 or absent) |
 | `bambulab_module_firmware_info{module,version}` | Info Gauge | Firmware version of each module from `get_version` (`module="ota"` is the printer firmware; also `mc`, `th`, AMS units such as `n3f/0`). Absent when `BAMBULAB_REQUEST_PUSHALL=false` |
 | `bambulab_printer_model_info{model}` | Info Gauge | Detected printer model |
@@ -102,6 +106,7 @@ Fan values: raw levels 0–15 → nearest-10 percent normalization.
 | `bambulab_printer_error` | Gauge | 1 when printer error code is non-zero |
 | `bambulab_printer_error_code` | Gauge | Raw printer error code |
 | `bambulab_print_error` | Gauge | Raw print_error value from MQTT |
+| `bambulab_print_error_code` | Gauge | Legacy alias of `bambulab_print_error` (same value), kept for existing dashboards |
 | `bambulab_ap_error_code` | Gauge | Raw ap_err value from MQTT |
 | `bambulab_hms_active_errors{severity}` | Gauge | Active HMS (health management) errors by severity: `fatal`, `serious`, `common`, `info`, `unknown`. All values present (0 when none); omitted when the printer sends no `hms` list |
 | `bambulab_hms_active_errors_by_module{module}` | Gauge | Active HMS errors by module: `mc`, `mainboard`, `ams`, `toolhead`, `xcam`, `other` |
@@ -195,6 +200,9 @@ Fan values: raw levels 0–15 → nearest-10 percent normalization.
 | `bambulab_wifi_signal` | Gauge | Wi-Fi signal (dBm) |
 | `bambulab_wired_network` | Gauge | Wired network detected |
 | `bambulab_door_open` | Gauge | Door open flag. NaN on models without a door sensor (A1, A1 mini, A2L, P1P, P1S) |
+| `bambulab_lid_open` | Gauge | Top lid open flag (`stat` bit 24). H2 family only; NaN on other models |
+| `bambulab_online_ahb` | Gauge | AMS hub online flag (`online.ahb`) |
+| `bambulab_online_ext` | Gauge | Extension board online flag (`online.ext`) |
 | `bambulab_sdcard_status_info{status}` | Info Gauge | SD card status |
 | `bambulab_chamber_light_on` | Gauge | Chamber light (1/0) |
 | `bambulab_work_light_on` | Gauge | Work light (1/0) |

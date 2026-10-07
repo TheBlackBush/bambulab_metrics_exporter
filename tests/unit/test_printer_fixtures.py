@@ -449,3 +449,86 @@ def test_toolhead_filament_present(name: str, present: dict[str, float]) -> None
     _, _, metrics = _load(name)
     got = {labels["extruder_id"]: v for labels, v in _samples(metrics, "bambulab_toolhead_filament_present")}
     assert got == present
+
+
+def _pushall_only(name: str, serial: str | None) -> tuple[PrinterSnapshot, ExporterMetrics]:
+    fixture = json.loads((FIXTURES / f"{name}.json").read_text(encoding="utf-8"))
+    snap = PrinterSnapshot(connected=True, raw=fixture["pushall"], configured_serial=serial)
+    metrics = ExporterMetrics(printer_name="fixture", serial="FIXTURE")
+    metrics.update_from_snapshot(snap)
+    return snap, metrics
+
+
+def test_a1_ams_lite_without_get_version_has_no_placeholder_sensors() -> None:
+    """Regression: without the get_version reply (or with BAMBULAB_REQUEST_PUSHALL=false)
+    the A1 AMS Lite was `unknown` and exported temperature 0 / humidity index 5."""
+    snap, metrics = _pushall_only("a1", "039FIXTURE000001")
+    assert [u["ams_model"] for u in snap.ams_units_with_model] == ["ams_lite"]
+    assert _samples(metrics, "bambulab_ams_unit_temperature_celsius") == []
+    assert _samples(metrics, "bambulab_ams_unit_humidity_index") == []
+
+
+def test_legacy_ams_ht_without_get_version_is_recognized() -> None:
+    snap, _ = _pushall_only("x1_legacy_firmware", "00MFIXTURE000001")
+    assert [u["ams_model"] for u in snap.ams_units_with_model] == ["ams_ht"]
+
+
+def test_unknown_unit_on_other_models_stays_unknown() -> None:
+    snap = PrinterSnapshot(
+        connected=True, raw={"print": {"ams": {"ams": [{"id": "0"}]}}},
+        configured_serial="00MFIXTURE000001",
+    )
+    assert [u["ams_model"] for u in snap.ams_units_with_model] == ["unknown"]
+
+
+def test_r1_laser_reports_no_fdm_metrics() -> None:
+    payload = {
+        "nozzle_temper": 200.0, "bed_temper": 60.0, "cooling_fan_speed": "15",
+        "ams": {"ams": [{"id": "0", "info": "1001"}]},
+        "device": {"extruder": {"info": [{"id": 0, "snow": 0, "temp": 200}]}},
+    }
+    snap = PrinterSnapshot(connected=True, raw={"print": payload}, configured_serial="35FFAKE0000001")
+    metrics = ExporterMetrics(printer_name="fixture", serial="FIXTURE")
+    metrics.update_from_snapshot(snap)
+    assert snap.model_name == "R1"
+    assert math.isnan(_value(metrics, "bambulab_nozzle_temperature_celsius"))
+    assert math.isnan(_value(metrics, "bambulab_bed_temperature_celsius"))
+    assert math.isnan(_value(metrics, "bambulab_fan_cooling_speed_percent"))
+    assert _samples(metrics, "bambulab_ams_unit_info") == []
+    assert _samples(metrics, "bambulab_extruder_loaded_slot_info") == []
+
+
+_FIXTURES_WITH_PRODUCT_NAME = [
+    p.stem for p in sorted(FIXTURES.glob("*.json"))
+    if any(
+        m.get("product_name")
+        for m in json.loads(p.read_text(encoding="utf-8")).get("get_version", {})
+        .get("info", {}).get("module", [])
+    )
+]
+
+
+@pytest.mark.parametrize("name", _FIXTURES_WITH_PRODUCT_NAME)
+def test_model_detected_from_payload_alone(name: str) -> None:
+    """The main fixture test passes the expected model's serial prefix; this one detects
+    from the payload and get_version product name only, so it can fail."""
+    fixture = json.loads((FIXTURES / f"{name}.json").read_text(encoding="utf-8"))
+    raw = {**fixture["pushall"], **fixture["get_version"]}
+    assert PrinterSnapshot(connected=True, raw=raw).model_name == fixture["model"]
+
+
+def test_sanitizer_replaces_ams_identifiers() -> None:
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("sanitize_fixture", FIXTURES / "sanitize_fixture.py")
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    out = module.sanitize({"print": {"ams": {"ams": [
+        {"id": "0", "ams_id": "03C06A6320AAAAA", "chip_id": "13c4303534340600aaaa"},
+        {"id": "1", "ams_id": "1"},
+    ]}}})
+    units = out["pushall"]["print"]["ams"]["ams"]
+    assert units[0]["ams_id"].startswith("03CFIXTURE")
+    assert set(units[0]["chip_id"]) == {"0"}
+    assert units[1]["ams_id"] == "1"  # numeric unit index is kept

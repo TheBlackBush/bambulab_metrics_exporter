@@ -526,3 +526,111 @@ def test_page_overrides_do_not_leak_into_env_file(tmp_path: Path, monkeypatch) -
     env_text = (tmp_path / ".env").read_text()
     assert "BAMBULAB_HOST=192.0.2.10" in env_text
     assert "page-access-code" not in env_text
+
+
+class _RejectedWhileRunningClient(_Client):
+    """Accepted at first, then the broker refuses the credentials (expired token)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.fetches = 0
+
+    @property
+    def auth_rejected(self) -> bool:
+        return self.fetches >= 2
+
+    def fetch_snapshot(self, timeout_seconds: float) -> PrinterSnapshot:
+        self.fetches += 1
+        return super().fetch_snapshot(timeout_seconds)
+
+
+def test_rejection_while_running_revalidates_and_requires_auth() -> None:
+    """Regression: an expired token while running left the state at "running" forever."""
+    attempts = {"n": 0}
+
+    def validate(_s: Settings) -> None:
+        attempts["n"] += 1
+        if attempts["n"] > 1:
+            raise ReauthRequiredError("token rejected")
+
+    runtime = rt.ExporterRuntime(
+        settings_factory=lambda: _local(),
+        validate=validate,
+        client_factory=lambda _s: _RejectedWhileRunningClient(),
+        discover=lambda s: None,
+        store_poll_seconds=0.02,
+    )
+    runtime.start()
+    try:
+        _wait_until(lambda: runtime.status()["state"] == rt.STATE_AUTH_REQUIRED)
+        assert attempts["n"] == 2
+        assert runtime.collector is None
+    finally:
+        runtime.stop()
+
+
+def test_stop_during_validation_does_not_start_collector() -> None:
+    entered = threading.Event()
+    clients: list[_Client] = []
+    holder: dict = {}
+
+    def validate(_s: Settings) -> None:
+        entered.set()
+        while not holder["rt"]._stop.is_set():
+            time.sleep(0.01)
+
+    runtime = _runtime([_local()], validate=validate, clients=clients)
+    holder["rt"] = runtime
+    runtime.start()
+    assert entered.wait(2)
+    runtime.stop()
+    assert clients == []
+
+
+def test_store_written_during_validation_is_retried_once(tmp_path: Path) -> None:
+    """Regression: credentials written by bambulab-reauth while validation ran became the
+    baseline and were only picked up by the 5-minute retry."""
+    store = tmp_path / "credentials.enc.json"
+    attempts = {"n": 0}
+
+    def validate(_s: Settings) -> None:
+        attempts["n"] += 1
+        if attempts["n"] == 1:
+            store.write_bytes(b"written by bambulab-reauth")
+            raise ReauthRequiredError("token expired")
+
+    settings = _local(
+        bambulab_transport="cloud_mqtt", bambulab_config_dir=str(tmp_path),
+        bambulab_credentials_file=store.name,
+    )
+    runtime = _runtime([settings], validate=validate, store_poll_seconds=60.0)
+    runtime.start()
+    try:
+        _wait_until(lambda: runtime.status()["state"] == rt.STATE_RUNNING)
+        assert attempts["n"] == 2
+    finally:
+        runtime.stop()
+
+
+def test_store_retry_during_validation_happens_only_once_in_a_row(tmp_path: Path) -> None:
+    """A refresh during validation also writes the store; that must not loop."""
+    store = tmp_path / "credentials.enc.json"
+    attempts = {"n": 0}
+
+    def validate(_s: Settings) -> None:
+        attempts["n"] += 1
+        store.write_bytes(f"write {attempts['n']}".encode())
+        raise ReauthRequiredError("token expired")
+
+    settings = _local(
+        bambulab_transport="cloud_mqtt", bambulab_config_dir=str(tmp_path),
+        bambulab_credentials_file=store.name,
+    )
+    runtime = _runtime([settings], validate=validate, store_poll_seconds=60.0)
+    runtime.start()
+    try:
+        _wait_until(lambda: attempts["n"] >= 2)
+        time.sleep(0.2)
+        assert attempts["n"] == 2
+    finally:
+        runtime.stop()

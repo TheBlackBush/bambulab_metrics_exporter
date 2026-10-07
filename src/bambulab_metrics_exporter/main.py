@@ -11,7 +11,7 @@ from bambulab_metrics_exporter.api import build_app
 from bambulab_metrics_exporter.config import Settings
 from bambulab_metrics_exporter.credentials_store import load_encrypted_credentials
 from bambulab_metrics_exporter.logging_utils import configure_logging, log_banner
-from bambulab_metrics_exporter.overrides import apply_overrides_to_env
+from bambulab_metrics_exporter.overrides import apply_overrides_to_env, page_login_active, set_env
 from bambulab_metrics_exporter.runtime import ExporterRuntime
 
 logger = logging.getLogger(__name__)
@@ -32,9 +32,12 @@ def _bootstrap_cloud_credentials() -> None:
     if transport != "cloud_mqtt":
         return
 
+    # A page cloud login wins over env tokens (they are the container's own), recorded
+    # so "Reset to env vars" can restore them.
+    page_login = page_login_active()
     has_uid = bool(os.getenv("BAMBULAB_CLOUD_USER_ID"))
     has_token = bool(os.getenv("BAMBULAB_CLOUD_ACCESS_TOKEN"))
-    if has_uid and has_token:
+    if has_uid and has_token and not page_login:
         return
 
     config_dir = Path(os.getenv("BAMBULAB_CONFIG_DIR", "/config/bambulab-metrics-exporter"))
@@ -62,7 +65,10 @@ def _bootstrap_cloud_credentials() -> None:
     ):
         value = payload.get(key)
         if isinstance(value, str) and value:
-            os.environ[key] = value
+            if page_login:
+                set_env(key, value)
+            else:
+                os.environ[key] = value
 
 
 _WILDCARD_HOSTS = {"", "0.0.0.0", "::", "[::]"}

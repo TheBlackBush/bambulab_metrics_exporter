@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-07
+
 ### Added
 - Grafana dashboard (`examples/grafana/dashboard.sample.json`): new rows for health and
   firmware (HMS errors, firmware update, module versions), chamber/airduct/accessories,
@@ -104,6 +106,28 @@ All notable changes to this project are documented in this file.
 - The `BAMBULAB_CLOUD_EMAIL` + `BAMBULAB_CLOUD_CODE` env flow is unchanged and still supported.
 
 ### Fixed
+- An expired or revoked cloud token (or a changed LAN access code) while the exporter is
+  running is now detected: the exporter re-validates (token refresh first, then the
+  re-authentication state on `/auth`) instead of reconnecting with rejected credentials and
+  reporting `running`.
+- "Reset to env vars" on `/auth` is no longer undone after a restart: the cloud token
+  refresh no longer writes page settings into `.env`, and tokens from a page cloud login stay
+  in the encrypted store (never `.env`). A page login still survives restarts, and reset
+  returns to the container's own credentials.
+- A1 / A1 mini AMS Lite no longer exports placeholder temperature 0 and humidity index 5
+  before the `get_version` reply arrives or with `BAMBULAB_REQUEST_PUSHALL=false`; AMS HT
+  units (ids 128-135) on legacy firmware are recognized without it.
+- R1 laser engravers no longer report nozzle, bed, part-cooling/heatbreak fan, extruder or
+  AMS metrics.
+- Shutdown and reconnect: a stop during connection validation no longer starts a collector,
+  a fetch that outlives a reconnect no longer writes into the new registry, and credentials
+  written by `bambulab-reauth` during validation are used right away.
+- `examples/sample_metrics.prom` regenerated from the sanitized X1C fixture (current labels
+  and metrics); missing Metrics Reference rows added (`bambulab_lid_open`,
+  `bambulab_print_error_code`, `bambulab_mc_stage`, `bambulab_mc_print_sub_stage`,
+  `bambulab_print_real_action`, `bambulab_print_gcode_action`, `bambulab_online_ahb`,
+  `bambulab_online_ext`).
+- Fixture sanitizer now replaces AMS `chip_id` and serial-style `ams_id` values.
 - Grafana dashboard: target temperature, total layer, stage and error queries now filter on
   `$printer` (they mixed printers sharing a job); remaining-time trend uses seconds (was
   minutes, 60x too large); AMS temperature and humidity show one value per unit instead of

@@ -185,6 +185,9 @@ AMS_MODEL_BY_MODULE_PREFIX: dict[str, str] = {
     "n3s": "ams_ht",
 }
 
+# Printers whose only AMS is the AMS Lite (it reports no info or serial).
+_AMS_LITE_ONLY_MODELS: frozenset[str] = frozenset({"A1", "A1MINI", "A2L"})
+
 # AMS Lite has no temperature or humidity sensor; it reports fixed placeholders.
 AMS_MODELS_WITHOUT_SENSORS: frozenset[str] = frozenset({"ams_lite"})
 # Only these units have a dryer, so drying telemetry is meaningless on the others.
@@ -699,22 +702,32 @@ class PrinterSnapshot:
 
     @property
     def nozzle_temp(self) -> float | None:
+        if not self.capabilities.fdm:
+            return None
         return _to_float(self.print_block.get("nozzle_temper"))
 
     @property
     def nozzle_target_temp(self) -> float | None:
+        if not self.capabilities.fdm:
+            return None
         return _to_float(self.print_block.get("nozzle_target_temper"))
 
     @property
     def nozzle_diameter(self) -> float | None:
+        if not self.capabilities.fdm:
+            return None
         return _to_float(self.print_block.get("nozzle_diameter"))
 
     @property
     def bed_temp(self) -> float | None:
+        if not self.capabilities.fdm:
+            return None
         return _to_float(self.print_block.get("bed_temper"))
 
     @property
     def bed_target_temp(self) -> float | None:
+        if not self.capabilities.fdm:
+            return None
         return _to_float(self.print_block.get("bed_target_temper"))
 
     @property
@@ -805,10 +818,14 @@ class PrinterSnapshot:
 
     @property
     def fan_cooling_percent(self) -> float | None:
+        if not self.capabilities.fdm:
+            return None
         return _fan_percent_normalized(self.print_block.get("cooling_fan_speed"))
 
     @property
     def fan_heatbreak_percent(self) -> float | None:
+        if not self.capabilities.fdm:
+            return None
         return _fan_percent_normalized(self.print_block.get("heatbreak_fan_speed"))
 
     @property
@@ -1317,6 +1334,8 @@ class PrinterSnapshot:
 
     @property
     def extruder_entries(self) -> list[dict[str, Any]]:
+        if not self.capabilities.fdm:
+            return []
         device = self.print_block.get("device")
         if not isinstance(device, dict):
             return []
@@ -1797,6 +1816,8 @@ class PrinterSnapshot:
 
     @property
     def ams_units(self) -> list[dict[str, Any]]:
+        if not self.capabilities.fdm:
+            return []
         ams = self.print_block.get("ams", {})
         if not isinstance(ams, dict):
             return []
@@ -1818,6 +1839,17 @@ class PrinterSnapshot:
                 models[str(int(unit_id))] = model
         return models
 
+    def _ams_model_fallback(self, unit: dict[str, Any]) -> str:
+        """Model for a unit without info, serial or get_version entry (A1 AMS Lite and
+        legacy AMS HT payloads, or BAMBULAB_REQUEST_PUSHALL=false): AMS HT units use ids
+        128-135; the A1 family only takes the AMS Lite."""
+        unit_id = to_int(unit.get("id"))
+        if unit_id is not None and 0x80 <= unit_id <= 0x87:
+            return "ams_ht"
+        if self.printer_type in _AMS_LITE_ONLY_MODELS:
+            return "ams_lite"
+        return "unknown"
+
     @property
     def ams_units_with_model(self) -> list[dict[str, Any]]:
         """Return AMS units enriched with resolved ams_model and ams_series."""
@@ -1828,6 +1860,8 @@ class PrinterSnapshot:
             ams_model = resolve_ams_model(unit)
             if ams_model == "unknown":
                 ams_model = module_models.get(str(unit.get("id", "")).strip(), "unknown")
+            if ams_model == "unknown":
+                ams_model = self._ams_model_fallback(unit)
             enriched["ams_model"] = ams_model
             enriched["ams_series"] = resolve_ams_series(ams_model)
             result.append(enriched)

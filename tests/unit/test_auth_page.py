@@ -600,3 +600,84 @@ def test_post_response_does_not_auto_refresh(monkeypatch) -> None:
     page = client.post("/auth/cloud/send-code", data={"email": "operator@example.invalid"}).text
     assert 'http-equiv="refresh"' not in page
     assert 'value="operator@example.invalid"' in page
+
+
+def test_streamed_form_without_length_is_capped() -> None:
+    """A chunked body has no Content-Length; the streamed size is still capped at 8 KB."""
+    client, runtime = _client()
+
+    def body():
+        yield b"host=" + b"a" * 5000
+        yield b"a" * 5000
+
+    resp = client.post(
+        "/auth/local", content=body(),
+        headers={"content-type": "application/x-www-form-urlencoded"},
+    )
+    assert resp.status_code == 413 and runtime.reconfigured == 0
+
+
+def test_flash_store_keeps_only_recent_visitors() -> None:
+    client, _ = _client()
+    message = "already using env vars"
+    tokens = [f"visitor-token-{i:04d}" for i in range(65)]
+    for token in tokens:
+        client.cookies.set("bme_auth", token)
+        client.post("/auth/reset", follow_redirects=False)
+    client.cookies.set("bme_auth", tokens[0])
+    assert message not in client.get("/auth").text  # oldest evicted (limit 64)
+    client.cookies.set("bme_auth", tokens[-1])
+    assert message in client.get("/auth").text
+
+
+def test_short_error_truncates_and_prefers_os_reason() -> None:
+    from bambulab_metrics_exporter.api import _short_error
+
+    assert _short_error(OSError(13, "Permission denied")) == "Permission denied"
+    assert len(_short_error(ValueError("x" * 500))) == 200
+
+
+def test_page_cloud_login_tokens_stay_out_of_env_file(monkeypatch, tmp_path: Path) -> None:
+    """Page-login tokens live in the encrypted store only, so .env never carries another
+    account's tokens and reset fully returns to the container's credentials."""
+    monkeypatch.setenv("BAMBULAB_SECRET_KEY", SECRET)
+    monkeypatch.setattr(auth_actions, "login_with_code", lambda email, code: _login())
+    client, _ = _client()
+    client.post(
+        "/auth/cloud/login",
+        data={"email": "operator@example.invalid", "code": "000000", "serial": "FAKE00TEST000001"},
+    )
+    assert set(overrides.CLOUD_CREDENTIAL_KEYS) <= overrides.overridden_keys()
+
+    # Simulated restart: the process forgets what it recorded; the backup file remains.
+    overrides._ORIGINAL_ENV.clear()
+    assert overrides.page_login_active()
+    assert set(overrides.CLOUD_CREDENTIAL_KEYS) <= overrides.overridden_keys()
+
+
+def test_page_cloud_login_survives_restart_and_reset_restores_env(
+    monkeypatch, tmp_path: Path
+) -> None:
+    from bambulab_metrics_exporter import main
+
+    monkeypatch.setenv("BAMBULAB_SECRET_KEY", SECRET)
+    monkeypatch.setenv("BAMBULAB_CLOUD_USER_ID", "operator_uid")
+    monkeypatch.setenv("BAMBULAB_CLOUD_ACCESS_TOKEN", "operator_token")
+    monkeypatch.setattr(auth_actions, "login_with_code", lambda email, code: _login())
+    client, _ = _client()
+    client.post(
+        "/auth/cloud/login",
+        data={"email": "operator@example.invalid", "code": "000000", "serial": "FAKE00TEST000001"},
+    )
+
+    # Restart: the container env carries its own tokens again, page settings are re-applied.
+    overrides.restore_original_env()
+    assert os.environ["BAMBULAB_CLOUD_ACCESS_TOKEN"] == "operator_token"
+    overrides.apply_overrides_to_env()
+    main._bootstrap_cloud_credentials()
+    assert os.environ["BAMBULAB_CLOUD_ACCESS_TOKEN"] == "fresh_token"  # page login wins
+
+    client.post("/auth/reset")
+    assert os.environ["BAMBULAB_CLOUD_ACCESS_TOKEN"] == "operator_token"
+    assert os.environ["BAMBULAB_CLOUD_USER_ID"] == "operator_uid"
+    assert not overrides.page_login_active()

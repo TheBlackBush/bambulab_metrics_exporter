@@ -143,6 +143,8 @@ class ExporterRuntime:
         self._ensure_metrics(self.settings)
         self.collector: PollingCollector | None = None
         self._ever_ready = False
+        # One immediate retry when the store changes during validation (see _run_once).
+        self._store_retry_used = False
 
     # -- public API -------------------------------------------------------
 
@@ -173,6 +175,11 @@ class ExporterRuntime:
         # wakes does not still show the old error.
         self._set_state(STATE_CONNECTING)
         self._wake.set()
+
+    def _on_auth_rejected(self) -> None:
+        """Called from the collector thread when the broker rejects running credentials:
+        re-run validation (token refresh, then re-authentication) like a settings change."""
+        self.reconfigure()
 
     def status(self) -> dict[str, str]:
         with self._lock:
@@ -281,11 +288,25 @@ class ExporterRuntime:
         self._set_state(STATE_CONNECTING)
         self._discover(settings)
         self._ensure_metrics(settings)
+        store = credentials_path(settings)
+        store_before = _store_fingerprint(store)
         try:
             self._validate(settings)
         except ReauthRequiredError as exc:
+            if self._stop.is_set():
+                return
             log_reauth_banner(str(exc), port=settings.listen_port)
             self._set_state(STATE_AUTH_REQUIRED, f"Re-authentication required: {exc}")
+            if _store_fingerprint(store) != store_before and not self._store_retry_used:
+                # `bambulab-reauth` wrote new credentials while validation ran; use them
+                # now instead of waiting for the next periodic retry. Only once in a row,
+                # since a token refresh during validation also writes the store.
+                self._store_retry_used = True
+                payload = load_stored_credentials(self.settings)
+                if payload:
+                    apply_credentials(self.settings, payload)
+                logger.info("Encrypted credentials changed during validation; retrying")
+                return
             self._wait_for_credentials()
             return
         except Exception as exc:  # noqa: BLE001 - retry later instead of exiting
@@ -294,6 +315,8 @@ class ExporterRuntime:
             self._wait(self._retry_seconds)
             return
 
+        if self._stop.is_set():
+            return
         # Validation may have refreshed tokens or discovered metadata.
         self._ensure_metrics(settings)
         try:
@@ -303,8 +326,13 @@ class ExporterRuntime:
         except (OSError, UnicodeError):
             logger.warning("Skipping .env sync (not writable or not UTF-8)")
 
+        if self._stop.is_set():
+            return
         collector = PollingCollector(
-            client=self._client_factory(settings), metrics=self.metrics, settings=settings
+            client=self._client_factory(settings),
+            metrics=self.metrics,
+            settings=settings,
+            on_auth_rejected=self._on_auth_rejected,
         )
         try:
             collector.start()
@@ -315,6 +343,7 @@ class ExporterRuntime:
             return
         with self._lock:
             self.collector = collector
+        self._store_retry_used = False
         self._set_state(STATE_RUNNING)
         logger.info("Exporter connected (%s)", settings.bambulab_transport)
         self._wait(None)  # until reconfigure() or stop()

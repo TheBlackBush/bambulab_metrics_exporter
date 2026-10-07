@@ -17,6 +17,7 @@ from bambulab_metrics_exporter.cloud_auth import (
 from bambulab_metrics_exporter.config import Settings
 from bambulab_metrics_exporter.credentials_store import save_encrypted_credentials
 from bambulab_metrics_exporter.env_sync import sync_env_file
+from bambulab_metrics_exporter.overrides import overridden_keys
 from bambulab_metrics_exporter.reauth import (
     apply_credentials,
     credentials_path,
@@ -208,9 +209,9 @@ def _try_token_refresh(settings: Settings, refresh_token: str) -> None:
         except OSError as exc:
             logger.warning("Could not persist refreshed credentials: %s", exc.strerror or exc)
         try:
-            sync_env_file(Path(".env"))
-        except OSError:
-            logger.warning("Skipping .env sync (not writable)")
+            sync_env_file(Path(".env"), exclude=overridden_keys())
+        except (OSError, UnicodeError):
+            logger.warning("Skipping .env sync (not writable or not UTF-8)")
     else:
         logger.warning(
             "BAMBULAB_SECRET_KEY not set; refreshed tokens applied to env only (not persisted to disk)"

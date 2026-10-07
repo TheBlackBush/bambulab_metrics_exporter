@@ -102,9 +102,9 @@
    "ams": {
     "ams": [
      {
-      "ams_id": "03C06A632033311",
+      "ams_id": "03CFIXTURE00000",
       "check": 1,
-      "chip_id": "13c430353434060031393137fffffff",
+      "chip_id": "00000000000000000000000000000000",
       "dry_setting": {
        "dry_duration": -1,
        "dry_filament": "",

@@ -37,6 +37,7 @@ _FIXED = {
     "uid": "0",
     "user_id": "0",
     "mc_print_line": "",
+    "chip_id": "00000000000000000000000000000000",
 }
 _SERIAL_KEYS = {"sn", "dev_id", "serial"}
 # 192.0.2.1 (RFC 5737 documentation range) as the printer's little-endian uint32.
@@ -64,6 +65,9 @@ def _sanitize(obj: Any, serials: set[str]) -> Any:
                 out[key] = _fake_serial(value)
             elif key in _FIXED and isinstance(value, (str, int)) and value not in ("", 0):
                 out[key] = _FIXED[key]
+            elif key == "ams_id" and isinstance(value, str) and not value.strip().isdigit():
+                # A unit serial (some firmware), not the small numeric unit index.
+                out[key] = _fake_serial(value)
             elif key == "ip" and isinstance(value, int) and value != 0:
                 out[key] = _FIXTURE_IP_INT
             elif key == "rtsp_url" and isinstance(value, str) and value.startswith("rtsp"):
