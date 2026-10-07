@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 import html
+import ipaddress
+import logging
+import re
+import secrets
 import time
-from collections.abc import Callable
+from collections import OrderedDict
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 from urllib.parse import parse_qs, urlsplit
@@ -16,6 +21,7 @@ from starlette.concurrency import run_in_threadpool
 from bambulab_metrics_exporter import __version__
 from bambulab_metrics_exporter.auth_actions import (
     ActionResult,
+    AttemptLimiter,
     AuthInputError,
     CodeSender,
     configure_cloud,
@@ -24,10 +30,18 @@ from bambulab_metrics_exporter.auth_actions import (
 )
 from bambulab_metrics_exporter.config import Settings
 from bambulab_metrics_exporter.metrics import ExporterMetrics
-from bambulab_metrics_exporter.overrides import clear_overrides, restore_original_env
+from bambulab_metrics_exporter.overrides import (
+    clear_overrides,
+    restore_credentials_backup,
+    restore_original_env,
+)
+from bambulab_metrics_exporter.overrides import lock as overrides_lock
+from bambulab_metrics_exporter.reauth import credentials_path
 
 if TYPE_CHECKING:
     from bambulab_metrics_exporter.runtime import ExporterRuntime
+
+logger = logging.getLogger(__name__)
 
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
 _TEMPLATE = (_TEMPLATE_DIR / "index.html").read_text(encoding="utf-8")
@@ -146,6 +160,56 @@ def _check_health(metrics: ExporterMetrics) -> tuple[bool, str]:
     return healthy, status
 
 
+_MAX_FORM_BYTES = 8192
+_FLASH_COOKIE = "bme_auth"
+_FLASH_TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{16,64}$")
+_FLASH_LIMIT = 64
+
+# Names that only resolve on a local network. A DNS-rebinding attacker needs a public
+# domain they control, so these (plus IP addresses) are safe to accept without config.
+_LOCAL_HOST_SUFFIXES = (
+    ".local", ".lan", ".home", ".internal", ".localdomain", ".home.arpa", ".localhost",
+)
+
+# Ask browsers not to show the pages inside frames on other sites (clickjacking).
+_SECURITY_HEADERS = {
+    "X-Frame-Options": "DENY",
+    "Content-Security-Policy": "frame-ancestors 'none'",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "same-origin",
+}
+
+
+def _host_allowed(host_header: str, extra: set[str]) -> bool:
+    """Accept the Host header for /auth only when it names this machine on the local
+    network: an IP address, localhost, a single-label or local-domain name, or a name the
+    operator listed in AUTH_ALLOWED_HOSTS. Blocks DNS rebinding from public domains."""
+    host = host_header.strip().lower()
+    if host.startswith("["):
+        name = host[1:host.find("]")] if "]" in host else ""
+    elif host.count(":") == 1:
+        name = host.split(":", 1)[0]
+    else:
+        name = host
+    name = name.rstrip(".")
+    if not name:
+        return False
+    try:
+        ipaddress.ip_address(name)
+        return True
+    except ValueError:
+        pass
+    if name in extra or name == "localhost" or "." not in name:
+        return True
+    return name.endswith(_LOCAL_HOST_SUFFIXES)
+
+
+def _short_error(exc: Exception) -> str:
+    if isinstance(exc, OSError) and exc.strerror:
+        return exc.strerror
+    return str(exc)[:200]
+
+
 def _same_origin(request: Request) -> bool:
     """Reject cross-site form posts (CSRF) while allowing same-page posts and non-browser
     clients that send no Origin header."""
@@ -156,7 +220,18 @@ def _same_origin(request: Request) -> bool:
 
 
 async def _form(request: Request) -> dict[str, str]:
-    body = (await request.body()).decode("utf-8", errors="replace")
+    """Parse a small urlencoded form; refuse oversized bodies instead of buffering them."""
+    declared = request.headers.get("content-length", "")
+    if declared.isdigit() and int(declared) > _MAX_FORM_BYTES:
+        raise HTTPException(status_code=413, detail="form_too_large")
+    chunks: list[bytes] = []
+    size = 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > _MAX_FORM_BYTES:
+            raise HTTPException(status_code=413, detail="form_too_large")
+        chunks.append(chunk)
+    body = b"".join(chunks).decode("utf-8", errors="replace")
     return {k: v[0] for k, v in parse_qs(body, keep_blank_values=True).items()}
 
 
@@ -187,6 +262,15 @@ def build_app(
         return runtime.settings if runtime is not None else settings
 
     app = FastAPI(title="bambulab-metrics-exporter", version=__version__)
+
+    @app.middleware("http")
+    async def security_headers(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        response = await call_next(request)
+        for name, value in _SECURITY_HEADERS.items():
+            response.headers.setdefault(name, value)
+        return response
 
     # Mount static files for serving the logo and other assets
     if _STATIC_PATH.is_dir():
@@ -268,11 +352,39 @@ def build_app(
 
 def _add_auth_routes(app: FastAPI, runtime: ExporterRuntime) -> None:
     code_sender = CodeSender()
-    # Last action result, shown once. Kept server-side so the page never renders text
-    # taken from the URL.
-    flash: dict[str, ActionResult] = {}
+    login_limiter = AttemptLimiter(max_attempts=5, window_seconds=60.0)
+    # Last action result per visitor (cookie), shown once. Kept server-side so the page
+    # never renders text taken from the URL, and one visitor never sees another's result.
+    flashes: OrderedDict[str, ActionResult] = OrderedDict()
 
-    def render(email: str = "", cloud_tab: bool | None = None) -> HTMLResponse:
+    def allowed_hosts() -> set[str]:
+        raw = getattr(runtime.settings, "auth_allowed_hosts", "") or ""
+        return {h.strip().lower() for h in str(raw).split(",") if h.strip()}
+
+    def guard(request: Request) -> None:
+        if not _host_allowed(request.headers.get("host", ""), allowed_hosts()):
+            raise HTTPException(
+                status_code=403,
+                detail="host_not_allowed: add this host name to AUTH_ALLOWED_HOSTS",
+            )
+
+    def visitor(request: Request) -> str:
+        token = request.cookies.get(_FLASH_COOKIE, "")
+        return token if _FLASH_TOKEN_RE.match(token) else ""
+
+    def set_flash(token: str, result: ActionResult) -> None:
+        flashes[token] = result
+        flashes.move_to_end(token)
+        while len(flashes) > _FLASH_LIMIT:
+            flashes.popitem(last=False)
+
+    def render(
+        request: Request,
+        email: str = "",
+        cloud_tab: bool | None = None,
+        allow_refresh: bool = True,
+        result: ActionResult | None = None,
+    ) -> HTMLResponse:
         status = runtime.status()
         label, css = _STATE_LABELS.get(status["state"], (status["state"], "wait"))
         current = runtime.settings
@@ -287,9 +399,12 @@ def _add_auth_routes(app: FastAPI, runtime: ExporterRuntime) -> None:
             else ""
         )
         # While connecting, reload every few seconds so the status updates by itself, and
-        # keep the last result visible until the state settles.
-        refreshing = status["state"] in _REFRESH_STATES
-        result = flash.get("last") if refreshing else flash.pop("last", None)
+        # keep the last result visible until the state settles. Pages answering a post do
+        # not reload, so the email the visitor typed stays in the form.
+        refreshing = status["state"] in _REFRESH_STATES and allow_refresh
+        token = visitor(request)
+        if result is None and token:
+            result = flashes.get(token) if refreshing else flashes.pop(token, None)
         flash_html = _notice_html(result) if result else ""
         cloud = current.bambulab_transport == "cloud_mqtt" if cloud_tab is None else cloud_tab
         page = (
@@ -311,34 +426,75 @@ def _add_auth_routes(app: FastAPI, runtime: ExporterRuntime) -> None:
         )
         return HTMLResponse(content=page, headers={"Cache-Control": "no-store"})
 
-    def done(result: ActionResult, reconnect: bool) -> RedirectResponse:
-        flash["last"] = result
-        if reconnect and result.ok:
-            runtime.reconfigure()
-        return RedirectResponse("/auth", status_code=303)
+    def with_visitor(response: Response, token: str) -> Response:
+        response.set_cookie(
+            _FLASH_COOKIE, token, httponly=True, samesite="strict", path="/auth", max_age=3600
+        )
+        return response
 
-    async def handle(
-        request: Request, action: Callable[[dict[str, str]], ActionResult], reconnect: bool
-    ) -> RedirectResponse:
+    async def run_action(
+        request: Request, action: Callable[[dict[str, str]], ActionResult]
+    ) -> tuple[dict[str, str], ActionResult]:
+        guard(request)
         if not _same_origin(request):
             raise HTTPException(status_code=403, detail="cross_origin_form_post")
         form = await _form(request)
+
+        def locked() -> ActionResult:
+            # One page change at a time: env writes and file saves must not interleave.
+            with overrides_lock:
+                return action(form)
+
         try:
-            result = await run_in_threadpool(action, form)
+            result = await run_in_threadpool(locked)
         except AuthInputError as exc:
             result = ActionResult(False, str(exc))
-        return done(result, reconnect)
+        except (OSError, RuntimeError) as exc:
+            logger.warning("Saving /auth page settings failed: %s", exc)
+            result = ActionResult(False, f"Could not save the settings: {_short_error(exc)}")
+        return form, result
+
+    async def handle(
+        request: Request, action: Callable[[dict[str, str]], ActionResult], reconnect: bool
+    ) -> Response:
+        _form_data, result = await run_action(request, action)
+        token = visitor(request) or secrets.token_urlsafe(16)
+        set_flash(token, result)
+        if reconnect and result.ok:
+            runtime.reconfigure()
+        return with_visitor(RedirectResponse("/auth", status_code=303), token)
+
+    async def cloud_action(
+        request: Request, action: Callable[[dict[str, str]], ActionResult], reconnect: bool
+    ) -> Response:
+        """Cloud steps answer with the page itself (not a redirect) while the visitor still
+        has to act, so the email they typed stays filled in for the next step."""
+        form, result = await run_action(request, action)
+        if reconnect and result.ok:
+            token = visitor(request) or secrets.token_urlsafe(16)
+            set_flash(token, result)
+            runtime.reconfigure()
+            return with_visitor(RedirectResponse("/auth", status_code=303), token)
+        return render(
+            request,
+            email=form.get("email", "").strip(),
+            cloud_tab=True,
+            allow_refresh=False,
+            result=result,
+        )
 
     @app.get("/auth", response_class=HTMLResponse)
-    def auth_page() -> HTMLResponse:
-        return render()
+    def auth_page(request: Request) -> HTMLResponse:
+        guard(request)
+        return render(request)
 
     @app.get("/auth/status")
-    def auth_status() -> dict[str, str]:
+    def auth_status(request: Request) -> dict[str, str]:
+        guard(request)
         return runtime.status()
 
     @app.post("/auth/local")
-    async def auth_local(request: Request) -> RedirectResponse:
+    async def auth_local(request: Request) -> Response:
         return await handle(
             request,
             lambda f: configure_local(
@@ -346,23 +502,6 @@ def _add_auth_routes(app: FastAPI, runtime: ExporterRuntime) -> None:
             ),
             reconnect=True,
         )
-
-    async def cloud_action(
-        request: Request, action: Callable[[dict[str, str]], ActionResult], reconnect: bool
-    ) -> Response:
-        """Cloud steps answer with the page itself (not a redirect) while the visitor still
-        has to act, so the email they typed stays filled in for the next step."""
-        if not _same_origin(request):
-            raise HTTPException(status_code=403, detail="cross_origin_form_post")
-        form = await _form(request)
-        try:
-            result = await run_in_threadpool(action, form)
-        except AuthInputError as exc:
-            result = ActionResult(False, str(exc))
-        if reconnect and result.ok:
-            return done(result, reconnect)
-        flash["last"] = result
-        return render(email=form.get("email", "").strip(), cloud_tab=True)
 
     @app.post("/auth/cloud/send-code")
     async def auth_send_code(request: Request) -> Response:
@@ -372,19 +511,20 @@ def _add_auth_routes(app: FastAPI, runtime: ExporterRuntime) -> None:
 
     @app.post("/auth/cloud/login")
     async def auth_cloud_login(request: Request) -> Response:
-        return await cloud_action(
-            request,
-            lambda f: configure_cloud(f.get("email", ""), f.get("code", ""), f.get("serial", "")),
-            reconnect=True,
-        )
+        def login(f: dict[str, str]) -> ActionResult:
+            login_limiter.check()
+            return configure_cloud(f.get("email", ""), f.get("code", ""), f.get("serial", ""))
+
+        return await cloud_action(request, login, reconnect=True)
 
     @app.post("/auth/reset")
-    async def auth_reset(request: Request) -> RedirectResponse:
+    async def auth_reset(request: Request) -> Response:
         def reset(_form: dict[str, str]) -> ActionResult:
             removed = clear_overrides()
+            restored = restore_credentials_backup(credentials_path(runtime.settings))
             restore_original_env()
-            if removed:
-                return ActionResult(True, "Saved page settings removed; using env vars.")
+            if removed or restored:
+                return ActionResult(True, "Page settings removed; using the container's env vars.")
             return ActionResult(True, "No saved page settings; already using env vars.")
 
         return await handle(request, reset, reconnect=True)

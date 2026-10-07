@@ -198,7 +198,8 @@ _REFRESH_PATH = "/v1/user-service/user/refreshtoken"
 # HTTP status codes that indicate a transient server-side issue (worth retrying)
 _TRANSIENT_HTTP_CODES = {408, 409, 425, 429, 500, 502, 503, 504}
 # HTTP status codes that indicate the refresh token is definitively invalid
-_INVALID_AUTH_HTTP_CODES = {401, 403}
+# 400 included: an unusable refresh token can come back as a bad request.
+_INVALID_AUTH_HTTP_CODES = {400, 401, 403}
 
 
 def refresh_access_token(

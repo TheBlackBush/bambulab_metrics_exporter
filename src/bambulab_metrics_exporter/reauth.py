@@ -28,6 +28,7 @@ from bambulab_metrics_exporter.credentials_store import (
 )
 from bambulab_metrics_exporter.env_sync import sync_env_file
 from bambulab_metrics_exporter.logging_utils import log_banner
+from bambulab_metrics_exporter.overrides import overridden_keys
 
 logger = logging.getLogger(__name__)
 
@@ -102,18 +103,50 @@ def differs_from_settings(settings: Settings, payload: dict[str, str]) -> bool:
     )
 
 
-def _hand_over_to_runtime_user(path: Path) -> None:
-    """``docker exec`` runs as root; give files back to the PUID/PGID the exporter runs as."""
+def _running_as_root() -> bool:
     geteuid = getattr(os, "geteuid", None)
-    if geteuid is None or geteuid() != 0:
-        return
+    return geteuid is not None and geteuid() == 0
+
+
+def _runtime_owner(path: Path) -> tuple[int, int] | None:
+    """UID/GID the exporter runs as: PUID/PGID when set in the container environment,
+    otherwise the owner of the file's folder (entrypoint.sh gives the config folder and
+    /app to the runtime user; PUID/PGID are often only defaults inside that script)."""
     uid = os.getenv("PUID", "")
     gid = os.getenv("PGID", "")
-    if uid.isdigit() and gid.isdigit() and path.exists():
-        try:
-            os.chown(path, int(uid), int(gid))
-        except OSError:
-            logger.warning("Could not change ownership of %s", path.name)
+    if uid.isdigit() and gid.isdigit():
+        return int(uid), int(gid)
+    try:
+        st = path.parent.stat()
+    except OSError:
+        return None
+    if st.st_uid == 0:
+        return None
+    return st.st_uid, st.st_gid
+
+
+def _refuse_symlink(path: Path) -> None:
+    """Root must not write through a symlink planted in a user-writable folder."""
+    if _running_as_root() and path.is_symlink():
+        raise RuntimeError(f"Refusing to write {path.name}: it is a symbolic link.")
+
+
+def _hand_over_to_runtime_user(path: Path) -> None:
+    """``docker exec`` runs as root; give files back to the user the exporter runs as."""
+    if not _running_as_root() or not path.exists() or path.is_symlink():
+        return
+    owner = _runtime_owner(path)
+    if owner is None:
+        logger.warning(
+            "Could not determine the exporter user for %s; set PUID/PGID or run "
+            "bambulab-reauth with docker exec -u <uid>:<gid>",
+            path.name,
+        )
+        return
+    try:
+        os.chown(path, owner[0], owner[1], follow_symlinks=False)
+    except OSError:
+        logger.warning("Could not change ownership of %s", path.name)
 
 
 def save_login_result(settings: Settings, result: LoginResult) -> dict[str, str]:
@@ -131,14 +164,16 @@ def save_login_result(settings: Settings, result: LoginResult) -> dict[str, str]
         "BAMBULAB_CLOUD_MQTT_PORT": str(settings.bambulab_cloud_mqtt_port),
     }
     path = credentials_path(settings)
+    _refuse_symlink(path)
     save_encrypted_credentials(path=path, secret=secret, payload=payload)
     _hand_over_to_runtime_user(path)
     apply_credentials(settings, payload)
     env_file = Path(".env")
     try:
-        sync_env_file(env_file)
+        _refuse_symlink(env_file)
+        sync_env_file(env_file, exclude=overridden_keys())
         _hand_over_to_runtime_user(env_file)
-    except OSError:
+    except (OSError, RuntimeError, UnicodeError):
         logger.warning("Skipping .env sync (not writable); encrypted credentials were saved")
     return payload
 

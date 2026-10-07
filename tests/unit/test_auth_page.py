@@ -298,7 +298,7 @@ def test_post_reset_restores_env(monkeypatch) -> None:
     assert os.environ["BAMBULAB_TRANSPORT"] == "cloud_mqtt"
     assert not overrides.overrides_path().exists()
     assert runtime.reconfigured == 1
-    assert "Saved page settings removed" in page.text
+    assert "Page settings removed" in page.text
 
     assert "already using env vars" in client.post("/auth/reset").text
 
@@ -436,3 +436,167 @@ def test_page_auto_refreshes_only_while_connecting() -> None:
     settled = client.get("/auth").text
     assert 'http-equiv="refresh"' not in settled and "Local connection saved" in settled
     assert "Local connection saved" not in client.get("/auth").text
+
+
+# ---------------------------------------------------------------------------
+# Review fixes: credential backup, .env exclusion, page security
+# ---------------------------------------------------------------------------
+
+def test_credentials_backup_and_restore(tmp_path: Path) -> None:
+    creds = tmp_path / "credentials.enc.json"
+    creds.write_bytes(b"operator-tokens")
+    overrides.backup_credentials(creds)
+    creds.write_bytes(b"page-login-tokens")
+    overrides.backup_credentials(creds)  # second login keeps the first backup
+    assert overrides.restore_credentials_backup(creds) is True
+    assert creds.read_bytes() == b"operator-tokens"
+    assert overrides.restore_credentials_backup(creds) is False
+
+
+def test_credentials_backup_when_none_existed(tmp_path: Path) -> None:
+    creds = tmp_path / "credentials.enc.json"
+    overrides.backup_credentials(creds)
+    creds.write_bytes(b"page-login-tokens")
+    assert overrides.restore_credentials_backup(creds) is True
+    assert not creds.exists()
+
+
+def test_reset_undoes_page_cloud_login(monkeypatch, tmp_path: Path) -> None:
+    """Regression: reset left another account's tokens in env and in the store."""
+    monkeypatch.setenv("BAMBULAB_SECRET_KEY", SECRET)
+    monkeypatch.setenv("BAMBULAB_CLOUD_ACCESS_TOKEN", "operator_token")
+    creds = tmp_path / "credentials.enc.json"
+    creds.write_bytes(b"operator-store")
+    monkeypatch.setattr(auth_actions, "login_with_code", lambda email, code: _login())
+    client, _ = _client()
+    client.post(
+        "/auth/cloud/login",
+        data={"email": "operator@example.invalid", "code": "000000", "serial": "FAKE00TEST000001"},
+    )
+    assert os.environ["BAMBULAB_CLOUD_ACCESS_TOKEN"] == "fresh_token"
+
+    client.post("/auth/reset")
+    assert os.environ["BAMBULAB_CLOUD_ACCESS_TOKEN"] == "operator_token"
+    assert creds.read_bytes() == b"operator-store"
+
+
+def test_env_sync_exclude_keeps_file_values(tmp_path: Path, monkeypatch) -> None:
+    from bambulab_metrics_exporter.env_sync import sync_env_file
+
+    env_file = tmp_path / ".env"
+    env_file.write_text("BAMBULAB_HOST=192.0.2.10\n")
+    monkeypatch.setenv("BAMBULAB_HOST", "192.0.2.99")
+    monkeypatch.setenv("BAMBULAB_ACCESS_CODE", "page-code")
+    sync_env_file(env_file, exclude={"BAMBULAB_HOST", "BAMBULAB_ACCESS_CODE"})
+    text = env_file.read_text()
+    assert "BAMBULAB_HOST=192.0.2.10" in text and "page-code" not in text
+
+
+@pytest.mark.parametrize(
+    ("host", "allowed"),
+    [
+        ("192.0.2.25:9109", True),
+        ("[::1]:9109", True),
+        ("localhost:9109", True),
+        ("tower:9109", True),
+        ("tower.local:9109", True),
+        ("nas.home.arpa", True),
+        ("exporter.example.com", False),
+        ("evil.example:9109", False),
+        ("", False),
+    ],
+)
+def test_host_allowlist(host: str, allowed: bool) -> None:
+    from bambulab_metrics_exporter.api import _host_allowed
+
+    assert _host_allowed(host, set()) is allowed
+
+
+def test_auth_rejects_public_host_names() -> None:
+    """DNS rebinding: a page on a public domain re-pointed at the exporter is refused."""
+    client, runtime = _client()
+    headers = {"Host": "evil.example:9109", "Origin": "http://evil.example:9109"}
+    assert client.get("/auth", headers=headers).status_code == 403
+    assert client.get("/auth/status", headers=headers).status_code == 403
+    resp = client.post("/auth/reset", headers=headers)
+    assert resp.status_code == 403 and runtime.reconfigured == 0
+
+
+def test_auth_allowed_hosts_setting() -> None:
+    settings = Settings(
+        bambulab_serial="FAKE00TEST000001", auth_allowed_hosts="exporter.example.com, other.example"
+    )
+    client, _ = _client(settings)
+    assert client.get("/auth", headers={"Host": "exporter.example.com"}).status_code == 200
+
+
+def test_security_headers_on_all_pages() -> None:
+    client, _ = _client()
+    for path in ("/", "/auth", "/metrics", "/health"):
+        resp = client.get(path)
+        assert resp.headers["x-frame-options"] == "DENY", path
+        assert "frame-ancestors 'none'" in resp.headers["content-security-policy"], path
+
+
+def test_oversized_form_is_rejected() -> None:
+    client, runtime = _client()
+    resp = client.post("/auth/local", data={"host": "x" * 10000})
+    assert resp.status_code == 413 and runtime.reconfigured == 0
+
+
+def test_login_attempts_are_limited(monkeypatch) -> None:
+    from bambulab_metrics_exporter.cloud_auth import CloudAuthError
+
+    calls = {"n": 0}
+
+    def reject(email: str, code: str):
+        calls["n"] += 1
+        raise CloudAuthError("bad code")
+
+    monkeypatch.setattr(auth_actions, "login_with_code", reject)
+    client, _ = _client()
+    for _ in range(6):
+        page = client.post(
+            "/auth/cloud/login", data={"email": "operator@example.invalid", "code": "000000"}
+        ).text
+    assert calls["n"] == 5
+    assert "Too many login attempts" in page
+
+
+def test_results_are_per_visitor() -> None:
+    client, _ = _client()
+    client.post(
+        "/auth/local",
+        data={"host": "192.0.2.25", "serial": "FAKE00TEST000001", "access_code": "fake-access-code"},
+        follow_redirects=False,
+    )
+    other_visitor = TestClient(client.app)
+    assert "Local connection saved" not in other_visitor.get("/auth").text
+    assert "Local connection saved" in client.get("/auth").text
+
+
+def test_save_error_shows_notice_instead_of_500(monkeypatch) -> None:
+    monkeypatch.setenv("BAMBULAB_SECRET_KEY", SECRET)
+
+    def unwritable(_values):
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(auth_actions, "save_overrides", unwritable)
+    client, runtime = _client()
+    resp = client.post(
+        "/auth/local",
+        data={"host": "192.0.2.25", "serial": "FAKE00TEST000001", "access_code": "fake-access-code"},
+    )
+    assert resp.status_code == 200
+    assert "Could not save the settings: Permission denied" in resp.text
+    assert runtime.reconfigured == 0
+
+
+def test_post_response_does_not_auto_refresh(monkeypatch) -> None:
+    """The echoed email must not be wiped by a refresh while the runtime is connecting."""
+    monkeypatch.setattr(auth_actions, "send_code", lambda email: None)
+    client, runtime = _client()
+    runtime.status = lambda: {"state": "connecting", "message": "", "transport": "local_mqtt"}
+    page = client.post("/auth/cloud/send-code", data={"email": "operator@example.invalid"}).text
+    assert 'http-equiv="refresh"' not in page
+    assert 'value="operator@example.invalid"' in page

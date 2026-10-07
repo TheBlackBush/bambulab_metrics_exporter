@@ -37,6 +37,14 @@ All configuration is via environment variables. Copy `.env.example` to `.env` an
 | `BAMBULAB_SECRET_KEY` | yes (cloud) | - | Encryption key for local credentials |
 | `BAMBULAB_CONFIG_DIR` | no | `/config/bambulab-metrics-exporter` | Config directory |
 
+Files in the config directory (all encrypted with `BAMBULAB_SECRET_KEY`, mode `0600`):
+
+| File | Written by | Purpose |
+|------|------------|---------|
+| `credentials.enc.json` (`BAMBULAB_CREDENTIALS_FILE`) | cloud login, token refresh, `bambulab-reauth` | Cloud user ID and tokens |
+| `connection-overrides.enc.json` | `/auth` page | Connection settings that override env vars; removed by **Reset to env vars** |
+| `credentials.enc.json.before-auth-page` | `/auth` page | The credentials that existed before the first page login; restored by **Reset to env vars** |
+
 ### Generating `BAMBULAB_SECRET_KEY`
 
 `BAMBULAB_SECRET_KEY` is used to encrypt your Bambu Cloud credentials (token, user ID) before they are saved to the config volume. Without it, cloud mode cannot persist credentials locally.
@@ -55,7 +63,7 @@ BAMBULAB_SECRET_KEY=a3f1c8e2d4b7901234567890abcdef1234567890abcdef1234567890abcd
 
 > **Safety notes:**
 > - **Never commit or share this key.** Add `.env` to `.gitignore`.
-> - **Keep the key stable.** Changing it will invalidate any encrypted credentials on the config volume; you will need to re-run `bambulab-cloud-auth` to re-authenticate.
+> - **Keep the key stable.** Changing it will invalidate any encrypted credentials on the config volume; you will need to log in again on the `/auth` page (or run `bambulab-reauth`).
 
 ---
 
@@ -68,6 +76,7 @@ BAMBULAB_SECRET_KEY=a3f1c8e2d4b7901234567890abcdef1234567890abcdef1234567890abcd
 | `REQUEST_TIMEOUT_SECONDS` | no | `8` | Per-cycle timeout (seconds) |
 | `LISTEN_HOST` | no | `0.0.0.0` | HTTP bind host |
 | `LISTEN_PORT` | no | `9109` | HTTP port |
+| `AUTH_ALLOWED_HOSTS` | no | empty | Extra host names allowed for the `/auth` page, comma separated (for example a reverse-proxy name). IP addresses, `localhost`, single-word names (`tower`) and local-network names (`.local`, `.lan`, `.home`, `.internal`, `.home.arpa`) are always allowed; other names get `403` to block DNS-rebinding attacks |
 
 ---
 
@@ -130,8 +139,16 @@ error logged, retried every 60 seconds.
 
 **Cloud mode:** credentials are tried in order: env tokens, encrypted credential file (if it
 holds different, newer tokens), refresh token, then `BAMBULAB_CLOUD_EMAIL` + `BAMBULAB_CLOUD_CODE`.
-- If all fail, the exporter logs a re-authentication banner and **waits**; log in on the
-  `/auth` page (or run `docker exec -it <container> bambulab-reauth`) and it resumes
-- If only `BAMBULAB_CLOUD_EMAIL` is set, one verification code is sent per container start
-- A network or API outage during refresh is retried every 60 seconds and never sends a code
-- On success → credentials saved encrypted, synced to `.env`
+- Only a refusal by the Bambu broker counts as rejected credentials. An unreachable broker, a
+  network or API outage, or a printer that does not answer (powered off) is retried every
+  60 seconds and never sends a code.
+- If the credentials are rejected, the exporter logs a re-authentication banner and **waits**;
+  log in on the `/auth` page (or run `docker exec -it <container> bambulab-reauth`) and it
+  resumes. While waiting it still re-checks every 5 minutes.
+- If only `BAMBULAB_CLOUD_EMAIL` is set, at most one verification code is sent per container
+  start, and each `BAMBULAB_CLOUD_CODE` value is tried once.
+- On success → credentials saved encrypted, synced to `.env`. Values entered on the `/auth`
+  page are never written to `.env`.
+
+**Invalid values** (for example `BAMBULAB_TRANSPORT=lan`) no longer stop the container: the
+exporter starts with defaults, logs the error, and `/auth/status` reports `setup_required`.

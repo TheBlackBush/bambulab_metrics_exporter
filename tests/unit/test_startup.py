@@ -46,6 +46,13 @@ class _ClientFail:
         raise RuntimeError("boom")
 
 
+def _as_probe(fake):
+    """Adapt a bool probe stub to the three-way probe: True -> ok, False -> rejected."""
+    from bambulab_metrics_exporter.startup import PROBE_OK, PROBE_REJECTED
+
+    return lambda s: PROBE_OK if fake(s) else PROBE_REJECTED
+
+
 class _LoginResult:
     def __init__(self) -> None:
         self.user_id = "123"
@@ -209,7 +216,7 @@ def test_legacy_login_send_code_failure_is_not_fatal(tmp_path: Path, monkeypatch
 
 def test_validate_cloud_waits_instead_of_exiting(tmp_path: Path, monkeypatch) -> None:
     settings = _cloud_settings(tmp_path, bambulab_cloud_refresh_token="")
-    monkeypatch.setattr("bambulab_metrics_exporter.startup._probe_connection", lambda s: False)
+    monkeypatch.setattr("bambulab_metrics_exporter.startup._probe", _as_probe(lambda s: False))
     monkeypatch.setattr("bambulab_metrics_exporter.startup._try_legacy_env_login", lambda s: False)
 
     with pytest.raises(ReauthRequiredError, match="expired"):
@@ -232,8 +239,8 @@ def test_validate_cloud_prefers_newer_store_over_stale_env(tmp_path: Path, monke
     )
     settings = _cloud_settings(tmp_path)
     monkeypatch.setattr(
-        "bambulab_metrics_exporter.startup._probe_connection",
-        lambda s: s.bambulab_cloud_access_token == "rotated_token",
+        "bambulab_metrics_exporter.startup._probe",
+        _as_probe(lambda s: s.bambulab_cloud_access_token == "rotated_token"),
     )
     monkeypatch.setattr(
         "bambulab_metrics_exporter.startup._try_token_refresh",
@@ -257,7 +264,7 @@ def test_startup_validate_cloud_with_valid_probe(monkeypatch) -> None:
         bambulab_cloud_user_id="uid",
         bambulab_cloud_access_token="token",
     )
-    monkeypatch.setattr("bambulab_metrics_exporter.startup._probe_connection", lambda _s: True)
+    monkeypatch.setattr("bambulab_metrics_exporter.startup._probe", _as_probe(lambda _s: True))
     startup_validate(settings)
 
 
@@ -335,7 +342,7 @@ def test_validate_cloud_valid_refresh_skips_reauth(tmp_path: Path, monkeypatch) 
         probe_calls["count"] += 1
         return probe_calls["count"] > 1
 
-    monkeypatch.setattr("bambulab_metrics_exporter.startup._probe_connection", fake_probe)
+    monkeypatch.setattr("bambulab_metrics_exporter.startup._probe", _as_probe(fake_probe))
     monkeypatch.setattr("bambulab_metrics_exporter.startup._try_token_refresh", lambda s, rt: None)
     monkeypatch.setattr(
         "bambulab_metrics_exporter.startup._try_legacy_env_login",
@@ -347,7 +354,7 @@ def test_validate_cloud_valid_refresh_skips_reauth(tmp_path: Path, monkeypatch) 
 
 def test_validate_cloud_invalid_refresh_falls_back_to_reauth(tmp_path: Path, monkeypatch) -> None:
     calls: list[str] = []
-    monkeypatch.setattr("bambulab_metrics_exporter.startup._probe_connection", lambda s: False)
+    monkeypatch.setattr("bambulab_metrics_exporter.startup._probe", _as_probe(lambda s: False))
     monkeypatch.setattr(
         "bambulab_metrics_exporter.startup._try_token_refresh",
         lambda s, rt: (_ for _ in ()).throw(CloudAuthInvalidError("refresh rejected")),
@@ -365,7 +372,7 @@ def test_validate_cloud_invalid_refresh_falls_back_to_reauth(tmp_path: Path, mon
 
 def test_validate_cloud_transient_refresh_error_no_reauth(tmp_path: Path, monkeypatch) -> None:
     """A pure outage exits for a later retry and never triggers re-auth or emails."""
-    monkeypatch.setattr("bambulab_metrics_exporter.startup._probe_connection", lambda s: False)
+    monkeypatch.setattr("bambulab_metrics_exporter.startup._probe", _as_probe(lambda s: False))
     monkeypatch.setattr(
         "bambulab_metrics_exporter.startup._try_token_refresh",
         lambda s, rt: (_ for _ in ()).throw(CloudAuthTransientError("connection refused")),
@@ -382,7 +389,7 @@ def test_validate_cloud_transient_refresh_error_no_reauth(tmp_path: Path, monkey
 def test_validate_cloud_legacy_login_success_returns(tmp_path: Path, monkeypatch) -> None:
     probe_results = iter([False, True])
     monkeypatch.setattr(
-        "bambulab_metrics_exporter.startup._probe_connection", lambda s: next(probe_results)
+        "bambulab_metrics_exporter.startup._probe", _as_probe(lambda s: next(probe_results))
     )
     monkeypatch.setattr("bambulab_metrics_exporter.startup._try_legacy_env_login", lambda s: True)
 
@@ -393,7 +400,7 @@ def test_validate_cloud_refresh_tokens_rejected_by_broker_reaches_reauth(
     tmp_path: Path, monkeypatch
 ) -> None:
     calls: list[str] = []
-    monkeypatch.setattr("bambulab_metrics_exporter.startup._probe_connection", lambda s: False)
+    monkeypatch.setattr("bambulab_metrics_exporter.startup._probe", _as_probe(lambda s: False))
     monkeypatch.setattr("bambulab_metrics_exporter.startup._try_token_refresh", lambda s, rt: None)
     monkeypatch.setattr(
         "bambulab_metrics_exporter.startup._try_legacy_env_login",
@@ -453,3 +460,129 @@ def test_try_token_refresh_no_secret_key_warns(monkeypatch: pytest.MonkeyPatch) 
     _try_token_refresh(settings, "old_ref")
     # Env should be updated
     assert os.environ.get("BAMBULAB_CLOUD_ACCESS_TOKEN") == "new_tok"
+
+
+# ---------------------------------------------------------------------------
+# Probe classification and outage handling (review fixes)
+# ---------------------------------------------------------------------------
+
+class _ProbeClient:
+    def __init__(self, raw=None, connected=True, rejected=False, fail=False) -> None:
+        self._raw = raw if raw is not None else {}
+        self._connected = connected
+        self.auth_rejected = rejected
+        self._fail = fail
+
+    def connect(self) -> None:
+        if self._fail:
+            raise OSError("connection refused")
+
+    def disconnect(self) -> None:
+        pass
+
+    def fetch_snapshot(self, _timeout: float):
+        from bambulab_metrics_exporter.models import PrinterSnapshot
+
+        return PrinterSnapshot(connected=self._connected, raw=self._raw)
+
+
+@pytest.mark.parametrize(
+    ("client", "expected"),
+    [
+        (_ProbeClient(raw={"print": {}}), "ok"),
+        (_ProbeClient(connected=False, rejected=True), "rejected"),
+        (_ProbeClient(connected=True, raw={}), "unreachable"),  # printer did not answer
+        (_ProbeClient(connected=False), "unreachable"),  # broker down / timeout
+        (_ProbeClient(fail=True), "unreachable"),
+        (_ProbeClient(fail=True, rejected=True), "rejected"),
+    ],
+)
+def test_probe_classifies_outcomes(monkeypatch, client, expected: str) -> None:
+    from bambulab_metrics_exporter.startup import _probe
+
+    monkeypatch.setattr("bambulab_metrics_exporter.startup.build_client", lambda s: client)
+    assert _probe(Settings(bambulab_serial="FAKE00TEST000001")) == expected
+
+
+def _no_reauth(monkeypatch) -> None:
+    for name in ("_try_token_refresh", "_try_legacy_env_login"):
+        monkeypatch.setattr(
+            f"bambulab_metrics_exporter.startup.{name}",
+            lambda *a: pytest.fail(f"{name} must not run during an outage"),
+        )
+
+
+def test_unreachable_broker_is_an_outage_not_reauth(tmp_path: Path, monkeypatch) -> None:
+    """Valid tokens + broker down or printer off: retry later, never re-auth or email."""
+    from bambulab_metrics_exporter.startup import PROBE_UNREACHABLE
+
+    monkeypatch.setattr("bambulab_metrics_exporter.startup._probe", lambda s: PROBE_UNREACHABLE)
+    _no_reauth(monkeypatch)
+    with pytest.raises(RuntimeError, match="unreachable") as exc_info:
+        _validate_cloud(_cloud_settings(tmp_path))
+    assert not isinstance(exc_info.value, ReauthRequiredError)
+
+
+def test_unreachable_after_refresh_is_an_outage(tmp_path: Path, monkeypatch) -> None:
+    from bambulab_metrics_exporter.startup import PROBE_REJECTED, PROBE_UNREACHABLE
+
+    results = iter([PROBE_REJECTED, PROBE_UNREACHABLE])
+    monkeypatch.setattr("bambulab_metrics_exporter.startup._probe", lambda s: next(results))
+    monkeypatch.setattr("bambulab_metrics_exporter.startup._try_token_refresh", lambda s, rt: None)
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.startup._try_legacy_env_login",
+        lambda s: pytest.fail("no OTP after a refresh that only hit an outage"),
+    )
+    with pytest.raises(RuntimeError, match="after token refresh"):
+        _validate_cloud(_cloud_settings(tmp_path))
+
+
+def test_legacy_code_sent_once_per_process(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("BAMBULAB_CLOUD_EMAIL", "operator@example.invalid")
+    monkeypatch.delenv("BAMBULAB_CLOUD_CODE", raising=False)
+    sent: list[str] = []
+    monkeypatch.setattr("bambulab_metrics_exporter.startup.send_code", sent.append)
+    settings = _cloud_settings(tmp_path)
+
+    for _ in range(3):  # re-validation after page saves, retries, ...
+        assert _try_legacy_env_login(settings) is False
+    assert sent == ["operator@example.invalid"]
+
+
+def test_legacy_code_value_tried_once(tmp_path: Path, monkeypatch) -> None:
+    from bambulab_metrics_exporter.cloud_auth import CloudAuthError
+
+    monkeypatch.setenv("BAMBULAB_CLOUD_EMAIL", "operator@example.invalid")
+    monkeypatch.setenv("BAMBULAB_CLOUD_CODE", "000000")
+    attempts: list[str] = []
+
+    def reject(email: str, code: str):
+        attempts.append(code)
+        raise CloudAuthError("code expired")
+
+    monkeypatch.setattr("bambulab_metrics_exporter.startup.login_with_code", reject)
+    settings = _cloud_settings(tmp_path)
+    assert _try_legacy_env_login(settings) is False
+    assert _try_legacy_env_login(settings) is False
+    assert attempts == ["000000"]
+
+
+def test_refresh_persistence_failure_does_not_fail_refresh(tmp_path: Path, monkeypatch) -> None:
+    from bambulab_metrics_exporter.cloud_auth import LoginResult
+
+    monkeypatch.setenv("BAMBULAB_SECRET_KEY", "fake-development-key-never-use")
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.startup.refresh_access_token",
+        lambda rt: LoginResult(access_token="new", refresh_token="r2", expires_in=1, user_id="u"),
+    )
+
+    def unwritable(**_kw):
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr("bambulab_metrics_exporter.startup.save_encrypted_credentials", unwritable)
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.startup.sync_env_file", lambda p: (_ for _ in ()).throw(OSError())
+    )
+    settings = _cloud_settings(tmp_path)
+    _try_token_refresh(settings, "old")
+    assert settings.bambulab_cloud_access_token == "new"

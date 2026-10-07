@@ -170,3 +170,34 @@ def test_request_pushall_publish(monkeypatch) -> None:
     assert topic == "device/SERIALX/request"
     assert qos == 1
     assert json.loads(payload)["pushing"]["command"] == "pushall"
+
+
+# ---------------------------------------------------------------------------
+# auth_rejected: tells a credential refusal from an unreachable broker
+# ---------------------------------------------------------------------------
+
+def test_is_auth_rejection_codes() -> None:
+    from types import SimpleNamespace as NS
+
+    from bambulab_metrics_exporter.client.local_mqtt import _is_auth_rejection
+
+    for code in (4, 5, 134, 135, NS(value=135), "Not authorized", "Bad user name or password"):
+        assert _is_auth_rejection(code) is True, code
+    for code in (1, 3, 128, NS(value=3), "Server unavailable", "Unspecified error"):
+        assert _is_auth_rejection(code) is False, code
+
+
+def test_auth_rejected_set_on_refusal_and_cleared_on_success(monkeypatch) -> None:
+    fake = _FakeMQTTClient()
+    monkeypatch.setattr("bambulab_metrics_exporter.client.local_mqtt.mqtt.Client", lambda *a, **k: fake)
+    client = LocalMqttBambuClient(_settings(serial="SERIALX"))
+    assert client.auth_rejected is False
+
+    client._on_connect(fake, None, None, "Not authorized", None)
+    assert client.auth_rejected is True
+
+    client._on_connect(fake, None, None, 0, None)
+    assert client.auth_rejected is False
+
+    client._on_connect(fake, None, None, "Server unavailable", None)
+    assert client.auth_rejected is False

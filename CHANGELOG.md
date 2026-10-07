@@ -13,11 +13,17 @@ All notable changes to this project are documented in this file.
   verification code) in the browser; the exporter reconnects without a restart. Linked from
   the landing page. `GET /auth/status` returns the connection state as JSON. The page has no
   login of its own: anyone who can reach port 9109 can change the connection, so keep the port
-  on a trusted network. Saved secrets are never displayed, verification emails are limited to
-  one per minute, and cross-site form posts are rejected.
+  on a trusted network. Protections: saved secrets are never displayed, verification emails
+  are limited to one per minute and login attempts to five per minute, cross-site form posts
+  are rejected, only IP addresses and local-network host names are accepted (DNS-rebinding
+  protection; add others with `AUTH_ALLOWED_HOSTS`), pages cannot be framed by other sites,
+  form bodies are capped at 8 KB, and each visitor only sees their own results.
 - Settings saved on `/auth` are stored encrypted (`connection-overrides.enc.json` in
   `BAMBULAB_CONFIG_DIR`, requires `BAMBULAB_SECRET_KEY`) and override env vars, including
-  container template values, after restarts. **Reset to env vars** on the page removes them.
+  container template values, after restarts. They are never written to `.env`.
+  **Reset to env vars** removes them and also undoes a cloud login made on the page
+  (the previous credentials file and the container's tokens are restored).
+- `AUTH_ALLOWED_HOSTS` setting: extra host names allowed for the `/auth` page.
 - Landing page redesign: shows the printer connection state (Connected, Connecting, Login
   required, ...), the mode (Local or Bambu Cloud), and the time since the last successful
   poll. A banner links to `/auth` when a login or setup is needed. The page refreshes itself.
@@ -26,19 +32,25 @@ All notable changes to this project are documented in this file.
 - `bambulab-reauth` command for cloud re-authentication inside the running container:
   `docker exec -it <container> bambulab-reauth`. It sends (or accepts) the email
   verification code and saves encrypted credentials; a waiting exporter resumes without a
-  restart. Files are handed back to `PUID`/`PGID` when run as root.
+  restart. Files are handed back to `PUID`/`PGID`, or to the owner of the config folder when
+  those are not set in the container (Compose default). It refuses to write through symlinks.
 
 ### Changed
 - **The web server starts immediately** and the printer connection runs in the background.
   The process no longer exits on connection problems:
-  - Rejected cloud credentials: logs a `BAMBU CLOUD RE-AUTHENTICATION REQUIRED` banner and
-    waits for a login on `/auth` or `bambulab-reauth`. This ends restart loops and repeated
-    verification emails; only one code is sent per container start when
-    `BAMBULAB_CLOUD_EMAIL` is set without a code.
-  - Local connection failures and cloud API outages: retried every 60 seconds (previously the
-    process exited and relied on the container restart policy).
+  - Rejected cloud credentials (the Bambu broker refuses the login): logs a
+    `BAMBU CLOUD RE-AUTHENTICATION REQUIRED` banner and waits for a login on `/auth` or
+    `bambulab-reauth`, re-checking every 5 minutes. This ends restart loops and repeated
+    verification emails: at most one code is sent per container start when
+    `BAMBULAB_CLOUD_EMAIL` is set without a code, and each `BAMBULAB_CLOUD_CODE` is tried once.
+  - Local connection failures, cloud API or broker outages, and a cloud printer that does not
+    answer (powered off): retried every 60 seconds, never treated as expired credentials and
+    never sending a code (previously the process exited and relied on the restart policy).
   - Missing settings: reported as `setup_required` on `/auth` instead of exiting.
-  `/health` stays `ok` (process liveness) and `/ready` stays 503 until data arrives, as before.
+  - Invalid values (for example `BAMBULAB_TRANSPORT=lan`) and an unreadable credentials file:
+    logged, with `/auth` still reachable, instead of exiting.
+  `/health` stays `ok` (process liveness) and `/ready` stays 503 until the first data, then
+  stays ready (sticky), as before.
 - Startup tries the encrypted credential file when env tokens are rejected, so stale tokens in
   a container template (for example Unraid) no longer hide newer rotated credentials.
 - The `BAMBULAB_CLOUD_EMAIL` + `BAMBULAB_CLOUD_CODE` env flow is unchanged and still supported.
@@ -56,6 +68,8 @@ All notable changes to this project are documented in this file.
   configuration.
 - A token refresh response without a `refreshToken` (or with `null`) no longer replaces the
   stored refresh token with the text `None`; the previous refresh token is kept.
+- A refresh rejected with HTTP 400 counts as an invalid refresh token (re-authentication)
+  instead of a transient error retried forever.
 
 ### Security
 - Cloud API error messages and logs no longer include HTTP response bodies.

@@ -278,6 +278,8 @@ def test_main_requires_code_when_not_send_code(monkeypatch: pytest.MonkeyPatch, 
 
 
 def test_main_save_requires_secret(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    # Offline: main() looks up the printer list after login.
+    monkeypatch.setattr("bambulab_metrics_exporter.cloud_auth.get_bind_devices", lambda *a, **k: [])
     monkeypatch.setattr(
         "bambulab_metrics_exporter.cloud_auth._build_parser",
         lambda: type("P", (), {"parse_args": lambda self: Namespace(
@@ -297,6 +299,8 @@ def test_main_save_requires_secret(monkeypatch: pytest.MonkeyPatch, capsys: pyte
 
 
 def test_main_success_save_and_sync(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    # Offline: main() looks up the printer list after login.
+    monkeypatch.setattr("bambulab_metrics_exporter.cloud_auth.get_bind_devices", lambda *a, **k: [])
     env_file = tmp_path / ".env"
     env_file.write_text("")
     monkeypatch.setattr(
@@ -652,3 +656,9 @@ def test_refresh_keeps_old_refresh_token_when_response_omits_it(
     _by_base(monkeypatch, {"https://a": _Resp({"accessToken": "new", "uid": 7, **payload_extra})})
     result = refresh_access_token("old_refresh", timeout_seconds=1, retries=0, api_bases=["https://a"])
     assert result.refresh_token == "old_refresh"
+
+
+def test_refresh_400_counts_as_invalid(monkeypatch: pytest.MonkeyPatch) -> None:
+    _by_base(monkeypatch, {"https://a": _http(400)})
+    with pytest.raises(CloudAuthInvalidError):
+        refresh_access_token("r", timeout_seconds=1, retries=0, api_bases=["https://a"])

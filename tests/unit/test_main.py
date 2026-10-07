@@ -199,3 +199,50 @@ def test_log_web_endpoints(caplog) -> None:
     main.log_web_endpoints(Settings(listen_host="127.0.0.1", listen_port=9109))
     assert "http://127.0.0.1:9109/auth" in caplog.text
     assert "container port" not in caplog.text
+
+
+def test_run_with_invalid_env_still_serves(monkeypatch, caplog) -> None:
+    """Invalid values used to crash before the server started, making /auth unreachable."""
+    monkeypatch.setenv("BAMBULAB_TRANSPORT", "lan")
+    monkeypatch.setenv("POLLING_INTERVAL_SECONDS", "0")
+    served: dict = {}
+    monkeypatch.setattr("bambulab_metrics_exporter.main._safe_load_dotenv", lambda: None)
+    monkeypatch.setattr("bambulab_metrics_exporter.main.ExporterRuntime.start", lambda self: None)
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.main.uvicorn.run",
+        lambda app, host, port, log_level: served.update(host=host, port=port),
+    )
+
+    main.run()
+
+    assert served == {"host": "0.0.0.0", "port": 9109}
+    assert "Invalid configuration" in caplog.text
+
+
+def test_bootstrap_with_unreadable_credentials_does_not_crash(monkeypatch, tmp_path: Path, caplog) -> None:
+    monkeypatch.setenv("BAMBULAB_TRANSPORT", "cloud_mqtt")
+    monkeypatch.delenv("BAMBULAB_CLOUD_USER_ID", raising=False)
+    monkeypatch.delenv("BAMBULAB_CLOUD_ACCESS_TOKEN", raising=False)
+    monkeypatch.setenv("BAMBULAB_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("BAMBULAB_SECRET_KEY", "wrong-fake-key")
+    (tmp_path / "credentials.enc.json").write_bytes(b"not a valid token")
+
+    main._bootstrap_cloud_credentials()
+
+    assert "could not be read" in caplog.text
+    assert "BAMBULAB_CLOUD_ACCESS_TOKEN" not in os.environ
+
+
+def test_overrides_are_logged_after_logging_is_configured(monkeypatch) -> None:
+    order: list[str] = []
+    monkeypatch.setattr("bambulab_metrics_exporter.main._safe_load_dotenv", lambda: None)
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.main.configure_logging", lambda level: order.append("logging")
+    )
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.main.apply_overrides_to_env", lambda: order.append("overrides")
+    )
+    monkeypatch.setattr("bambulab_metrics_exporter.main.ExporterRuntime.start", lambda self: None)
+    monkeypatch.setattr("bambulab_metrics_exporter.main.uvicorn.run", lambda *a, **k: None)
+    main.run()
+    assert order[:2] == ["logging", "overrides"]

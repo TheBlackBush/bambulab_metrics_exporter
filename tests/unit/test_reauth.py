@@ -128,7 +128,7 @@ def test_save_login_result_hands_files_to_runtime_user(tmp_path: Path, monkeypat
     monkeypatch.setenv("PGID", "5678")
     monkeypatch.setattr(reauth.os, "geteuid", lambda: 0)
     chowned: list[tuple[str, int, int]] = []
-    monkeypatch.setattr(reauth.os, "chown", lambda p, u, g: chowned.append((Path(p).name, u, g)))
+    monkeypatch.setattr(reauth.os, "chown", lambda p, u, g, **kw: chowned.append((Path(p).name, u, g)))
 
     reauth.save_login_result(_settings(tmp_path), _login())
 
@@ -234,3 +234,63 @@ def test_main_missing_email_or_code(tmp_path: Path, monkeypatch) -> None:
     _interactive(monkeypatch, inputs=["operator@example.invalid"], secrets=["", ""])
     monkeypatch.setattr(reauth, "send_code", lambda e: None)
     assert reauth.main() == 2
+
+
+# ---------------------------------------------------------------------------
+# Ownership hand-over without PUID/PGID, symlink refusal (review fixes)
+# ---------------------------------------------------------------------------
+
+def _as_root(monkeypatch) -> list[tuple[str, int, int]]:
+    chowned: list[tuple[str, int, int]] = []
+    monkeypatch.setattr(reauth.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(
+        reauth.os, "chown", lambda p, u, g, **kw: chowned.append((Path(p).name, u, g))
+    )
+    monkeypatch.delenv("PUID", raising=False)
+    monkeypatch.delenv("PGID", raising=False)
+    return chowned
+
+
+def test_hand_over_falls_back_to_folder_owner(tmp_path: Path, monkeypatch) -> None:
+    """Compose leaves PUID/PGID unset in the container env; use the owner of the folder
+    entrypoint.sh prepared instead of leaving a root-owned file behind."""
+    chowned = _as_root(monkeypatch)
+    target = tmp_path / "credentials.enc.json"
+    target.write_text("x")
+    real_stat = Path.stat
+
+    def fake_stat(self: Path, *a, **k):
+        st = real_stat(self, *a, **k)
+        if self == tmp_path:
+            return type("S", (), {"st_uid": 99, "st_gid": 100})()
+        return st
+
+    monkeypatch.setattr(Path, "stat", fake_stat)
+    reauth._hand_over_to_runtime_user(target)
+    assert chowned == [("credentials.enc.json", 99, 100)]
+
+
+def test_hand_over_warns_when_owner_unknown(tmp_path: Path, monkeypatch, caplog) -> None:
+    chowned = _as_root(monkeypatch)
+    target = tmp_path / "credentials.enc.json"
+    target.write_text("x")
+    real_stat = Path.stat
+    monkeypatch.setattr(
+        Path, "stat",
+        lambda self, *a, **k: type("S", (), {"st_uid": 0, "st_gid": 0})()
+        if self == tmp_path else real_stat(self, *a, **k),
+    )
+    reauth._hand_over_to_runtime_user(target)
+    assert chowned == []
+    assert "set PUID/PGID" in caplog.text
+
+
+def test_root_refuses_to_write_through_symlink(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("BAMBULAB_SECRET_KEY", SECRET)
+    _as_root(monkeypatch)
+    victim = tmp_path / "victim"
+    victim.write_text("keep")
+    (tmp_path / "credentials.enc.json").symlink_to(victim)
+    with pytest.raises(RuntimeError, match="symbolic link"):
+        reauth.save_login_result(_settings(tmp_path), _login())
+    assert victim.read_text() == "keep"

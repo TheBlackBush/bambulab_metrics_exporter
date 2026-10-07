@@ -28,9 +28,19 @@
 - Settings saved on the `/auth` page override env vars. Use **Reset to env vars** on the page.
 
 **LAN connection preflight fails**
-- Verify printer IP and LAN access code (Settings → Network on printer)
+- The exporter keeps running and retries every 60 seconds; `/auth/status` shows `error`
+- Verify printer IP and LAN access code (Settings → Network on printer), or fix them on `/auth`
 - Check port 8883: `nc -zv <printer_ip> 8883`
 - TLS cert verification is intentionally disabled
+
+**`/auth` returns 403 `host_not_allowed`**
+- The page only accepts IP addresses and local-network host names (DNS-rebinding protection)
+- Add the name you use (for example a reverse-proxy host) to `AUTH_ALLOWED_HOSTS`
+
+**`bambulab-reauth` saved credentials but the exporter cannot read them**
+- `docker exec` runs as root. The command hands the files to `PUID`/`PGID`, or to the owner of
+  the config folder when those are not set in the container. If both are unknown, run it as
+  the exporter user: `docker exec -it -u 99:100 <container> bambulab-reauth`
 
 ---
 

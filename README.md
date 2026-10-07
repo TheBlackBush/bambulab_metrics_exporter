@@ -153,10 +153,12 @@ apply until the next restart.
 Shell alternative (same result, no browser):
 
 ```bash
-docker exec -it bambulab-exporter bambulab-reauth
+docker exec -it <container> bambulab-reauth
 ```
 
-On Unraid, open the container's **Console** and run `bambulab-reauth`.
+Replace `<container>` with your container name (`bambulab-exporter` in the `docker run`
+examples, `bambulab-metrics-exporter` with the Compose file). On Unraid, open the container's
+**Console** and run `bambulab-reauth`.
 
 ### Env-variable OTP flow
 

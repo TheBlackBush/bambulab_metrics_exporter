@@ -368,3 +368,161 @@ def test_new_store_credentials_are_used_on_first_retry(tmp_path: Path, monkeypat
     assert seen_tokens == ["stale_token", "fresh_token"]
     assert "New encrypted credentials found" in caplog.text
     assert "fresh_token" not in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# Review fixes
+# ---------------------------------------------------------------------------
+
+def test_metrics_relabelled_after_cloud_discovery() -> None:
+    """Regression: the registry was built before discovery, labelling every series
+    printer_name="bambulab" for cloud users without PRINTER_NAME_LABEL."""
+
+    def discover(s: Settings) -> None:
+        s.bambulab_printer_name = "Test Printer"
+
+    runtime = rt.ExporterRuntime(
+        settings_factory=lambda: _local(bambulab_transport="cloud_mqtt"),
+        validate=lambda s: None,
+        client_factory=lambda s: _Client(),
+        discover=discover,
+    )
+    assert runtime.metrics._base_labels["printer_name"] == "bambulab"
+    runtime.start()
+    try:
+        _wait_until(lambda: runtime.ready)
+        assert runtime.metrics._base_labels["printer_name"] == "Test Printer"
+        runtime.reconfigure()
+        _wait_until(lambda: runtime.status()["state"] == rt.STATE_RUNNING and runtime.ready)
+        assert runtime.metrics._base_labels["printer_name"] == "Test Printer"
+    finally:
+        runtime.stop()
+
+
+def test_runtime_survives_unexpected_errors() -> None:
+    calls = {"n": 0}
+
+    def flaky_discover(_s: Settings) -> None:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise AttributeError("'str' object has no attribute 'get'")
+
+    runtime = rt.ExporterRuntime(
+        settings_factory=_local,
+        validate=lambda s: None,
+        client_factory=lambda s: _Client(),
+        discover=flaky_discover,
+        retry_seconds=0.05,
+    )
+    runtime.start()
+    try:
+        _wait_until(lambda: runtime.status()["state"] == rt.STATE_RUNNING)
+        assert calls["n"] == 2
+        assert runtime._thread is not None and runtime._thread.is_alive()
+    finally:
+        runtime.stop()
+
+
+def test_client_factory_error_is_retried() -> None:
+    made = {"n": 0}
+
+    def client_factory(_s: Settings) -> _Client:
+        made["n"] += 1
+        if made["n"] == 1:
+            raise ValueError("bad settings")
+        return _Client()
+
+    runtime = rt.ExporterRuntime(
+        settings_factory=_local, validate=lambda s: None, client_factory=client_factory,
+        discover=lambda s: None, retry_seconds=0.05,
+    )
+    runtime.start()
+    try:
+        _wait_until(lambda: runtime.status()["state"] == rt.STATE_RUNNING)
+    finally:
+        runtime.stop()
+
+
+def test_auth_wait_retries_periodically() -> None:
+    """An outage that looked like a rejection must clear by itself once the broker is back."""
+    attempts = {"n": 0}
+
+    def validate(_s: Settings) -> None:
+        attempts["n"] += 1
+        if attempts["n"] == 1:
+            raise ReauthRequiredError("token expired")
+
+    runtime = rt.ExporterRuntime(
+        settings_factory=lambda: _local(bambulab_transport="cloud_mqtt"),
+        validate=validate, client_factory=lambda s: _Client(), discover=lambda s: None,
+        store_poll_seconds=0.01, auth_retry_seconds=0.05,
+    )
+    runtime.start()
+    try:
+        _wait_until(lambda: runtime.status()["state"] == rt.STATE_RUNNING)
+        assert attempts["n"] == 2
+    finally:
+        runtime.stop()
+
+
+def test_invalid_settings_at_construction_do_not_raise() -> None:
+    def broken() -> Settings:
+        raise ValueError("Unsupported transport 'lan'")
+
+    runtime = rt.ExporterRuntime(settings_factory=broken, validate=lambda s: None)
+    status = runtime.status()
+    assert status["state"] == rt.STATE_SETUP_REQUIRED
+    assert "Unsupported transport" in status["message"]
+
+
+def test_ready_is_sticky_across_reconfigure() -> None:
+    runtime = _runtime([_local()], validate=lambda s: None)
+    runtime.start()
+    try:
+        _wait_until(lambda: runtime.ready)
+        runtime.reconfigure()
+        assert runtime.ready is True  # stays ready while reconnecting, as /ready always was
+    finally:
+        runtime.stop()
+
+
+def test_reconfigure_reports_connecting_immediately() -> None:
+    runtime = _runtime([_local(bambulab_host="")], validate=lambda s: None)
+    runtime.start()
+    try:
+        _wait_until(lambda: runtime.status()["state"] == rt.STATE_SETUP_REQUIRED)
+        runtime.reconfigure()
+        assert runtime.status()["state"] in {rt.STATE_CONNECTING, rt.STATE_SETUP_REQUIRED}
+        assert runtime.status()["message"] in {"", "Missing settings: BAMBULAB_HOST"}
+    finally:
+        runtime.stop()
+
+
+def test_wait_keeps_a_wakeup_that_arrives_after_timeout() -> None:
+    runtime = _runtime([_local()], validate=lambda s: None)
+    assert runtime._wait(0.0) is False
+    runtime._wake.set()  # reconfigure() just after the timeout expired
+    assert runtime._wait(0.0) is True  # not lost
+    assert runtime._wait(0.0) is False
+
+
+def test_page_overrides_do_not_leak_into_env_file(tmp_path: Path, monkeypatch) -> None:
+    """Regression: saved /auth values (incl. the access code) were written to .env, so
+    "Reset to env vars" came back after a restart."""
+    from bambulab_metrics_exporter import overrides
+
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".env").write_text("BAMBULAB_HOST=192.0.2.10\n")
+    overrides.set_env("BAMBULAB_HOST", "192.0.2.99")
+    overrides.set_env("BAMBULAB_ACCESS_CODE", "page-access-code")
+
+    runtime = _runtime([_local(bambulab_host="192.0.2.99")], validate=lambda s: None)
+    runtime.start()
+    try:
+        _wait_until(lambda: runtime.ready)
+    finally:
+        runtime.stop()
+
+    env_text = (tmp_path / ".env").read_text()
+    assert "BAMBULAB_HOST=192.0.2.10" in env_text
+    assert "page-access-code" not in env_text

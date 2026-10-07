@@ -45,7 +45,14 @@ def _bootstrap_cloud_credentials() -> None:
     if not secret or not credentials_path.exists():
         return
 
-    payload = load_encrypted_credentials(credentials_path, secret)
+    try:
+        payload = load_encrypted_credentials(credentials_path, secret)
+    except Exception:  # noqa: BLE001 - startup must continue; the runtime reports it
+        logger.warning(
+            "Encrypted credentials could not be read (wrong BAMBULAB_SECRET_KEY or damaged "
+            "file); continuing without them"
+        )
+        return
     for key in (
         "BAMBULAB_CLOUD_USER_ID",
         "BAMBULAB_CLOUD_ACCESS_TOKEN",
@@ -93,10 +100,15 @@ def log_web_endpoints(settings: Settings) -> None:
 
 def run() -> None:
     _safe_load_dotenv()
+    # Configure logging before anything else logs (overrides, bootstrap).
+    configure_logging(os.getenv("LOG_LEVEL", "INFO"))
     apply_overrides_to_env()
     _bootstrap_cloud_credentials()
-    settings = Settings()
-    configure_logging(settings.log_level)
+    try:
+        settings = Settings()
+    except Exception as exc:  # noqa: BLE001 - serve /auth even with invalid env values
+        logger.error("Invalid configuration (%s); starting with defaults so /auth is reachable", exc)
+        settings = Settings.model_construct()
 
     # The web server starts immediately; connecting, waiting for credentials and retries
     # happen in the background so /health and /auth stay reachable.

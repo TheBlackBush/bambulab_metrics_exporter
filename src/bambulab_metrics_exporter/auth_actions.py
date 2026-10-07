@@ -19,8 +19,18 @@ from bambulab_metrics_exporter.cloud_auth import (
     send_code,
 )
 from bambulab_metrics_exporter.config import Settings
-from bambulab_metrics_exporter.overrides import save_overrides, set_env
-from bambulab_metrics_exporter.reauth import apply_credentials, save_login_result
+from bambulab_metrics_exporter.overrides import (
+    backup_credentials,
+    remember_original,
+    save_overrides,
+    set_env,
+)
+from bambulab_metrics_exporter.reauth import (
+    CREDENTIAL_KEYS,
+    apply_credentials,
+    credentials_path,
+    save_login_result,
+)
 
 _HOST_RE = re.compile(r"^[A-Za-z0-9.\-:\[\]]{1,253}$")
 _SERIAL_RE = re.compile(r"^[A-Za-z0-9]{8,32}$")
@@ -108,6 +118,25 @@ class CodeSender:
         return ActionResult(True, "Verification code sent. Check your email.")
 
 
+class AttemptLimiter:
+    """Caps login attempts relayed to Bambu Cloud (the page is unauthenticated)."""
+
+    def __init__(self, max_attempts: int, window_seconds: float) -> None:
+        self._max = max_attempts
+        self._window = window_seconds
+        self._attempts: list[float] = []
+        self._lock = threading.Lock()
+
+    def check(self) -> None:
+        now = time.monotonic()
+        with self._lock:
+            self._attempts = [t for t in self._attempts if now - t < self._window]
+            if len(self._attempts) >= self._max:
+                wait = int(self._window - (now - self._attempts[0])) + 1
+                raise AuthInputError(f"Too many login attempts. Try again in {wait} seconds.")
+            self._attempts.append(now)
+
+
 def configure_cloud(email: str, code: str, serial: str = "") -> ActionResult:
     email, code, serial = email.strip(), code.strip(), serial.strip().upper()
     if not _EMAIL_RE.match(email):
@@ -135,9 +164,13 @@ def configure_cloud(email: str, code: str, serial: str = "") -> ActionResult:
             )
         serial = serials[0]
 
+    # Record what the container had, so "Reset to env vars" can undo this login.
+    for key in CREDENTIAL_KEYS:
+        remember_original(key)
     persisted = _persist({"BAMBULAB_TRANSPORT": "cloud_mqtt", "BAMBULAB_SERIAL": serial})
     settings = Settings()
     if persisted:
+        backup_credentials(credentials_path(settings))
         save_login_result(settings, result)
     else:
         apply_credentials(
