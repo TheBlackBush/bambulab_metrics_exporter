@@ -361,11 +361,18 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 | `bambulab_subtask_name_info{subtask_name}` | Info Gauge | Current subtask name. |
 | `bambulab_fail_reason_info{fail_reason}` | Info Gauge | Current fail reason. |
 | `bambulab_printer_model_info{model}` | Info Gauge | Detected printer model. |
+| `bambulab_firmware_update_available` | Gauge | 1 when a firmware update is available. |
+| `bambulab_module_firmware_info{module,version}` | Info Gauge | Firmware version per module (`ota` is the printer). |
 | `bambulab_wifi_signal` | Gauge | Wi-Fi signal value (dBm when available). |
 | `bambulab_online_ahb` | Gauge | Online AHB flag. |
 | `bambulab_online_ext` | Gauge | Online external flag. |
 | `bambulab_chamber_light_on` | Gauge | Chamber light status (1/0). |
 | `bambulab_work_light_on` | Gauge | Work light status (1/0). |
+| `bambulab_light_mode_info{light,mode}` | Info Gauge | Mode per light (`on`, `off`, `flashing`, `unknown`). |
+| `bambulab_tool_head_info{tool}` | Info Gauge | Mounted tool head (`none`, `laser_10w`, `laser_40w`, `cutter`, `cooling_fan`, `other`). |
+| `bambulab_accessory_present{accessory}` | Gauge | Installed accessories (filament buffer, exhaust fan, fire extinguisher, ...). |
+| `bambulab_toolhead_filament_present{extruder_id}` | Gauge | Filament detected at each extruder (1/0). |
+| `bambulab_timelapse_storage_free_bytes{storage}` / `_total_bytes` | Gauge | Timelapse storage space (X2D). |
 | `bambulab_xcam_feature_enabled{feature}` | Gauge | XCam feature enable flags. |
 | `bambulab_xcam_halt_print_sensitivity_info{level}` | Info Gauge | XCam halt-print sensitivity level (`low`/`medium`/`high`). |
 | `bambulab_ams_status_id` | Gauge | AMS status numeric code. |

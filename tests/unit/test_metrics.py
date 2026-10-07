@@ -1641,3 +1641,80 @@ class TestDryingAirductNozzleEdgeCases:
             "bambulab_nozzle_wear_ratio", "bambulab_nozzle_print_time_seconds",
         ):
             assert name not in names
+
+
+class TestFirmwareAccessoryStageEdgeCases:
+    labels = {"printer_name": "test", "serial": "SN123"}
+
+    def _series(self, m: ExporterMetrics, name: str) -> list[dict[str, str]]:
+        return [
+            s.labels for metric in m.registry.collect() if metric.name == name for s in metric.samples
+        ]
+
+    def test_update_available_from_state_or_flag(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({"upgrade_state": {"new_version_state": 1}}))
+        assert m.firmware_update_available.labels(**self.labels)._value.get() == 1.0
+        m.update_from_snapshot(_snap({"upgrade_state": {"new_version_state": 2, "new_version": True}}))
+        assert m.firmware_update_available.labels(**self.labels)._value.get() == 1.0
+        m.update_from_snapshot(_snap({"upgrade_state": "bad"}))
+        assert math.isnan(m.firmware_update_available.labels(**self.labels)._value.get())
+
+    def test_module_versions_skip_unexpected_shapes(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        modules = [
+            {"name": "ota", "sw_ver": "01.02.03.04"},
+            {"name": "mc", "sw_ver": "beta build"},
+            {"name": "Some Name With Spaces", "sw_ver": "01.00.00.00"},
+            {"name": 5, "sw_ver": "01.00.00.00"},
+            {"name": "n3f/0", "sw_ver": "02.00.19.47"},
+        ]
+        m.update_from_snapshot(
+            PrinterSnapshot(connected=True, raw={"print": {}, "info": {"module": modules}})
+        )
+        got = {(s["module"], s["version"]) for s in self._series(m, "bambulab_module_firmware_info")}
+        assert got == {("ota", "01.02.03.04"), ("n3f/0", "02.00.19.47")}
+
+    def test_tool_head_unknown_type_and_cleared(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({"device": {"ext_tool": {"mount": 1, "type": "ZZ99"}}}))
+        assert [s["tool"] for s in self._series(m, "bambulab_tool_head_info")] == ["other"]
+        m.update_from_snapshot(_snap({"device": {"ext_tool": {"mount": 1, "type": None}}}))
+        assert [s["tool"] for s in self._series(m, "bambulab_tool_head_info")] == ["other"]
+        m.update_from_snapshot(_snap({}))
+        assert self._series(m, "bambulab_tool_head_info") == []
+
+    def test_accessory_flags_without_module_list(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        payload = {
+            "aux": "20000000",  # bit 29: filament switch installed
+            "device": {"fire_ext": {"connect_flag": 1}, "fourth_axis": {"connect_flag": "x"}},
+        }
+        m.update_from_snapshot(_snap(payload))
+        got = {s["accessory"] for s in self._series(m, "bambulab_accessory_present")}
+        assert got == {"fire_extinguisher", "filament_switch"}
+        assert m.accessory_present.labels(**self.labels, accessory="filament_switch")._value.get() == 1.0
+        m.update_from_snapshot(_snap({"aux": "zz"}))
+        assert self._series(m, "bambulab_accessory_present") == []
+
+    def test_light_modes_unknown_and_foreign_nodes(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        lights = [{"node": "heatbed_light", "mode": "pulse"}, {"node": "laser_light", "mode": "on"}]
+        m.update_from_snapshot(_snap({"lights_report": lights}))
+        got = {(s["light"], s["mode"]) for s in self._series(m, "bambulab_light_mode_info")}
+        assert got == {("heatbed_light", "unknown")}
+
+    def test_storage_from_device_cam_and_unknown_values(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        cam = {"tl_internal_free_kb": -1, "tl_internal_total_kb": 100, "tl_external_free_kb": 10, "tl_external_total_kb": 20}
+        m.update_from_snapshot(_snap({"device": {"cam": cam}}))
+        got = {s["storage"] for s in self._series(m, "bambulab_timelapse_storage_total_bytes")}
+        assert got == {"external"}
+        assert m.timelapse_storage_free_bytes.labels(**self.labels, storage="external")._value.get() == 10240.0
+
+    def test_new_stage_names_and_unknown_gap(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({"stg_cur": 77}))
+        assert [s["stage"] for s in self._series(m, "bambulab_print_stage_info")] == ["preparing_ams"]
+        m.update_from_snapshot(_snap({"stg_cur": 80}))
+        assert [s["stage"] for s in self._series(m, "bambulab_print_stage_info")] == ["unknown_80"]
