@@ -5,6 +5,10 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added
+- `bambulab_filament_tangle_detection_enabled`: the tangle-detection setting, NaN when the
+  printer does not support it.
+- `bambulab_hotend_rack_hotend_print_time_seconds` (`p_t`) and
+  `bambulab_hotend_rack_hotend_max_temperature_celsius` (`tm`) for H2C hotend rack slots.
 - Model detection for **X2D** (`20P`), **A2L** (`26A`), **H2D Pro** (`239`) and **H2C**
   (`31B`) by serial prefix, plus `Bambu Lab X2D` and `Bambu Lab A2L` product names.
   Detection only: these models are not hardware-validated.
@@ -129,6 +133,21 @@ All notable changes to this project are documented in this file.
 - The printer name on the landing page is HTML-escaped.
 
 ### Migration notes
+- **AMS dryer state labels are names now** (AMS 2 Pro / AMS HT only):
+  `bambulab_ams_heater_state_info{state}` uses `off`, `self_check`, `drying`, `cooling`,
+  `stopped`, `error`, `thermal_runaway`, `test_mode` instead of `0`-`7`, and
+  `bambulab_ams_dry_sub_status_info{state}` uses `none`, `heating`, `dehumidifying`. The
+  sub-status is a 2-bit field (bits 22-23); values above 2 were misread before. Update
+  queries that select on numeric `state` values.
+- **Deprecated, removed in a future release:**
+  - `bambulab_filament_tangle_detected`: it is the tangle-detection setting (home_flag
+    bit 20), not a detected tangle. Use `bambulab_filament_tangle_detection_enabled`. Both
+    are now NaN on printers that report no tangle-detection support (for example the X1C),
+    where the bit carries no meaning. The sample Grafana panel is renamed "Tangle Detection".
+  - `bambulab_hotend_rack_hotend_runtime_minutes`: it carries the hotend's maximum
+    temperature (`tm`, 350 on H2C), not a runtime. Use
+    `bambulab_hotend_rack_hotend_print_time_seconds` or
+    `bambulab_hotend_rack_hotend_max_temperature_celsius`.
 - The `model` label of `bambulab_printer_model_info` changes for printers that were
   mislabelled `X1C` (see Fixed), which starts a new series. Update Grafana panels and alerts
   that select on `model`.

@@ -372,9 +372,9 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 | `bambulab_ams_slot_active{ams_id,slot_id}` | Gauge | AMS slot active flag. |
 | `bambulab_ams_slot_remaining_percent{ams_id,slot_id}` | Gauge | AMS slot remaining filament %. |
 | `bambulab_ams_slot_tray_info{ams_id,slot_id,tray_type,tray_color}` | Info Gauge | AMS slot filament type and color. |
-| `bambulab_ams_heater_state_info{ams_id,ams_model,ams_series,state}` | Info Gauge | Gen2 AMS heater/dry state. |
+| `bambulab_ams_heater_state_info{ams_id,ams_model,ams_series,state}` | Info Gauge | AMS dryer state (`off`, `self_check`, `drying`, `cooling`, `stopped`, `error`, `thermal_runaway`, `test_mode`); AMS 2 Pro and AMS HT only. |
 | `bambulab_ams_dry_fan_status{ams_id,ams_model,ams_series,fan_id}` | Gauge | Gen2 AMS drying fan status. |
-| `bambulab_ams_dry_sub_status_info{ams_id,ams_model,ams_series,state}` | Info Gauge | Gen2 AMS drying sub-status. |
+| `bambulab_ams_dry_sub_status_info{ams_id,ams_model,ams_series,state}` | Info Gauge | AMS drying sub-status (`none`, `heating`, `dehumidifying`). |
 | `bambulab_external_spool_active` | Gauge | 1 when external spool is active. |
 | `bambulab_external_spool_info{external_id,tray_type,tray_info_idx,tray_color}` | Info Gauge | External spool metadata. |
 | `bambulab_active_extruder_index` | Gauge | Active extruder index (dual-extruder models). |
@@ -387,14 +387,17 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 | `bambulab_hotend_rack_slot_state_info{slot_id,state}` | Info Gauge | Hotend rack slot state (`mounted/docked/empty`). |
 | `bambulab_hotend_rack_hotend_info{slot_id,nozzle_type,nozzle_diameter}` | Info Gauge | Hotend rack slot nozzle metadata. |
 | `bambulab_hotend_rack_hotend_wear_ratio{slot_id}` | Gauge | Hotend rack nozzle wear ratio. |
-| `bambulab_hotend_rack_hotend_runtime_minutes{slot_id}` | Gauge | Hotend rack nozzle runtime minutes. |
+| `bambulab_hotend_rack_hotend_print_time_seconds{slot_id}` | Gauge | Hotend rack nozzle total print time. |
+| `bambulab_hotend_rack_hotend_max_temperature_celsius{slot_id}` | Gauge | Hotend rack nozzle maximum temperature. |
+| `bambulab_hotend_rack_hotend_runtime_minutes{slot_id}` | Gauge | Deprecated: carries the maximum temperature, not a runtime. Use the two metrics above. |
 | `bambulab_sdcard_status_info{status}` | Info Gauge | SD-card status (`present/abnormal/absent`). |
 | `bambulab_door_open` | Gauge | Door open flag. |
 | `bambulab_lid_open` | Gauge | Lid open flag (H2 family via `stat` bit 24, or direct `lid_open`). |
 | `bambulab_wired_network` | Gauge | Wired network detected flag. |
 | `bambulab_camera_recording` | Gauge | Camera recording flag. |
 | `bambulab_ams_auto_switch` | Gauge | AMS auto-switch flag. |
-| `bambulab_filament_tangle_detected` | Gauge | Filament tangle detected flag. |
+| `bambulab_filament_tangle_detection_enabled` | Gauge | Filament tangle detection setting; NaN when the printer does not support it. |
+| `bambulab_filament_tangle_detected` | Gauge | Deprecated alias of `bambulab_filament_tangle_detection_enabled` (it never meant a detected tangle). |
 | `bambulab_filament_tangle_detect_supported` | Gauge | Filament tangle detection support flag. |
 | `bambulab_queue_total` | Gauge | Total queued jobs. |
 | `bambulab_queue_estimated_seconds` | Gauge | Estimated queue seconds. |

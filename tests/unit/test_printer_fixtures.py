@@ -123,7 +123,7 @@ def test_ams_info_strings_are_hex() -> None:
     """AMS 2 Pro info "2003" / AMS HT "2004": dry status nibble is 0, not 13."""
     _, _, metrics = _load("h2d")
     states = {labels["state"] for labels, _ in _samples(metrics, "bambulab_ams_heater_state_info")}
-    assert states and states <= {"0", "1", "2", "3", "4", "5", "6", "7"}
+    assert states and not any(state.startswith("unknown") for state in states)
 
 
 def test_drying_metrics_only_for_units_with_a_dryer() -> None:
@@ -185,3 +185,46 @@ def test_h2c_with_legacy_h2d_prefix_is_detected_as_h2c() -> None:
     assert snap.model_name == "H2C"
     plain_h2d = PrinterSnapshot(connected=True, raw={"print": {}}, configured_serial="094FIXTURE000001")
     assert plain_h2d.model_name == "H2D"
+
+
+# ---------------------------------------------------------------------------
+# Corrected meanings (maintainer-approved label/value changes)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(("name", "expected"), [("a1", 1.0), ("a2l", 1.0), ("x1c_fw0112_ams1", None)])
+def test_tangle_detection_enabled_only_when_supported(name: str, expected: float | None) -> None:
+    """home_flag bit 20 is the tangle-detection setting; bit 19 says whether the printer
+    supports it. The maintainer's X1C has the setting on but reports it unsupported."""
+    _, _, metrics = _load(name)
+    value = _value(metrics, "bambulab_filament_tangle_detection_enabled")
+    alias = _value(metrics, "bambulab_filament_tangle_detected")
+    if expected is None:
+        assert math.isnan(value) and math.isnan(alias)
+    else:
+        assert value == expected and alias == expected
+
+
+def test_ams_dry_state_is_named() -> None:
+    _, _, metrics = _load("x1c_multi_ams")
+    states = {
+        (labels["ams_id"], labels["state"])
+        for labels, _ in _samples(metrics, "bambulab_ams_heater_state_info")
+    }
+    assert ("2", "drying") in states  # AMS 2 Pro info 0x142023, dry_time 583
+    assert ("128", "off") in states  # AMS HT info 0x2004
+    subs = {labels["state"] for labels, _ in _samples(metrics, "bambulab_ams_dry_sub_status_info")}
+    assert subs <= {"none", "heating", "dehumidifying"}
+
+
+def test_hotend_rack_max_temperature_and_deprecated_alias() -> None:
+    _, _, metrics = _load("h2c")
+    max_temps = dict(
+        (labels["slot_id"], v)
+        for labels, v in _samples(metrics, "bambulab_hotend_rack_hotend_max_temperature_celsius")
+    )
+    assert max_temps and set(max_temps.values()) == {350.0}
+    alias = dict(
+        (labels["slot_id"], v)
+        for labels, v in _samples(metrics, "bambulab_hotend_rack_hotend_runtime_minutes")
+    )
+    assert alias == max_temps

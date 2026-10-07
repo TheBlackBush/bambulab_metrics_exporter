@@ -4,7 +4,15 @@ import math
 
 from prometheus_client import CollectorRegistry, Gauge
 
-from bambulab_metrics_exporter.models import AMS_MODELS_WITH_DRYER, AMS_MODELS_WITHOUT_SENSORS, PrinterSnapshot, _extract_ams_info, parse_ams_info
+from bambulab_metrics_exporter.models import (
+    AMS_MODELS_WITH_DRYER,
+    AMS_MODELS_WITHOUT_SENSORS,
+    PrinterSnapshot,
+    _extract_ams_info,
+    ams_dry_state_name,
+    ams_dry_sub_status_name,
+    parse_ams_info,
+)
 
 
 class ExporterMetrics:
@@ -241,13 +249,28 @@ class ExporterMetrics:
         )
         self.hotend_rack_hotend_runtime_minutes = Gauge(
             "bambulab_hotend_rack_hotend_runtime_minutes",
-            "Hotend rack hotend runtime minutes per slot",
+            "Deprecated: carries the hotend's maximum temperature (payload tm), not a runtime; "
+            "use bambulab_hotend_rack_hotend_print_time_seconds or "
+            "bambulab_hotend_rack_hotend_max_temperature_celsius",
+            [*label_names, "slot_id"],
+            registry=self.registry,
+        )
+        self.hotend_rack_hotend_print_time_seconds = Gauge(
+            "bambulab_hotend_rack_hotend_print_time_seconds",
+            "Total print time of the hotend in a rack slot",
+            [*label_names, "slot_id"],
+            registry=self.registry,
+        )
+        self.hotend_rack_hotend_max_temperature_celsius = Gauge(
+            "bambulab_hotend_rack_hotend_max_temperature_celsius",
+            "Maximum temperature of the hotend in a rack slot",
             [*label_names, "slot_id"],
             registry=self.registry,
         )
         self.camera_recording = Gauge("bambulab_camera_recording", "1 if camera recording flag is set", label_names, registry=self.registry)
         self.ams_auto_switch = Gauge("bambulab_ams_auto_switch", "1 if AMS auto switch flag is set", label_names, registry=self.registry)
-        self.filament_tangle_detected = Gauge("bambulab_filament_tangle_detected", "1 if filament tangle detected flag is set", label_names, registry=self.registry)
+        self.filament_tangle_detected = Gauge("bambulab_filament_tangle_detected", "Deprecated alias of bambulab_filament_tangle_detection_enabled (this is the tangle-detection setting, not a detected tangle)", label_names, registry=self.registry)
+        self.filament_tangle_detection_enabled = Gauge("bambulab_filament_tangle_detection_enabled", "1 if filament tangle detection is enabled; NaN when the printer does not support it", label_names, registry=self.registry)
         self.filament_tangle_detect_supported = Gauge("bambulab_filament_tangle_detect_supported", "1 if filament tangle detect supported flag is set", label_names, registry=self.registry)
 
         # Phase 3: Stage info
@@ -439,6 +462,8 @@ class ExporterMetrics:
         self.hotend_rack_hotend_info.clear()
         self.hotend_rack_hotend_wear_ratio.clear()
         self.hotend_rack_hotend_runtime_minutes.clear()
+        self.hotend_rack_hotend_print_time_seconds.clear()
+        self.hotend_rack_hotend_max_temperature_celsius.clear()
         if snapshot.hotend_rack_present:
             if snapshot.hotend_rack_holder_position_name:
                 self.hotend_rack_holder_position_info.labels(
@@ -465,15 +490,25 @@ class ExporterMetrics:
                     nozzle_diameter=str(hotend.get("nozzle_diameter", "")).strip() or "unknown",
                 ).set(1.0)
                 wear = hotend.get("wear")
-                runtime = hotend.get("runtime_minutes")
+                max_temp = hotend.get("max_temperature")
+                print_time = hotend.get("print_time_seconds")
                 if isinstance(wear, (int, float)):
                     self.hotend_rack_hotend_wear_ratio.labels(**labels, slot_id=slot_id).set(float(wear))
-                if isinstance(runtime, (int, float)):
-                    self.hotend_rack_hotend_runtime_minutes.labels(**labels, slot_id=slot_id).set(float(runtime))
+                if isinstance(max_temp, (int, float)):
+                    self.hotend_rack_hotend_max_temperature_celsius.labels(
+                        **labels, slot_id=slot_id
+                    ).set(float(max_temp))
+                    # Deprecated alias, same value as before.
+                    self.hotend_rack_hotend_runtime_minutes.labels(**labels, slot_id=slot_id).set(float(max_temp))
+                if isinstance(print_time, (int, float)):
+                    self.hotend_rack_hotend_print_time_seconds.labels(
+                        **labels, slot_id=slot_id
+                    ).set(float(print_time))
 
         self._set_optional(self.camera_recording, snapshot.camera_recording)
         self._set_optional(self.ams_auto_switch, self._flag_to_float(snapshot.home_flags.get("ams_auto_switch")))
-        self._set_optional(self.filament_tangle_detected, self._flag_to_float(snapshot.home_flags.get("filament_tangle_detected")))
+        self._set_optional(self.filament_tangle_detection_enabled, snapshot.filament_tangle_detection_enabled)
+        self._set_optional(self.filament_tangle_detected, snapshot.filament_tangle_detection_enabled)
         self._set_optional(self.filament_tangle_detect_supported, self._flag_to_float(snapshot.home_flags.get("filament_tangle_detect_supported")))
 
         self.sdcard_status_info.clear()
@@ -543,7 +578,7 @@ class ExporterMetrics:
                 dry_heater_state = parsed["dry_heater_state"]
                 self.ams_heater_state_info.labels(
                     **labels, ams_id=ams_id, ams_model=ams_model, ams_series=ams_series,
-                    state=str(dry_heater_state)
+                    state=ams_dry_state_name(dry_heater_state)
                 ).set(1.0)
                 self.ams_dry_fan_status.labels(
                     **labels, ams_id=ams_id, ams_model=ams_model, ams_series=ams_series, fan_id="fan1"
@@ -553,7 +588,7 @@ class ExporterMetrics:
                 ).set(float(parsed["dry_fan2"]))
                 self.ams_dry_sub_status_info.labels(
                     **labels, ams_id=ams_id, ams_model=ams_model, ams_series=ams_series,
-                    state=str(parsed["dry_sub_status"])
+                    state=ams_dry_sub_status_name(parsed["dry_sub_status"])
                 ).set(1.0)
 
             raw_trays = ams.get("tray")

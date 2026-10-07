@@ -111,9 +111,9 @@ Fan values: raw levels 0–15 → nearest-10 percent normalization.
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `bambulab_ams_heater_state_info{...,state}` | Info Gauge | AMS dryer state; only for units with a dryer (AMS 2 Pro, AMS HT) |
+| `bambulab_ams_heater_state_info{...,state}` | Info Gauge | AMS dryer state: `off`, `self_check`, `drying`, `cooling`, `stopped`, `error`, `thermal_runaway`, `test_mode` (`unknown_<n>` otherwise); only for units with a dryer (AMS 2 Pro, AMS HT) |
 | `bambulab_ams_dry_fan_status{...,fan_id}` | Gauge | Gen2 AMS drying fan status |
-| `bambulab_ams_dry_sub_status_info{...,state}` | Info Gauge | Gen2 AMS drying sub-status |
+| `bambulab_ams_dry_sub_status_info{...,state}` | Info Gauge | AMS drying sub-status: `none`, `heating`, `dehumidifying` |
 
 ---
 
@@ -147,7 +147,9 @@ Fan values: raw levels 0–15 → nearest-10 percent normalization.
 | `bambulab_hotend_rack_slot_state_info{slot_id,state}` | Info Gauge | Slot state |
 | `bambulab_hotend_rack_hotend_info{slot_id,nozzle_type,nozzle_diameter}` | Info Gauge | Slot nozzle metadata |
 | `bambulab_hotend_rack_hotend_wear_ratio{slot_id}` | Gauge | Nozzle wear ratio |
-| `bambulab_hotend_rack_hotend_runtime_minutes{slot_id}` | Gauge | Nozzle runtime minutes |
+| `bambulab_hotend_rack_hotend_print_time_seconds{slot_id}` | Gauge | Total print time of the hotend (`p_t`) |
+| `bambulab_hotend_rack_hotend_max_temperature_celsius{slot_id}` | Gauge | Maximum temperature of the hotend (`tm`) |
+| `bambulab_hotend_rack_hotend_runtime_minutes{slot_id}` | Gauge | **Deprecated**: carries `tm` (maximum temperature), not a runtime; removed in a future release |
 
 ---
 
@@ -165,7 +167,8 @@ Fan values: raw levels 0–15 → nearest-10 percent normalization.
 | `bambulab_xcam_feature_enabled{feature}` | Gauge | XCam feature flags |
 | `bambulab_xcam_halt_print_sensitivity_info{level}` | Info Gauge | XCam halt-print sensitivity level (`low`/`medium`/`high`) |
 | `bambulab_ams_auto_switch` | Gauge | AMS auto-switch flag |
-| `bambulab_filament_tangle_detected` | Gauge | Filament tangle detected |
+| `bambulab_filament_tangle_detection_enabled` | Gauge | Tangle detection setting (home_flag bit 20); NaN unless the printer reports support (bit 19) |
+| `bambulab_filament_tangle_detected` | Gauge | **Deprecated** alias of `bambulab_filament_tangle_detection_enabled`; it is the setting, not a detected tangle |
 | `bambulab_filament_tangle_detect_supported` | Gauge | Filament tangle detection supported |
 
 ---
