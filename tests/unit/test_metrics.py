@@ -547,14 +547,24 @@ class TestExternalSpoolMetrics:
         labels: dict = {"printer_name": "test", "serial": "SN123"}
         assert math.isnan(m.external_spool_active.labels(**labels)._value.get())
 
-    def test_external_spool_info_unknown_fallback_labels(self) -> None:
+    def test_external_spool_info_omits_empty_virtual_slot(self) -> None:
+        """A virtual slot without a spool (only an id) is not exported."""
         m = ExporterMetrics(printer_name="test", serial="SN123")
         m.update_from_snapshot(_snap({"vt_tray": {"id": "254"}}))
+        samples = [
+            s for metric in m.registry.collect() if metric.name == "bambulab_external_spool_info"
+            for s in metric.samples
+        ]
+        assert samples == []
+
+    def test_external_spool_info_partial_labels_fall_back_to_unknown(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({"vt_tray": {"id": "254", "tray_type": "PLA"}}))
         labels: dict = {"printer_name": "test", "serial": "SN123"}
         assert m.external_spool_info.labels(
             **labels,
             external_id="254",
-            tray_type="unknown",
+            tray_type="PLA",
             tray_info_idx="unknown",
             tray_color="unknown",
         )._value.get() == 1.0
@@ -903,12 +913,28 @@ class TestAmsExistingMetricLabelsUnchanged:
         m = self._m()
         snap = PrinterSnapshot(
             connected=True,
-            raw={"print": {"ams": {"ams": [{"id": "0", "humidity": "3", "sn": "03CABCDEF"}]}}},
+            raw={"print": {"ams": {"ams": [{"id": "0", "humidity": "3", "sn": "006ABCDEF"}]}}},
         )
         m.update_from_snapshot(snap)
         labels = {"printer_name": "test", "serial": "SN123"}
         v = m.ams_unit_humidity_index.labels(**labels, ams_id="0")._value.get()
         assert v == 3.0
+
+    def test_ams_lite_placeholder_sensors_not_exported(self) -> None:
+        """AMS Lite has no sensors; its temp 0 / humidity 5 placeholders are omitted."""
+        m = self._m()
+        snap = PrinterSnapshot(
+            connected=True,
+            raw={"print": {"ams": {"ams": [
+                {"id": "0", "humidity": "5", "humidity_raw": "40", "temp": "0.0", "sn": "03CABCDEF"}
+            ]}}},
+        )
+        m.update_from_snapshot(snap)
+        names = {
+            metric.name for metric in m.registry.collect() for s in metric.samples
+            if metric.name.startswith("bambulab_ams_unit_") and metric.name != "bambulab_ams_unit_info"
+        }
+        assert names == set()
 
     def test_ams_slot_active_labels_unchanged(self) -> None:
         m = self._m()

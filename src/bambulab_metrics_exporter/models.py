@@ -15,6 +15,11 @@ from bambulab_metrics_exporter.flags import (
 X1_HOMEFLAG_MODELS = {"X1", "X1C", "X1E"}
 H2_MODEL_PREFIX = "H2"
 
+# Models without a chamber temperature sensor or a door sensor. Their firmware still sends
+# placeholder values (for example chamber_temper 5), which must not be exported as data.
+NO_CHAMBER_SENSOR_MODELS: frozenset[str] = frozenset({"A1", "A1MINI", "A2L", "P1P", "P1S"})
+NO_DOOR_SENSOR_MODELS: frozenset[str] = frozenset({"A1", "A1MINI", "A2L", "P1P", "P1S"})
+
 # product_name → model (priority 1 in resolver). Keys are normalized with
 # _normalize_product_name, so firmware strings like "Bambu Lab X1-Carbon" match.
 PRODUCT_NAME_TO_PRINTER: dict[str, str] = {
@@ -96,6 +101,19 @@ AMS_SERIAL_PREFIX_TO_MODEL: dict[str, str] = {
     "19F": "ams_ht",
 }
 
+# get_version module name prefix ("n3f/0") → AMS model, for units without info/sn.
+AMS_MODEL_BY_MODULE_PREFIX: dict[str, str] = {
+    "ams": "ams_1",
+    "ams_f1": "ams_lite",
+    "n3f": "ams_2_pro",
+    "n3s": "ams_ht",
+}
+
+# AMS Lite has no temperature or humidity sensor; it reports fixed placeholders.
+AMS_MODELS_WITHOUT_SENSORS: frozenset[str] = frozenset({"ams_lite"})
+# Only these units have a dryer, so drying telemetry is meaningless on the others.
+AMS_MODELS_WITH_DRYER: frozenset[str] = frozenset({"ams_2_pro", "ams_ht"})
+
 # AMS model → series
 AMS_MODEL_TO_SERIES: dict[str, str] = {
     "ams_1": "gen_1",
@@ -152,27 +170,9 @@ def _extract_ams_info(ams_unit: dict[str, Any]) -> int | None:
         if not s:
             return None
 
-        # Some firmware/cloud payloads send `info` as bare hex string (e.g. "1001").
-        # For digit-only strings, try both decimal and hex and prefer a value whose
-        # low nibble maps to a known AMS type.
-        if s.isdigit():
-            candidates: list[int] = []
-            try:
-                candidates.append(int(s, 10))
-            except ValueError:
-                pass
-            try:
-                candidates.append(int(s, 16))
-            except ValueError:
-                pass
-
-            for candidate in candidates:
-                ams_type = candidate & 0xF
-                if candidate > 0 and ams_type in AMS_TYPE_TO_MODEL:
-                    return candidate
-
-            return candidates[0] if candidates else None
-
+        # String `info` is always hexadecimal, even when it only contains digits
+        # ("2003" is AMS 2 Pro with dry status 0, not decimal 2003). Reading it as
+        # decimal corrupted the drying state of AMS 2 Pro / AMS HT units.
         if s.lower().startswith("0x"):
             s = s[2:]
 
@@ -514,6 +514,10 @@ class PrinterSnapshot:
         for serial in (self.sn, self.configured_serial):
             mapped = _model_from_serial(serial)
             if mapped:
+                # Early H2C units shipped with the H2D prefix 094; the hotend rack
+                # only exists on the H2C.
+                if mapped == "H2D" and self.hotend_rack_present:
+                    return "H2C"
                 return mapped
 
         # --- Step 4: configured or cloud-discovered model ---
@@ -577,17 +581,28 @@ class PrinterSnapshot:
 
     @property
     def chamber_temp(self) -> float | None:
-        value = _to_float(self.print_block.get("chamber_temper"))
-        if value is not None:
-            return value
-        nested = self.print_block.get("device", {})
-        if isinstance(nested, dict):
-            ctc = nested.get("ctc", {})
-            if isinstance(ctc, dict):
-                info = ctc.get("info", {})
-                if isinstance(info, dict):
-                    return _to_float(info.get("temp"))
-        return None
+        """Chamber temperature in °C.
+
+        New firmware reports `device.ctc.info.temp` packed as (target << 16) | current
+        while the chamber heater has a target (H2S sample: 3932220 = 60 °C / 60 °C).
+        Models without a chamber sensor send a placeholder and report None.
+        """
+        if self.printer_type in NO_CHAMBER_SENSOR_MODELS:
+            return None
+        raw: Any = None
+        device = self.print_block.get("device")
+        if isinstance(device, dict):
+            ctc = device.get("ctc")
+            if isinstance(ctc, dict) and isinstance(ctc.get("info"), dict):
+                raw = ctc["info"].get("temp")
+        if raw is None:
+            raw = self.print_block.get("chamber_temper")
+        value = _to_float(raw)
+        if value is None:
+            return None
+        if value > 0xFFFF and value.is_integer():
+            return float(int(value) & 0xFFFF)
+        return value
 
     @property
     def layer_current(self) -> float | None:
@@ -635,8 +650,15 @@ class PrinterSnapshot:
         for entry in parts:
             if not isinstance(entry, dict):
                 continue
-            if to_int(entry.get("id")) == 160:
-                return _fan_percent_normalized(entry.get("value"))
+            # Part id packs the fan number in bits 4-11; fan 10 (id 160) is the
+            # secondary aux fan. Its `state` is already a 0-100 percentage.
+            part_id = to_int(entry.get("id"))
+            if part_id is None or (part_id >> 4) & 0xFF != 10:
+                continue
+            state = to_int(entry.get("state"))
+            if state is not None:
+                return float(state & 0xFF)
+            return _fan_percent_normalized(entry.get("value"))
         return None
 
     @property
@@ -765,18 +787,54 @@ class PrinterSnapshot:
         return None
 
     @property
-    def external_spool_active(self) -> float | None:
-        """1 when external spool is active (tray_now == 254), else 0.
+    def active_filament_source(self) -> tuple[str, int, int] | None:
+        """Filament currently loaded for printing: ("ams", ams_id, slot_id),
+        ("external", -1, -1) or ("none", -1, -1); None without data.
 
-        Returns None when tray_now is unavailable.
+        New firmware reports the loaded slot per extruder in
+        `device.extruder.info[].snow` = (ams_id << 8) | slot, where 0xFF00 is the
+        external spool and 0xFFFF / 0xFEFF mean nothing loaded; the active extruder's
+        entry wins. `ams.tray_now` only holds the local slot on those printers, so it
+        is used only for older payloads: 255 none, 254 external, 0x80-0x87 an AMS HT
+        unit id, otherwise ams_id = tray_now >> 2 and slot = tray_now & 3.
         """
+        entries = [e for e in self.extruder_entries if to_int(e.get("snow")) is not None]
+        if entries:
+            active = self.active_extruder_index
+            chosen = next(
+                (e for e in entries if active is not None and to_int(e.get("id")) == int(active)),
+                entries[0],
+            )
+            snow = to_int(chosen.get("snow"))
+            assert snow is not None
+            ams_id, slot = (snow >> 8) & 0xFF, snow & 0xFF
+            if ams_id == 0xFF and slot == 0xFF or (ams_id, slot) == (0xFE, 0xFF):
+                return ("none", -1, -1)
+            if ams_id == 0xFF:
+                return ("external", -1, -1)
+            return ("ams", ams_id, slot)
+
         ams = self.print_block.get("ams")
         if not isinstance(ams, dict):
             return None
         tray_now = to_int(ams.get("tray_now"))
         if tray_now is None:
             return None
-        return 1.0 if tray_now == 254 else 0.0
+        if tray_now == 255:
+            return ("none", -1, -1)
+        if tray_now == 254:
+            return ("external", -1, -1)
+        if 0x80 <= tray_now <= 0x87:
+            return ("ams", tray_now, 0)
+        return ("ams", tray_now >> 2, tray_now & 0x3)
+
+    @property
+    def external_spool_active(self) -> float | None:
+        """1 when the external spool feeds the active extruder, else 0; None without data."""
+        source = self.active_filament_source
+        if source is None:
+            return None
+        return 1.0 if source[0] == "external" else 0.0
 
     @property
     def external_spool_entries(self) -> list[dict[str, Any]]:
@@ -785,6 +843,11 @@ class PrinterSnapshot:
         def _norm(entry: dict[str, Any]) -> dict[str, Any] | None:
             ext_id = to_int(entry.get("id"))
             if ext_id not in {254, 255}:
+                return None
+            # New firmware always lists both virtual slots; skip ones with no spool.
+            tray_type = str(entry.get("tray_type", "")).strip()
+            tray_idx = str(entry.get("tray_info_idx", "")).strip()
+            if not tray_type and not tray_idx:
                 return None
             return {
                 "id": str(ext_id),
@@ -856,6 +919,8 @@ class PrinterSnapshot:
                     "actual_temp": actual_temp,
                     "target_temp": target_temp,
                     "hnow": to_int(item.get("hnow")),
+                    # Loaded slot: (ams_id << 8) | slot, see active_filament_source.
+                    "snow": to_int(item.get("snow")),
                 }
             )
         return out
@@ -864,14 +929,14 @@ class PrinterSnapshot:
     def extruder_nozzle_info_entries(self) -> list[dict[str, Any]]:
         device = self.print_block.get("device")
         if not isinstance(device, dict):
-            return []
+            return self._legacy_nozzle_entries()
 
         nozzle = device.get("nozzle")
         if not isinstance(nozzle, dict):
-            return []
+            return self._legacy_nozzle_entries()
         nozzle_info = nozzle.get("info")
         if not isinstance(nozzle_info, list):
-            return []
+            return self._legacy_nozzle_entries()
 
         nozzle_by_id: dict[int, dict[str, Any]] = {}
         for item in nozzle_info:
@@ -918,11 +983,27 @@ class PrinterSnapshot:
             )
         return entries
 
+    def _legacy_nozzle_entries(self) -> list[dict[str, Any]]:
+        """Single-nozzle printers without `device.nozzle` (A1, P1, older X1) report the
+        nozzle in top-level `nozzle_type` / `nozzle_diameter`."""
+        nozzle_type = self.print_block.get("nozzle_type")
+        if not isinstance(nozzle_type, str) or not nozzle_type.strip():
+            return []
+        return [
+            {
+                "id": "0",
+                "nozzle_type": nozzle_type.strip(),
+                "nozzle_diameter": _to_float(self.print_block.get("nozzle_diameter")),
+            }
+        ]
+
     @property
     def active_nozzle_entry(self) -> dict[str, Any] | None:
         active = to_int(self.active_extruder_index)
         if active is None:
-            return None
+            # Single-nozzle printers without extruder state: the only nozzle is active.
+            entries = self.extruder_nozzle_info_entries
+            return entries[0] if len(entries) == 1 else None
         for item in self.extruder_nozzle_info_entries:
             if to_int(item.get("id")) == active:
                 return item
@@ -1190,6 +1271,10 @@ class PrinterSnapshot:
         if isinstance(val, (int, float)):
             return 1.0 if val else 0.0
 
+        # P1 and A1-family printers have no door sensor; their flag bits are not a door.
+        if self.printer_type in NO_DOOR_SENSOR_MODELS:
+            return None
+
         home_flag = to_int(self.print_block.get("home_flag"))
         stat_flag = to_hex_int(self.print_block.get("stat"))
         ptype = self.printer_type
@@ -1261,6 +1346,19 @@ class PrinterSnapshot:
         return STG_CUR_NAMES.get(stage_id, f"unknown_{stage_id}")
 
     @property
+    def camera_recording(self) -> float | None:
+        """1 when the camera records. `ipcam.ipcam_record` ("enable"/"disable") is the
+        camera's own setting; newer firmware no longer sets home_flag bit 5 (verified on
+        an X1C with firmware 01.12.00.00), so the flag is only a fallback."""
+        ipcam = self.print_block.get("ipcam")
+        if isinstance(ipcam, dict):
+            record = ipcam.get("ipcam_record")
+            if isinstance(record, str) and record.strip().lower() in {"enable", "disable"}:
+                return 1.0 if record.strip().lower() == "enable" else 0.0
+        flag = self.home_flags.get("camera_recording")
+        return None if flag is None else (1.0 if flag else 0.0)
+
+    @property
     def ams_units(self) -> list[dict[str, Any]]:
         ams = self.print_block.get("ams", {})
         if not isinstance(ams, dict):
@@ -1270,13 +1368,29 @@ class PrinterSnapshot:
             return [x for x in units if isinstance(x, dict)]
         return []
 
+    def _ams_models_from_modules(self) -> dict[str, str]:
+        """AMS unit id → model from get_version module names such as "n3f/0"."""
+        models: dict[str, str] = {}
+        for mod in self.modules:
+            name = mod.get("name")
+            if not isinstance(name, str) or "/" not in name:
+                continue
+            prefix, _, unit_id = name.partition("/")
+            model = AMS_MODEL_BY_MODULE_PREFIX.get(prefix.strip().lower())
+            if model and unit_id.strip().isdigit():
+                models[str(int(unit_id))] = model
+        return models
+
     @property
     def ams_units_with_model(self) -> list[dict[str, Any]]:
         """Return AMS units enriched with resolved ams_model and ams_series."""
         result = []
+        module_models = self._ams_models_from_modules()
         for unit in self.ams_units:
             enriched = dict(unit)
             ams_model = resolve_ams_model(unit)
+            if ams_model == "unknown":
+                ams_model = module_models.get(str(unit.get("id", "")).strip(), "unknown")
             enriched["ams_model"] = ams_model
             enriched["ams_series"] = resolve_ams_series(ams_model)
             result.append(enriched)

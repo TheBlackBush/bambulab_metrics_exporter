@@ -35,7 +35,7 @@ class LocalMqttBambuClient(BambuClient):
         else:
             self._client = mqtt.Client()
         self._client.username_pw_set(settings.bambulab_username, settings.bambulab_access_code)
-        self._client.tls_set(cert_reqs=ssl.CERT_NONE)
+        self._client.tls_set_context(_tls_context())
         self._client.tls_insecure_set(True)
         self._client.enable_logger(logger)
 
@@ -158,6 +158,20 @@ class LocalMqttBambuClient(BambuClient):
         with self._lock:
             _deep_merge_in_place(self._latest_state, payload)
             self._last_message_ts = time.time()
+
+
+def _tls_context() -> ssl.SSLContext:
+    """TLS for printer and cloud brokers.
+
+    Certificate and hostname checks stay disabled (documented compatibility behavior).
+    The maximum version is TLS 1.2: P2S firmware 01.02.00.00 never answers a TLS 1.3
+    ClientHello, so the handshake would hang. Every Bambu broker supports TLS 1.2.
+    """
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    context.maximum_version = ssl.TLSVersion.TLSv1_2
+    return context
 
 
 # CONNACK codes for refused credentials: MQTT 3.1.1 (4, 5) and the MQTT 5 values paho v2
