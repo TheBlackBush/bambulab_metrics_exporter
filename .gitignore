@@ -34,11 +34,10 @@ uv.lock
 
 RELEASE_RULES.md
 
-# local tooling state
-.claude-flow/
-.swarm/
+# local tooling state: all dot folders (.claude, .claude-flow, .swarm, .codex, caches)
+# except CI workflows
+.*/
+!.github/
 ruvector.db
-.claude/proven-config.json
-.claude/.proven-config-version
 agentdb.rvf
 agentdb.rvf.lock
