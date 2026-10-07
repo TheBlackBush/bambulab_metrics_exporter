@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Bambu Lab Metrics Exporter</title>
+{{REFRESH}}
 <style>
   *, *::before, *::after {
     box-sizing: border-box;
@@ -22,6 +23,8 @@
     --green-dim: rgba(34, 197, 94, 0.12);
     --yellow: #eab308;
     --yellow-dim: rgba(234, 179, 8, 0.12);
+    --red: #ef4444;
+    --red-dim: rgba(239, 68, 68, 0.12);
     --radius: 12px;
   }
 
@@ -41,21 +44,19 @@
 
   .container {
     width: 100%;
-    max-width: 480px;
+    max-width: 560px;
     display: flex;
     flex-direction: column;
-    gap: 1.75rem;
+    gap: 1.5rem;
   }
 
   /* ─── Header ─────────────────────────────────────────── */
-  header {
-    text-align: center;
-  }
+  header { text-align: center; }
 
   .bambu-logo {
     display: block;
     margin: 0 auto 0.75rem;
-    max-height: 88px;
+    max-height: 72px;
     width: auto;
     object-fit: contain;
   }
@@ -65,87 +66,71 @@
     align-items: center;
     justify-content: center;
     gap: 0.6rem;
-    margin-bottom: 0.5rem;
   }
 
-  .logo-icon {
-    width: 28px;
-    height: 28px;
-    flex-shrink: 0;
-    color: var(--green);
-  }
+  .logo-icon { width: 26px; height: 26px; flex-shrink: 0; color: var(--green); }
 
   header h1 {
     font-size: 1.35rem;
     font-weight: 700;
     letter-spacing: -0.03em;
-    color: var(--text);
     line-height: 1.2;
   }
 
-  .version-badge {
-    display: inline-block;
-    font-size: 0.72rem;
-    font-weight: 500;
-    color: var(--text-secondary);
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    padding: 0.2rem 0.65rem;
-    letter-spacing: 0.02em;
-    margin-top: 0.4rem;
-  }
-
-  .printer-name {
-    color: var(--text-secondary);
-    font-weight: 400;
-  }
-
-  .printer-badge {
-    display: inline-block;
-    font-size: 0.72rem;
-    font-weight: 500;
-    color: #6b7280;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    padding: 0.2rem 0.65rem;
-    letter-spacing: 0.02em;
-    margin-top: 0.3rem;
-  }
-
-  /* ─── Metrics link ────────────────────────────────────── */
-  .metrics-link-row {
+  .badges {
     display: flex;
     justify-content: center;
     flex-wrap: wrap;
-    gap: 0.5rem;
+    gap: 0.4rem;
+    margin-top: 0.75rem;
   }
 
-  .metrics-link {
+  .badge, .version-badge, .printer-badge {
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
-    color: var(--green);
-    text-decoration: none;
-    font-size: 0.82rem;
+    font-size: 0.72rem;
     font-weight: 500;
-    border: 1px solid rgba(34, 197, 94, 0.3);
-    border-radius: 8px;
-    padding: 0.45rem 0.9rem;
-    background: var(--green-dim);
-    transition: background 0.2s, border-color 0.2s;
+    color: var(--text-secondary);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.22rem 0.65rem;
+    letter-spacing: 0.02em;
   }
 
-  .metrics-link:hover {
-    background: rgba(34, 197, 94, 0.2);
-    border-color: rgba(34, 197, 94, 0.5);
+  .printer-badge { color: var(--text); }
+  .badge svg, .printer-badge svg { width: 0.85rem; height: 0.85rem; flex: none; }
+
+  /* ─── Attention banner ───────────────────────────────── */
+  .alert {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem;
+    border-radius: var(--radius);
+    border: 1px solid rgba(234, 179, 8, 0.35);
+    background: var(--yellow-dim);
+    color: var(--text);
+    text-decoration: none;
+    font-size: 0.86rem;
+    line-height: 1.4;
+    transition: border-color 0.2s, background 0.2s;
   }
+  .alert:hover { border-color: rgba(234, 179, 8, 0.6); background: rgba(234, 179, 8, 0.18); }
+  .alert.bad { border-color: rgba(239, 68, 68, 0.35); background: var(--red-dim); }
+  .alert.bad:hover { border-color: rgba(239, 68, 68, 0.6); background: rgba(239, 68, 68, 0.18); }
+  .alert-icon { width: 1.15rem; height: 1.15rem; flex: none; color: var(--yellow); }
+  .alert.bad .alert-icon { color: var(--red); }
+  .alert-text { flex: 1; }
+  .alert-text strong { display: block; font-weight: 600; }
+  .alert-text span { color: var(--text-secondary); font-size: 0.8rem; }
+  .alert-cta { flex: none; font-weight: 600; font-size: 0.82rem; color: var(--text); white-space: nowrap; }
 
   /* ─── Cards ──────────────────────────────────────────── */
   .cards {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, 1fr);
     gap: 0.75rem;
   }
 
@@ -153,32 +138,36 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 1.25rem 1.25rem 1.1rem;
+    padding: 1.1rem 1rem 1rem;
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    align-items: center;
+    text-align: center;
+    gap: 0.6rem;
     transition: border-color 0.2s;
   }
 
-  .card:hover {
-    border-color: #3a3a3a;
-  }
+  .card:hover { border-color: #3a3a3a; }
 
   .card-label {
-    font-size: 0.7rem;
+    font-size: 0.68rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.1em;
     color: var(--text-secondary);
   }
 
-  .card-status {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.4rem;
+  .card-detail { font-size: 0.74rem; color: var(--text-secondary); min-height: 1em; }
+
+  .card-value {
+    font-size: 1.05rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.6;
   }
+  .card-value.fresh { color: var(--green); }
+  .card-value.stale { color: var(--yellow); }
+  .card-value.none { color: var(--text-secondary); }
 
   /* ─── Pill badges ─────────────────────────────────────── */
   .pill {
@@ -190,45 +179,17 @@
     border-radius: 999px;
     padding: 0.28rem 0.7rem 0.28rem 0.5rem;
     width: fit-content;
+    white-space: nowrap;
   }
 
-  .pill-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
+  .pill-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 
-  .pill.green {
+  .pill.ready, .pill.healthy {
     background: var(--green-dim);
     color: var(--green);
     border: 1px solid rgba(34, 197, 94, 0.25);
   }
-
-  .pill.green .pill-dot {
-    background: var(--green);
-    animation: pulse-green 2s ease-in-out infinite;
-  }
-
-  .pill.yellow {
-    background: var(--yellow-dim);
-    color: var(--yellow);
-    border: 1px solid rgba(234, 179, 8, 0.25);
-  }
-
-  .pill.yellow .pill-dot {
-    background: var(--yellow);
-    animation: pulse-yellow 2s ease-in-out infinite;
-  }
-
-  /* CSS class hooks for Python template injection */
-  .pill.ready {
-    background: var(--green-dim);
-    color: var(--green);
-    border: 1px solid rgba(34, 197, 94, 0.25);
-  }
-
-  .pill.ready .pill-dot {
+  .pill.ready .pill-dot, .pill.healthy .pill-dot {
     background: var(--green);
     animation: pulse-green 2s ease-in-out infinite;
   }
@@ -238,31 +199,15 @@
     color: var(--yellow);
     border: 1px solid rgba(234, 179, 8, 0.25);
   }
+  .pill.warming .pill-dot { background: var(--yellow); animation: pulse-yellow 2s ease-in-out infinite; }
 
-  .pill.warming .pill-dot {
-    background: var(--yellow);
-    animation: pulse-yellow 2s ease-in-out infinite;
-  }
-
-  .pill.healthy {
-    background: var(--green-dim);
-    color: var(--green);
-    border: 1px solid rgba(34, 197, 94, 0.25);
-  }
-
-  .pill.healthy .pill-dot {
-    background: var(--green);
-    animation: pulse-green 2s ease-in-out infinite;
-  }
-
-  .pill.unhealthy {
-    background: rgba(239, 68, 68, 0.12);
-    color: #ef4444;
+  .pill.unhealthy, .pill.attention {
+    background: var(--red-dim);
+    color: var(--red);
     border: 1px solid rgba(239, 68, 68, 0.25);
   }
-
-  .pill.unhealthy .pill-dot {
-    background: #ef4444;
+  .pill.unhealthy .pill-dot, .pill.attention .pill-dot {
+    background: var(--red);
     animation: pulse-red 2s ease-in-out infinite;
   }
 
@@ -270,21 +215,53 @@
     0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
     50%       { box-shadow: 0 0 0 4px rgba(239, 68, 68, 0); }
   }
-
   @keyframes pulse-green {
     0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5); }
     50%       { box-shadow: 0 0 0 4px rgba(34, 197, 94, 0); }
   }
-
   @keyframes pulse-yellow {
     0%, 100% { box-shadow: 0 0 0 0 rgba(234, 179, 8, 0.5); }
     50%       { box-shadow: 0 0 0 4px rgba(234, 179, 8, 0); }
   }
 
-  /* ─── Footer ─────────────────────────────────────────── */
-  footer {
-    text-align: center;
+  @media (prefers-reduced-motion: reduce) {
+    .pill-dot { animation: none !important; }
   }
+
+  /* ─── Actions ────────────────────────────────────────── */
+  .actions {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-decoration: none;
+    border-radius: 8px;
+    padding: 0.55rem 1rem;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .btn svg { width: 1rem; height: 1rem; flex: none; }
+  .btn:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+
+  .btn.primary {
+    color: var(--green);
+    background: var(--green-dim);
+    border: 1px solid rgba(34, 197, 94, 0.4);
+  }
+  .btn.primary:hover { background: rgba(34, 197, 94, 0.22); border-color: rgba(34, 197, 94, 0.6); }
+
+  .btn.tonal { color: var(--text); background: #2c2c2c; border: 1px solid #3d3d3d; }
+  .btn.tonal:hover { background: #363636; border-color: #4d4d4d; }
+
+  /* ─── Footer ─────────────────────────────────────────── */
+  footer { text-align: center; }
 
   .gh-link {
     display: inline-flex;
@@ -292,42 +269,27 @@
     gap: 0.5rem;
     color: var(--text-secondary);
     text-decoration: none;
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     font-weight: 500;
-    border: 1px solid var(--border);
+    padding: 0.35rem 0.6rem;
     border-radius: 8px;
-    padding: 0.45rem 0.9rem;
-    background: var(--surface);
-    transition: color 0.2s, border-color 0.2s, background 0.2s;
+    transition: color 0.2s, background 0.2s;
   }
+  .gh-link:hover { color: var(--text); background: var(--surface-hover); }
+  .gh-icon { width: 15px; height: 15px; flex-shrink: 0; }
 
-  .gh-link:hover {
-    color: var(--text);
-    border-color: #3a3a3a;
-    background: var(--surface-hover);
-  }
-
-  .gh-icon {
-    width: 16px;
-    height: 16px;
-    flex-shrink: 0;
-  }
-
-  .footer-credit {
-    margin-top: 0.65rem;
-    font-size: 0.74rem;
-    color: var(--text-secondary);
-  }
+  .footer-credit { margin-top: 0.4rem; font-size: 0.72rem; color: var(--text-secondary); }
 
   /* ─── Responsive ──────────────────────────────────────── */
-  @media (max-width: 380px) {
-    .cards {
-      grid-template-columns: 1fr;
-    }
+  @media (max-width: 520px) {
+    .cards { grid-template-columns: 1fr 1fr; }
+    .cards .card:last-child { grid-column: 1 / -1; }
+  }
 
-    header h1 {
-      font-size: 1.15rem;
-    }
+  @media (max-width: 360px) {
+    .cards { grid-template-columns: 1fr; }
+    header h1 { font-size: 1.15rem; }
+    .alert { flex-wrap: wrap; }
   }
 </style>
 </head>
@@ -337,52 +299,53 @@
   <header>
     <img class="bambu-logo" src="/static/bambulablogo.png" alt="Bambu Lab logo" />
     <div class="logo-row">
-      <!-- Metrics / chart icon -->
       <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
       </svg>
       <h1>Bambu Lab Metrics Exporter</h1>
     </div>
-    <span class="version-badge">v{{VERSION}}</span>
-    {{PRINTER_BADGE}}
+    <div class="badges">
+      <span class="version-badge">v{{VERSION}}</span>
+      {{PRINTER_BADGE}}
+      {{MODE_BADGE}}
+    </div>
   </header>
 
+  {{ALERT}}
+
   <div class="cards">
-    <!-- Health card -->
     <div class="card">
       <span class="card-label">Health</span>
-      <div class="card-status">
-        <span class="pill {{HEALTH_CLASS}}">
-          <span class="pill-dot"></span>
-          {{HEALTH_STATUS}}
-        </span>
-      </div>
+      <span class="pill {{HEALTH_CLASS}}"><span class="pill-dot"></span>{{HEALTH_STATUS}}</span>
+      <span class="card-detail">Exporter process</span>
     </div>
 
-    <!-- Ready card -->
     <div class="card">
-      <span class="card-label">Ready</span>
-      <div class="card-status">
-        <span class="pill {{READY_CLASS}}">
-          <span class="pill-dot"></span>
-          {{READY_STATUS}}
-        </span>
-      </div>
+      <span class="card-label">Printer</span>
+      <span class="pill {{READY_CLASS}}"><span class="pill-dot"></span>{{READY_STATUS}}</span>
+      <span class="card-detail">{{READY_DETAIL}}</span>
+    </div>
+
+    <div class="card">
+      <span class="card-label">Last update</span>
+      <span class="card-value {{LAST_UPDATE_CLASS}}">{{LAST_UPDATE}}</span>
+      <span class="card-detail">{{POLL_DETAIL}}</span>
     </div>
   </div>
 
-  <div class="metrics-link-row">
-    <a class="metrics-link" href="/metrics">
-      View Metrics →
+  <div class="actions">
+    <a class="btn primary" href="/metrics">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      View Metrics
     </a>
-    <a class="metrics-link" href="/auth">
-      Printer Connection →
+    <a class="btn tonal" href="/auth">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+      Printer Connection
     </a>
   </div>
 
   <footer>
     <a class="gh-link" href="https://github.com/TheBlackBush/bambulab_metrics_exporter" target="_blank" rel="noopener noreferrer">
-      <!-- GitHub mark SVG (official, inline) -->
       <svg class="gh-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
         <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
       </svg>

@@ -9,7 +9,7 @@
 - Cloud: `BAMBULAB_SERIAL`, `BAMBULAB_SECRET_KEY`, `BAMBULAB_CLOUD_EMAIL`, plus credentials or encrypted file
 
 **`BAMBU CLOUD RE-AUTHENTICATION REQUIRED` in the logs**
-1. Open `http://<docker-host>:9109/auth`, choose **Bambu Cloud**, send a code and log in
+1. Open `http://<docker-host>:9109/auth`, choose **Bambu Cloud**, click **Send code**, enter the code and log in
    (shell alternative: `docker exec -it <container> bambulab-reauth`)
 2. The exporter resumes within a few seconds; no restart needed
 3. `GET /auth/status` shows the current state (`auth_required` until you log in)

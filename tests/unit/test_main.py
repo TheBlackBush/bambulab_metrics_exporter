@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 
 from bambulab_metrics_exporter import main
 
@@ -134,7 +136,8 @@ def _capture_app(handlers: dict):
     return _AppStub()
 
 
-def test_run_starts_runtime_before_server_and_stops_on_shutdown(monkeypatch) -> None:
+def test_run_starts_runtime_before_server_and_stops_on_shutdown(monkeypatch, caplog) -> None:
+    caplog.set_level(logging.INFO)
     order: list[str] = []
     runtime = _RuntimeStub()
     handlers: dict = {}
@@ -160,8 +163,39 @@ def test_run_starts_runtime_before_server_and_stops_on_shutdown(monkeypatch) -> 
     # Page overrides apply after .env and before credentials bootstrap; the server starts
     # without waiting for the printer connection.
     assert order[:3] == ["dotenv", "overrides", "bootstrap"]
+    assert "BAMBU LAB METRICS EXPORTER WEB UI" in caplog.text and "/auth" in caplog.text
     assert order[-2:] == ["app", "serve:9109"]
     assert runtime.events == ["start"]
 
     handlers["shutdown"]()
     assert runtime.events == ["start", "stop"]
+
+
+@pytest.mark.parametrize(
+    ("host", "port", "expected"),
+    [
+        ("0.0.0.0", 9109, "http://<docker-host>:9109"),
+        ("::", 9200, "http://<docker-host>:9200"),
+        ("127.0.0.1", 9109, "http://127.0.0.1:9109"),
+        ("::1", 9109, "http://[::1]:9109"),
+    ],
+)
+def test_base_url(host: str, port: int, expected: str) -> None:
+    from bambulab_metrics_exporter.config import Settings
+
+    assert main.base_url(Settings(listen_host=host, listen_port=port)) == expected
+
+
+def test_log_web_endpoints(caplog) -> None:
+    from bambulab_metrics_exporter.config import Settings
+
+    caplog.set_level(logging.INFO)
+    main.log_web_endpoints(Settings(listen_host="0.0.0.0", listen_port=9110))
+    for path in ("/", "/auth", "/metrics", "/health", "/ready"):
+        assert f"http://<docker-host>:9110{path}" in caplog.text
+    assert "9110 is the container port" in caplog.text
+
+    caplog.clear()
+    main.log_web_endpoints(Settings(listen_host="127.0.0.1", listen_port=9109))
+    assert "http://127.0.0.1:9109/auth" in caplog.text
+    assert "container port" not in caplog.text

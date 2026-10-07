@@ -35,6 +35,7 @@ SEND_CODE_INTERVAL_SECONDS = 60.0
 class ActionResult:
     ok: bool
     message: str
+    note: str = ""
 
 
 class AuthInputError(ValueError):
@@ -54,11 +55,9 @@ def _persist(values: dict[str, str]) -> bool:
 
 def _persist_note(persisted: bool) -> str:
     if persisted:
-        return "Saved; these settings override env vars after restarts."
-    return (
-        "Applied for this session only. Set BAMBULAB_SECRET_KEY to keep page settings "
-        "across restarts."
-    )
+        return "Kept after restarts; overrides the container's env vars."
+    return "Applies until the next restart. Set BAMBULAB_SECRET_KEY to keep it."
+
 
 
 def configure_local(host: str, serial: str, access_code: str, port: str = "") -> ActionResult:
@@ -80,7 +79,9 @@ def configure_local(host: str, serial: str, access_code: str, port: str = "") ->
             raise AuthInputError("The port must be a number between 1 and 65535.")
         values["BAMBULAB_PORT"] = port
     persisted = _persist(values)
-    return ActionResult(True, "Local mode configured. Connecting... " + _persist_note(persisted))
+    return ActionResult(
+        True, f"Local connection saved for printer {mask_serial(serial)}.", _persist_note(persisted)
+    )
 
 
 class CodeSender:
@@ -149,6 +150,6 @@ def configure_cloud(email: str, code: str, serial: str = "") -> ActionResult:
         )
     return ActionResult(
         True,
-        f"Cloud login succeeded for printer {mask_serial(serial)}. Connecting... "
-        + _persist_note(persisted),
+        f"Signed in to Bambu Cloud for printer {mask_serial(serial)}.",
+        _persist_note(persisted),
     )

@@ -134,7 +134,7 @@ Cloud credentials are obtained via the `bambulab-cloud-auth` CLI bundled in the 
 Open `http://<docker-host>:9109/auth` (also linked from the landing page). Choose:
 
 - **Local (LAN):** enter the printer IP, serial number and LAN access code.
-- **Bambu Cloud:** enter your account email, click **Send code**, then enter the emailed code.
+- **Bambu Cloud:** enter your account email, click **Send code**, then enter the emailed code in the same form and click **Log in**.
   The serial is optional when the account has a single printer.
 
 The exporter reconnects immediately; no restart needed. When the cloud login fails later

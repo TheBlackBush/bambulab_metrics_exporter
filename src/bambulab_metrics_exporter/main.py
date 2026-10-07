@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from bambulab_metrics_exporter.api import build_app
 from bambulab_metrics_exporter.config import Settings
 from bambulab_metrics_exporter.credentials_store import load_encrypted_credentials
-from bambulab_metrics_exporter.logging_utils import configure_logging
+from bambulab_metrics_exporter.logging_utils import configure_logging, log_banner
 from bambulab_metrics_exporter.overrides import apply_overrides_to_env
 from bambulab_metrics_exporter.runtime import ExporterRuntime
 
@@ -58,6 +58,39 @@ def _bootstrap_cloud_credentials() -> None:
             os.environ[key] = value
 
 
+_WILDCARD_HOSTS = {"", "0.0.0.0", "::", "[::]"}
+
+
+def base_url(settings: Settings) -> str:
+    """Address to reach the web UI. Inside a container the Docker host's address and any
+    remapped host port are unknown, so a wildcard bind is shown as <docker-host>."""
+    host = settings.listen_host
+    if host in _WILDCARD_HOSTS:
+        host = "<docker-host>"
+    elif ":" in host and not host.startswith("["):
+        host = f"[{host}]"
+    return f"http://{host}:{settings.listen_port}"
+
+
+def log_web_endpoints(settings: Settings) -> None:
+    url = base_url(settings)
+    lines = [
+        "",
+        f"    Status page:         {url}/",
+        f"    Printer connection:  {url}/auth",
+        f"    Prometheus metrics:  {url}/metrics",
+        f"    Health:              {url}/health",
+        f"    Readiness:           {url}/ready",
+    ]
+    if settings.listen_host in _WILDCARD_HOSTS:
+        lines += [
+            "",
+            f"({settings.listen_port} is the container port; use the host port if you mapped "
+            "a different one.)",
+        ]
+    log_banner(logger, "BAMBU LAB METRICS EXPORTER WEB UI", lines)
+
+
 def run() -> None:
     _safe_load_dotenv()
     apply_overrides_to_env()
@@ -71,6 +104,7 @@ def run() -> None:
     runtime.start()
 
     app = build_app(runtime=runtime)
+    log_web_endpoints(settings)
 
     @app.on_event("shutdown")
     def _shutdown() -> None:

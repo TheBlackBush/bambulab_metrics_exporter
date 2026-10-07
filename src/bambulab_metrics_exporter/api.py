@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
@@ -41,6 +42,88 @@ _STATE_LABELS: dict[str, tuple[str, str]] = {
     "auth_required": ("Login required", "bad"),
     "error": ("Connection error", "bad"),
 }
+
+
+_REFRESH_STATES = {"starting", "connecting"}
+
+_PRINTER_ICON = (
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    '<polyline points="6 9 6 2 18 2 18 9"/>'
+    '<path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>'
+    '<rect x="6" y="14" width="12" height="8"/></svg>'
+)
+
+_ALERT_ICON = (
+    '<svg class="alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>'
+    '<line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
+)
+
+
+def _alert(kind: str, title: str, detail: str) -> str:
+    return (
+        f'<a class="alert {kind}" href="/auth">{_ALERT_ICON}'
+        f'<span class="alert-text"><strong>{title}</strong><span>{detail}</span></span>'
+        '<span class="alert-cta">Open &rarr;</span></a>'
+    )
+
+
+# Shown on the landing page when the runtime needs the operator. Fixed text only.
+_ALERTS: dict[str, str] = {
+    "auth_required": _alert(
+        "bad", "Bambu Cloud login required", "The cloud session expired. Sign in again to resume."
+    ),
+    "setup_required": _alert(
+        "", "Printer not configured", "Choose local or cloud mode and enter the printer details."
+    ),
+    "error": _alert(
+        "bad", "Cannot reach the printer", "Retrying automatically. Check the connection settings."
+    ),
+}
+
+# Runtime state -> (label, pill class) for the landing page "Printer" card.
+_PRINTER_STATES: dict[str, tuple[str, str]] = {
+    "starting": ("Starting", "warming"),
+    "connecting": ("Connecting", "warming"),
+    "auth_required": ("Login required", "attention"),
+    "setup_required": ("Setup required", "attention"),
+    "error": ("Connection error", "attention"),
+}
+
+
+def _printer_state(state: str, ready: bool) -> tuple[str, str]:
+    if state in _PRINTER_STATES:
+        return _PRINTER_STATES[state]
+    return ("Connected", "ready") if ready else ("Warming Up", "warming")
+
+
+def _last_update(last: float | None, poll: float | None, now: float) -> tuple[str, str]:
+    """Human age of the last successful poll and a freshness class."""
+    if last is None:
+        return "Never", "none"
+    age = max(now - last, 0.0)
+    if age < 60:
+        text = f"{int(age)}s ago"
+    elif age < 3600:
+        text = f"{int(age // 60)}m ago"
+    else:
+        text = f"{int(age // 3600)}h ago"
+    fresh = age <= 3 * (poll or 10.0)
+    return text, "fresh" if fresh else "stale"
+
+
+def _notice_html(result: ActionResult) -> str:
+    kind, icon = ("ok", "&#10003;") if result.ok else ("bad", "!")
+    note = (
+        f'<span class="notice-note">{html.escape(result.note)}</span>' if result.note else ""
+    )
+    return (
+        f'<div class="notice {kind}" role="status">'
+        f'<span class="notice-icon" aria-hidden="true">{icon}</span>'
+        f'<span class="notice-text">{html.escape(result.message)}{note}</span></div>'
+    )
 
 
 class _ReadyFlag(Protocol):
@@ -111,34 +194,53 @@ def build_app(
 
     @app.get("/", response_class=HTMLResponse)
     def root_handler() -> HTMLResponse:
-        ready = is_ready()
-        ready_status = "Connected" if ready else "Warming Up"
-        ready_class = "ready" if ready else "warming"
+        status = runtime.status() if runtime is not None else None
+        state = status["state"] if status else ""
+        current = get_settings()
 
         healthy, _ = _check_health(get_metrics())
         health_status = "Healthy" if healthy else "Unhealthy"
         health_class = "healthy" if healthy else "unhealthy"
 
-        # Resolve printer name from settings; fall back to empty string
-        current = get_settings()
+        ready_status, ready_class = _printer_state(state, is_ready())
+        mode = ""
+        if current is not None:
+            mode = "Bambu Cloud" if current.bambulab_transport == "cloud_mqtt" else "Local (LAN)"
+
+        last = get_metrics().last_success_timestamp()
+        poll = current.polling_interval_seconds if current is not None else None
+        last_text, last_class = _last_update(last, poll, time.time())
+
         raw_printer_name = ""
         if current is not None:
             raw_printer_name = current.printer_name_label or current.bambulab_printer_name or ""
-        # Render as a separate badge element when set, or empty string when not set
         printer_badge = (
-            f'<span class="printer-badge">🖨 {html.escape(raw_printer_name)}</span>'
+            f'<span class="printer-badge">{_PRINTER_ICON}{html.escape(raw_printer_name)}</span>'
             if raw_printer_name
             else ""
         )
+        mode_badge = f'<span class="badge">{html.escape(mode)}</span>' if mode else ""
+
+        # Refresh quickly while connecting, slowly otherwise (read-only page, safe to reload).
+        refresh = 3 if state in _REFRESH_STATES or (state == "running" and not is_ready()) else 15
 
         page = (
             _TEMPLATE
+            .replace("{{REFRESH}}", f'<meta http-equiv="refresh" content="{refresh}">')
             .replace("{{VERSION}}", __version__)
-            .replace("{{READY_STATUS}}", ready_status)
-            .replace("{{READY_CLASS}}", ready_class)
+            .replace("{{PRINTER_BADGE}}", printer_badge)
+            .replace("{{MODE_BADGE}}", mode_badge)
+            .replace("{{ALERT}}", _ALERTS.get(state, ""))
             .replace("{{HEALTH_STATUS}}", health_status)
             .replace("{{HEALTH_CLASS}}", health_class)
-            .replace("{{PRINTER_BADGE}}", printer_badge)
+            .replace("{{READY_STATUS}}", ready_status)
+            .replace("{{READY_CLASS}}", ready_class)
+            .replace("{{READY_DETAIL}}", html.escape(mode) or "Printer data")
+            .replace("{{LAST_UPDATE}}", last_text)
+            .replace("{{LAST_UPDATE_CLASS}}", last_class)
+            .replace(
+                "{{POLL_DETAIL}}", f"Polling every {poll:g}s" if poll is not None else "Polling"
+            )
         )
         return HTMLResponse(content=page)
 
@@ -170,7 +272,7 @@ def _add_auth_routes(app: FastAPI, runtime: ExporterRuntime) -> None:
     # taken from the URL.
     flash: dict[str, ActionResult] = {}
 
-    def render() -> HTMLResponse:
+    def render(email: str = "", cloud_tab: bool | None = None) -> HTMLResponse:
         status = runtime.status()
         label, css = _STATE_LABELS.get(status["state"], (status["state"], "wait"))
         current = runtime.settings
@@ -184,13 +286,12 @@ def _add_auth_routes(app: FastAPI, runtime: ExporterRuntime) -> None:
             if status["message"]
             else ""
         )
-        result = flash.pop("last", None)
-        flash_html = (
-            f'<div class="flash {"ok" if result.ok else "bad"}">{html.escape(result.message)}</div>'
-            if result
-            else ""
-        )
-        cloud = current.bambulab_transport == "cloud_mqtt"
+        # While connecting, reload every few seconds so the status updates by itself, and
+        # keep the last result visible until the state settles.
+        refreshing = status["state"] in _REFRESH_STATES
+        result = flash.get("last") if refreshing else flash.pop("last", None)
+        flash_html = _notice_html(result) if result else ""
+        cloud = current.bambulab_transport == "cloud_mqtt" if cloud_tab is None else cloud_tab
         page = (
             _AUTH_TEMPLATE
             .replace("{{VERSION}}", __version__)
@@ -199,8 +300,14 @@ def _add_auth_routes(app: FastAPI, runtime: ExporterRuntime) -> None:
             .replace("{{CURRENT}}", html.escape(f"{where}, printer {printer}"))
             .replace("{{STATE_MESSAGE}}", message)
             .replace("{{FLASH}}", flash_html)
+            .replace(
+                "{{REFRESH}}",
+                '<meta http-equiv="refresh" content="3;url=/auth">' if refreshing else "",
+            )
             .replace("{{LOCAL_CHECKED}}", "" if cloud else "checked")
             .replace("{{CLOUD_CHECKED}}", "checked" if cloud else "")
+            # Echo only the email the visitor just submitted; it is never stored.
+            .replace("{{CLOUD_EMAIL}}", html.escape(email, quote=True))
         )
         return HTMLResponse(content=page, headers={"Cache-Control": "no-store"})
 
@@ -240,13 +347,32 @@ def _add_auth_routes(app: FastAPI, runtime: ExporterRuntime) -> None:
             reconnect=True,
         )
 
+    async def cloud_action(
+        request: Request, action: Callable[[dict[str, str]], ActionResult], reconnect: bool
+    ) -> Response:
+        """Cloud steps answer with the page itself (not a redirect) while the visitor still
+        has to act, so the email they typed stays filled in for the next step."""
+        if not _same_origin(request):
+            raise HTTPException(status_code=403, detail="cross_origin_form_post")
+        form = await _form(request)
+        try:
+            result = await run_in_threadpool(action, form)
+        except AuthInputError as exc:
+            result = ActionResult(False, str(exc))
+        if reconnect and result.ok:
+            return done(result, reconnect)
+        flash["last"] = result
+        return render(email=form.get("email", "").strip(), cloud_tab=True)
+
     @app.post("/auth/cloud/send-code")
-    async def auth_send_code(request: Request) -> RedirectResponse:
-        return await handle(request, lambda f: code_sender.send(f.get("email", "")), reconnect=False)
+    async def auth_send_code(request: Request) -> Response:
+        return await cloud_action(
+            request, lambda f: code_sender.send(f.get("email", "")), reconnect=False
+        )
 
     @app.post("/auth/cloud/login")
-    async def auth_cloud_login(request: Request) -> RedirectResponse:
-        return await handle(
+    async def auth_cloud_login(request: Request) -> Response:
+        return await cloud_action(
             request,
             lambda f: configure_cloud(f.get("email", ""), f.get("code", ""), f.get("serial", "")),
             reconnect=True,

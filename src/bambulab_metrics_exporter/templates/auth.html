@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Printer Connection</title>
+{{REFRESH}}
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -54,9 +55,20 @@
   .pill.bad { color: var(--red); background: var(--red-dim); }
   .detail { color: var(--text-secondary); font-size: 0.82rem; margin-top: 0.6rem; overflow-wrap: anywhere; }
 
-  .flash { border-radius: var(--radius); padding: 0.75rem 1rem; font-size: 0.85rem; overflow-wrap: anywhere; }
-  .flash.ok { color: var(--green); background: var(--green-dim); border: 1px solid rgba(34, 197, 94, 0.3); }
-  .flash.bad { color: var(--red); background: var(--red-dim); border: 1px solid rgba(239, 68, 68, 0.3); }
+  /* Result of the last action: a quiet row inside the status card, not a separate banner. */
+  .notice {
+    display: flex; gap: 0.65rem; align-items: flex-start;
+    margin-top: 0.9rem; padding-top: 0.9rem; border-top: 1px solid var(--border);
+    font-size: 0.85rem; line-height: 1.4;
+  }
+  .notice-icon {
+    flex: none; width: 1.2rem; height: 1.2rem; border-radius: 50%;
+    display: grid; place-items: center; font-size: 0.72rem; font-weight: 700; margin-top: 0.05rem;
+  }
+  .notice.ok .notice-icon { color: var(--green); background: var(--green-dim); }
+  .notice.bad .notice-icon { color: var(--red); background: var(--red-dim); }
+  .notice-text { color: var(--text); overflow-wrap: anywhere; }
+  .notice-note { display: block; color: var(--text-secondary); font-size: 0.78rem; margin-top: 0.15rem; }
 
   .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
   .tabs input { position: absolute; opacity: 0; pointer-events: none; }
@@ -74,7 +86,6 @@
   body:has(#mode-cloud:checked) .panel-cloud { display: flex; }
 
   form { display: flex; flex-direction: column; gap: 0.75rem; }
-  form + form { border-top: 1px solid var(--border); padding-top: 0.9rem; }
   .step { font-size: 0.8rem; color: var(--text-secondary); }
   label.field { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.82rem; color: var(--text-secondary); }
   input[type=text], input[type=email], input[type=password] {
@@ -84,12 +95,38 @@
   input:focus { outline: 2px solid var(--green); outline-offset: 1px; }
   .hint { font-size: 0.75rem; color: var(--text-secondary); }
 
+  /* Buttons: primary = green action, tonal = helper action, danger = undo. None of them
+     use the input styling, so no button can be mistaken for an empty or disabled field. */
   button {
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem;
     background: var(--green-dim); color: var(--green); border: 1px solid rgba(34, 197, 94, 0.4);
-    border-radius: 8px; padding: 0.6rem 0.9rem; font-size: 0.9rem; font-weight: 600; cursor: pointer;
+    border-radius: 8px; padding: 0.6rem 0.95rem; font: inherit; font-size: 0.9rem; font-weight: 600;
+    cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s;
   }
-  button:hover { background: rgba(34, 197, 94, 0.2); }
-  button.secondary { background: none; color: var(--text-secondary); border-color: var(--border); font-weight: 500; }
+  button:hover { background: rgba(34, 197, 94, 0.22); border-color: rgba(34, 197, 94, 0.6); }
+  button:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+  button svg { width: 1rem; height: 1rem; flex: none; }
+
+  button.tonal { background: #2c2c2c; color: var(--text); border-color: #3d3d3d; }
+  button.tonal:hover { background: #363636; border-color: #4d4d4d; }
+
+  button.danger { background: transparent; color: #f87171; border-color: rgba(239, 68, 68, 0.4); }
+  button.danger:hover { background: var(--red-dim); border-color: rgba(239, 68, 68, 0.65); }
+  button.danger:focus-visible { outline-color: var(--red); }
+
+  .field-label { font-size: 0.82rem; color: var(--text-secondary); }
+  div.field { display: flex; flex-direction: column; gap: 0.3rem; }
+  .input-row { display: flex; gap: 0.5rem; }
+  .input-row input { flex: 1; min-width: 0; }
+  .input-row button { flex: none; white-space: nowrap; }
+
+  .row-form { flex-direction: row; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.9rem; }
+  .row-form .step { flex: 1 1 220px; line-height: 1.45; }
+
+  .visually-hidden {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
 
   .links { display: flex; justify-content: space-between; font-size: 0.82rem; }
   .links a { color: var(--green); text-decoration: none; }
@@ -110,9 +147,8 @@
     </div>
     <div class="detail">{{CURRENT}}</div>
     {{STATE_MESSAGE}}
+    {{FLASH}}
   </div>
-
-  {{FLASH}}
 
   <div class="card">
     <div class="tabs" role="radiogroup" aria-label="Connection mode">
@@ -140,33 +176,41 @@
   </div>
 
   <div class="card panel panel-cloud">
-    <form method="post" action="/auth/cloud/send-code">
-      <span class="step">Step 1: get a verification code</span>
-      <label class="field">Bambu account email
-        <input type="email" name="email" required autocomplete="email">
-      </label>
-      <button type="submit" class="secondary">Send code to my email</button>
-    </form>
     <form method="post" action="/auth/cloud/login">
-      <span class="step">Step 2: log in with the code</span>
-      <label class="field">Bambu account email
-        <input type="email" name="email" required autocomplete="email">
-      </label>
+      <!-- Enter key submits the first button in the form: make that "Log in", not "Send code". -->
+      <button type="submit" class="visually-hidden" tabindex="-1" aria-hidden="true">Log in</button>
+      <div class="field">
+        <label class="field-label" for="cloud-email">Bambu account email</label>
+        <div class="input-row">
+          <input id="cloud-email" type="email" name="email" required autocomplete="email" value="{{CLOUD_EMAIL}}">
+          <button type="submit" class="tonal" formaction="/auth/cloud/send-code">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="3 7 12 13 21 7"/></svg>
+            Send code
+          </button>
+        </div>
+      </div>
       <label class="field">Verification code
-        <input type="text" name="code" required autocomplete="one-time-code" inputmode="numeric">
+        <input type="text" name="code" autocomplete="one-time-code" inputmode="numeric">
+        <span class="hint">Check your inbox after clicking Send code.</span>
       </label>
       <label class="field">Serial number (optional)
         <input type="text" name="serial" autocomplete="off" spellcheck="false">
         <span class="hint">Leave empty when the account has a single printer.</span>
       </label>
-      <button type="submit">Log in</button>
+      <button type="submit">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+        Log in
+      </button>
     </form>
   </div>
 
   <div class="card">
-    <form method="post" action="/auth/reset">
+    <form method="post" action="/auth/reset" class="row-form">
       <span class="step">Settings saved on this page override env vars. Reset to go back to the container's env vars.</span>
-      <button type="submit" class="secondary">Reset to env vars</button>
+      <button type="submit" class="danger">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+        Reset to env vars
+      </button>
     </form>
   </div>
 

@@ -18,6 +18,11 @@ All notable changes to this project are documented in this file.
 - Settings saved on `/auth` are stored encrypted (`connection-overrides.enc.json` in
   `BAMBULAB_CONFIG_DIR`, requires `BAMBULAB_SECRET_KEY`) and override env vars, including
   container template values, after restarts. **Reset to env vars** on the page removes them.
+- Landing page redesign: shows the printer connection state (Connected, Connecting, Login
+  required, ...), the mode (Local or Bambu Cloud), and the time since the last successful
+  poll. A banner links to `/auth` when a login or setup is needed. The page refreshes itself.
+- The startup log lists the web UI addresses: status page `/`, printer connection `/auth`,
+  `/metrics`, `/health` and `/ready`.
 - `bambulab-reauth` command for cloud re-authentication inside the running container:
   `docker exec -it <container> bambulab-reauth`. It sends (or accepts) the email
   verification code and saves encrypted credentials; a waiting exporter resumes without a

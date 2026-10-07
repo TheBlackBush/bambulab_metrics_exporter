@@ -94,16 +94,16 @@ def test_restore_removes_keys_that_were_unset() -> None:
 def test_configure_local_validates_and_persists(monkeypatch) -> None:
     monkeypatch.setenv("BAMBULAB_SECRET_KEY", SECRET)
     result = auth_actions.configure_local(" 192.0.2.25 ", "fake00test000001", "fake-access-code", "8883")
-    assert result.ok and "override env vars" in result.message
+    assert result.ok and "overrides the container's env vars" in result.note
     assert os.environ["BAMBULAB_TRANSPORT"] == "local_mqtt"
     assert os.environ["BAMBULAB_SERIAL"] == "FAKE00TEST000001"
     assert overrides.load_overrides()["BAMBULAB_ACCESS_CODE"] == "fake-access-code"
-    assert "fake-access-code" not in result.message
+    assert "fake-access-code" not in result.message + result.note
 
 
 def test_configure_local_without_secret_is_session_only() -> None:
     result = auth_actions.configure_local("192.0.2.25", "FAKE00TEST000001", "fake-access-code")
-    assert result.ok and "this session only" in result.message
+    assert result.ok and "until the next restart" in result.note
 
 
 @pytest.mark.parametrize(
@@ -171,7 +171,7 @@ def test_configure_cloud_with_serial_session_only(monkeypatch) -> None:
     monkeypatch.setattr(auth_actions, "login_with_code", lambda email, code: _login())
     monkeypatch.setattr(auth_actions, "get_bind_devices", lambda token: pytest.fail("serial given"))
     result = auth_actions.configure_cloud("operator@example.invalid", "000000", "fake00test000001")
-    assert result.ok and "this session only" in result.message
+    assert result.ok and "until the next restart" in result.note
     assert os.environ["BAMBULAB_CLOUD_ACCESS_TOKEN"] == "fresh_token"
 
 
@@ -257,8 +257,8 @@ def test_post_local_reconfigures_and_flashes_once() -> None:
     assert resp.status_code == 303 and resp.headers["location"] == "/auth"
     assert runtime.reconfigured == 1
     page = client.get("/auth").text
-    assert "Local mode configured" in page and "fake-access-code" not in page
-    assert "Local mode configured" not in client.get("/auth").text  # shown once
+    assert "Local connection saved" in page and "fake-access-code" not in page
+    assert "Local connection saved" not in client.get("/auth").text  # shown once
 
 
 def test_post_invalid_input_shows_error_without_reconfigure() -> None:
@@ -344,3 +344,95 @@ def test_landing_page_escapes_printer_name() -> None:
     page = client.get("/").text
     assert "<script>x</script>" not in page
     assert "&lt;script&gt;" in page
+
+
+def test_cloud_form_has_single_email_field_and_login_as_default_button() -> None:
+    client, _ = _client()
+    page = client.get("/auth").text
+    start = page.index('class="card panel panel-cloud"')
+    cloud = page[start:page.index("</form>", start)]
+    assert cloud.count('name="email"') == 1
+    first_button = cloud[cloud.index("<button"):cloud.index("</button>")]
+    assert "Log in" in first_button and "formaction" not in first_button
+    assert 'formaction="/auth/cloud/send-code"' in cloud
+
+
+def test_send_code_keeps_email_filled_and_cloud_tab_selected(monkeypatch) -> None:
+    monkeypatch.setattr(auth_actions, "send_code", lambda email: None)
+    client, _ = _client()  # local mode, so the cloud tab must be selected explicitly
+    resp = client.post("/auth/cloud/send-code", data={"email": "operator@example.invalid"})
+    assert resp.status_code == 200
+    assert 'value="operator@example.invalid"' in resp.text
+    assert 'id="mode-cloud" checked' in resp.text
+    assert "Verification code sent" in resp.text
+    # Nothing is stored: a fresh page load has an empty email field.
+    assert 'value="operator@example.invalid"' not in client.get("/auth").text
+
+
+def test_failed_cloud_login_keeps_email(monkeypatch) -> None:
+    def reject(email: str, code: str):
+        raise CloudAuthError("code expired")
+
+    monkeypatch.setattr(auth_actions, "login_with_code", reject)
+    client, runtime = _client()
+    resp = client.post(
+        "/auth/cloud/login", data={"email": "operator@example.invalid", "code": "000000"}
+    )
+    assert resp.status_code == 200 and runtime.reconfigured == 0
+    assert 'value="operator@example.invalid"' in resp.text and "Login failed" in resp.text
+
+
+def test_echoed_email_is_escaped() -> None:
+    client, _ = _client()
+    resp = client.post("/auth/cloud/send-code", data={"email": '"><script>x</script>'})
+    assert "<script>x</script>" not in resp.text
+    assert "&quot;&gt;&lt;script&gt;" in resp.text
+
+
+def test_cloud_post_cross_origin_rejected() -> None:
+    client, _ = _client()
+    resp = client.post(
+        "/auth/cloud/send-code",
+        data={"email": "operator@example.invalid"},
+        headers={"Origin": "https://evil.example.invalid"},
+    )
+    assert resp.status_code == 403
+
+
+
+def test_notice_is_rendered_inside_status_card_with_note() -> None:
+    client, _ = _client()
+    page = client.post(
+        "/auth/local",
+        data={"host": "192.0.2.25", "serial": "FAKE00TEST000001", "access_code": "fake-access-code"},
+    ).text
+    status_card = page[page.index('<span class="label">Status</span>'):page.index('role="radiogroup"')]
+    assert 'class="notice ok"' in status_card
+    assert 'class="notice-note"' in status_card and "Applies until the next restart" in status_card
+    assert "Connecting..." not in page
+
+
+def test_error_notice_uses_bad_style() -> None:
+    client, _ = _client()
+    page = client.post("/auth/local", data={"host": "", "serial": "", "access_code": ""}).text
+    assert 'class="notice bad"' in page
+
+
+def test_page_auto_refreshes_only_while_connecting() -> None:
+    client, runtime = _client()
+    assert 'http-equiv="refresh"' not in client.get("/auth").text  # auth_required
+
+    runtime.status = lambda: {"state": "connecting", "message": "", "transport": "local_mqtt"}
+    client.post(
+        "/auth/local",
+        data={"host": "192.0.2.25", "serial": "FAKE00TEST000001", "access_code": "fake-access-code"},
+    )
+    page = client.get("/auth").text
+    assert '<meta http-equiv="refresh" content="3;url=/auth">' in page
+    # The result stays visible across refreshes until the connection settles.
+    assert "Local connection saved" in client.get("/auth").text
+
+    runtime.status = lambda: {"state": "running", "message": "", "transport": "local_mqtt"}
+    settled = client.get("/auth").text
+    assert 'http-equiv="refresh"' not in settled and "Local connection saved" in settled
+    assert "Local connection saved" not in client.get("/auth").text

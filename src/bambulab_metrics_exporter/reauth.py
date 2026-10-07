@@ -27,6 +27,7 @@ from bambulab_metrics_exporter.credentials_store import (
     save_encrypted_credentials,
 )
 from bambulab_metrics_exporter.env_sync import sync_env_file
+from bambulab_metrics_exporter.logging_utils import log_banner
 
 logger = logging.getLogger(__name__)
 
@@ -144,8 +145,6 @@ def save_login_result(settings: Settings, result: LoginResult) -> dict[str, str]
 
 def log_reauth_banner(reason: str, port: int = 9109) -> None:
     lines = [
-        "=" * 72,
-        "BAMBU CLOUD RE-AUTHENTICATION REQUIRED",
         f"Reason: {reason}",
         "",
         "The exporter is waiting and will resume automatically, no restart needed.",
@@ -164,10 +163,8 @@ def log_reauth_banner(reason: str, port: int = 9109) -> None:
         "",
         "Legacy alternative: set BAMBULAB_CLOUD_EMAIL and BAMBULAB_CLOUD_CODE,",
         "then recreate the container (on Unraid: Edit, then Apply).",
-        "=" * 72,
     ]
-    for line in lines:
-        logger.error(line)
+    log_banner(logger, "BAMBU CLOUD RE-AUTHENTICATION REQUIRED", lines, level=logging.ERROR)
 
 
 # ---------------------------------------------------------------------------
