@@ -28,17 +28,11 @@ from bambulab_metrics_exporter.credentials_store import (
 )
 from bambulab_metrics_exporter.env_sync import sync_env_file
 from bambulab_metrics_exporter.logging_utils import log_banner
-from bambulab_metrics_exporter.overrides import overridden_keys
+from bambulab_metrics_exporter.overrides import CLOUD_CREDENTIAL_KEYS, overridden_keys
 
 logger = logging.getLogger(__name__)
 
-CREDENTIAL_KEYS: tuple[str, ...] = (
-    "BAMBULAB_CLOUD_USER_ID",
-    "BAMBULAB_CLOUD_ACCESS_TOKEN",
-    "BAMBULAB_CLOUD_REFRESH_TOKEN",
-    "BAMBULAB_CLOUD_MQTT_HOST",
-    "BAMBULAB_CLOUD_MQTT_PORT",
-)
+CREDENTIAL_KEYS: tuple[str, ...] = CLOUD_CREDENTIAL_KEYS
 
 _SETTINGS_FIELDS: dict[str, str] = {
     "BAMBULAB_CLOUD_USER_ID": "bambulab_cloud_user_id",

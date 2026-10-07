@@ -35,14 +35,18 @@ def test_safe_load_dotenv_permission_error(caplog) -> None:
 
 def test_bootstrap_cloud_credentials_skips_when_not_cloud(monkeypatch) -> None:
     monkeypatch.setenv("BAMBULAB_TRANSPORT", "local_mqtt")
-    main._bootstrap_cloud_credentials()  # should no-op
+    monkeypatch.delenv("BAMBULAB_CLOUD_USER_ID", raising=False)
+    main._bootstrap_cloud_credentials()
+    assert "BAMBULAB_CLOUD_USER_ID" not in os.environ
 
 
 def test_bootstrap_cloud_credentials_skips_when_has_tokens(monkeypatch) -> None:
     monkeypatch.setenv("BAMBULAB_TRANSPORT", "cloud_mqtt")
     monkeypatch.setenv("BAMBULAB_CLOUD_USER_ID", "uid")
     monkeypatch.setenv("BAMBULAB_CLOUD_ACCESS_TOKEN", "token")
-    main._bootstrap_cloud_credentials()  # should no-op
+    monkeypatch.setenv("BAMBULAB_CONFIG_DIR", "/nonexistent-fake-dir")
+    main._bootstrap_cloud_credentials()
+    assert os.environ["BAMBULAB_CLOUD_ACCESS_TOKEN"] == "token"
 
 
 def test_bootstrap_cloud_credentials_skips_without_secret_or_file(monkeypatch, tmp_path: Path) -> None:
@@ -57,6 +61,7 @@ def test_bootstrap_cloud_credentials_skips_without_secret_or_file(monkeypatch, t
 
     monkeypatch.setenv("BAMBULAB_SECRET_KEY", "sek")
     main._bootstrap_cloud_credentials()
+    assert "BAMBULAB_CLOUD_ACCESS_TOKEN" not in os.environ
 
 
 def test_bootstrap_cloud_credentials_loads_from_encrypted_store(tmp_path: Path, monkeypatch) -> None:

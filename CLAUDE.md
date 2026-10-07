@@ -260,7 +260,7 @@ configuration and reachable printer/cloud services and may update `.env`.
 - `ExporterMetrics` uses a private `CollectorRegistry`, preventing unrelated default-process
   metrics and isolating instances. FastAPI serializes this registry at `/metrics`.
 - On application shutdown, `runtime.stop()` wakes the runtime thread and joins it for up to
-  10 seconds; the collector stop event is set, its thread is joined for up to five seconds,
+  10 seconds; the collector stop event is set, its thread is joined for up to `REQUEST_TIMEOUT_SECONDS` + 2 s (at least 5 s),
   and MQTT disconnects.
 - Tests: `tests/conftest.py` restores `os.environ` and the override/legacy-login state after
   every test, and blocks all outbound sockets and DNS: any test that would reach a printer,
@@ -751,7 +751,7 @@ Agents must not:
 
 Evidence at the time this manual was created:
 
-- Version `0.1.40` on `main`; Python 3.11+ package with FastAPI, Paho MQTT, Prometheus client,
+- Version `0.2.0`; Python 3.11+ package with FastAPI, Paho MQTT, Prometheus client,
   Pydantic settings, Uvicorn, cryptography/Fernet, and dotenv.
 - Local and cloud MQTT modes work through the same client architecture. Cloud supports OTP
   authentication, encrypted credential persistence, and refresh-token recovery. Model
@@ -785,13 +785,8 @@ Important technical debt and high-risk areas:
 - PR CI omits mypy; mypy runs only on release. No formatter, security scanner, docs validator,
   or Kubernetes validator is configured.
 
-Open implementation plans live in `.claude/plans/`. Read the relevant plan before working on
-its area:
-
-- `.claude/plans/cloud-auth-reliability-plan.md`: startup recovery from expired cloud
-  credentials. Startup phases are implemented (classification, store fallback, reauth wait,
-  `/auth` page, `bambulab-reauth`); runtime MQTT token refresh while running is still open
-  (Bambu Handy refreshes on MQTT CONNACK 4/5 and reconnects with the new token).
+Implementation plans are kept locally in `.claude/plans/` (git-ignored, may be absent). If a
+plan for the area you are working on exists there, read it first.
 
 Recommended next tasks, each as a separately scoped change:
 

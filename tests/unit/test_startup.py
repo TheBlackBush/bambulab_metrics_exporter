@@ -264,8 +264,13 @@ def test_startup_validate_cloud_with_valid_probe(monkeypatch) -> None:
         bambulab_cloud_user_id="uid",
         bambulab_cloud_access_token="token",
     )
-    monkeypatch.setattr("bambulab_metrics_exporter.startup._probe", _as_probe(lambda _s: True))
+    probed: list[str] = []
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.startup._probe",
+        _as_probe(lambda s: probed.append(s.bambulab_transport) or True),
+    )
     startup_validate(settings)
+    assert probed == ["cloud_mqtt"]
 
 
 def test_startup_validate_local_calls_probe(monkeypatch) -> None:
@@ -275,8 +280,13 @@ def test_startup_validate_local_calls_probe(monkeypatch) -> None:
         bambulab_serial="SERIAL",
         bambulab_access_code="ACCESS",
     )
-    monkeypatch.setattr("bambulab_metrics_exporter.startup._probe_connection", lambda _s: True)
+    probed: list[str] = []
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.startup._probe",
+        _as_probe(lambda s: probed.append(s.bambulab_transport) or True),
+    )
     startup_validate(settings)
+    assert probed == ["local_mqtt"]
 
 
 # ---------------------------------------------------------------------------
@@ -308,7 +318,7 @@ def test_try_token_refresh_persists_credentials(tmp_path: Path, monkeypatch: pyt
     )
     monkeypatch.setattr(
         "bambulab_metrics_exporter.startup.sync_env_file",
-        lambda path: called.__setitem__("synced", True),
+        lambda path, exclude=(): called.update(synced=True, exclude=set(exclude)),
     )
 
     settings = Settings(
@@ -329,6 +339,7 @@ def test_try_token_refresh_persists_credentials(tmp_path: Path, monkeypatch: pyt
     assert os.environ.get("BAMBULAB_CLOUD_REFRESH_TOKEN") == "new_refresh"
     assert called["saved"] is True
     assert called["synced"] is True
+    assert "exclude" in called
 
 
 # ---------------------------------------------------------------------------
@@ -391,9 +402,15 @@ def test_validate_cloud_legacy_login_success_returns(tmp_path: Path, monkeypatch
     monkeypatch.setattr(
         "bambulab_metrics_exporter.startup._probe", _as_probe(lambda s: next(probe_results))
     )
-    monkeypatch.setattr("bambulab_metrics_exporter.startup._try_legacy_env_login", lambda s: True)
+    legacy_calls: list[bool] = []
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.startup._try_legacy_env_login",
+        lambda s: legacy_calls.append(True) or True,
+    )
 
     _validate_cloud(_cloud_settings(tmp_path, bambulab_cloud_refresh_token=""))
+    assert legacy_calls == [True]
+    assert next(probe_results, "exhausted") == "exhausted"  # probed before and after login
 
 
 def test_validate_cloud_refresh_tokens_rejected_by_broker_reaches_reauth(
@@ -581,8 +598,46 @@ def test_refresh_persistence_failure_does_not_fail_refresh(tmp_path: Path, monke
 
     monkeypatch.setattr("bambulab_metrics_exporter.startup.save_encrypted_credentials", unwritable)
     monkeypatch.setattr(
-        "bambulab_metrics_exporter.startup.sync_env_file", lambda p: (_ for _ in ()).throw(OSError())
+        "bambulab_metrics_exporter.startup.sync_env_file", lambda p, exclude=(): (_ for _ in ()).throw(OSError())
     )
     settings = _cloud_settings(tmp_path)
     _try_token_refresh(settings, "old")
     assert settings.bambulab_cloud_access_token == "new"
+
+
+def test_try_token_refresh_keeps_page_overrides_out_of_env_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression: the refresh path synced /auth page values into .env, so "Reset to env
+    vars" was undone by the next restart."""
+    from bambulab_metrics_exporter.cloud_auth import LoginResult
+
+    monkeypatch.setenv("BAMBULAB_SECRET_KEY", "my-secret")
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.startup.refresh_access_token",
+        lambda rt, **kw: LoginResult(
+            access_token="new_access", refresh_token="new_refresh", expires_in=3600,
+            user_id="uid99",
+        ),
+    )
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.startup.save_encrypted_credentials", lambda *a, **k: None
+    )
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.startup.overridden_keys",
+        lambda: {"BAMBULAB_SERIAL", "BAMBULAB_TRANSPORT"},
+    )
+    env_file = tmp_path / ".env"
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("BAMBULAB_SERIAL", "PAGESERIAL0001")
+    monkeypatch.setenv("BAMBULAB_TRANSPORT", "cloud_mqtt")
+    settings = Settings(
+        bambulab_transport="cloud_mqtt", bambulab_serial="PAGESERIAL0001",
+        bambulab_cloud_user_id="uid_old", bambulab_cloud_access_token="old_access",
+        bambulab_config_dir=str(tmp_path),
+    )
+    _try_token_refresh(settings, "old_refresh")
+
+    text = env_file.read_text()
+    assert "BAMBULAB_CLOUD_ACCESS_TOKEN=new_access" in text
+    assert "PAGESERIAL0001" not in text and "BAMBULAB_TRANSPORT" not in text

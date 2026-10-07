@@ -32,6 +32,17 @@ OVERRIDE_KEYS: tuple[str, ...] = (
     "BAMBULAB_USERNAME",
 )
 
+# Cloud credentials written by a page login. They live in the encrypted store, never in
+# .env, so "Reset to env vars" can always return to the container's own credentials.
+CLOUD_CREDENTIAL_KEYS: tuple[str, ...] = (
+    "BAMBULAB_CLOUD_USER_ID",
+    "BAMBULAB_CLOUD_ACCESS_TOKEN",
+    "BAMBULAB_CLOUD_REFRESH_TOKEN",
+    "BAMBULAB_CLOUD_MQTT_HOST",
+    "BAMBULAB_CLOUD_MQTT_PORT",
+)
+DEFAULT_CREDENTIALS_FILE = "credentials.enc.json"
+
 # Values the container started with, recorded before the first override so "reset"
 # can restore them without a restart.
 _ORIGINAL_ENV: dict[str, str | None] = {}
@@ -53,10 +64,22 @@ def set_env(key: str, value: str) -> None:
         os.environ[key] = value
 
 
-def overridden_keys() -> set[str]:
-    """Connection keys whose current value comes from the /auth page."""
+def page_login_active() -> bool:
+    """True while cloud credentials from an /auth page login are in use: in this process
+    (originals recorded) or from an earlier run (credentials backup present)."""
     with lock:
-        return {k for k in _ORIGINAL_ENV if k in OVERRIDE_KEYS}
+        if any(k in _ORIGINAL_ENV for k in CLOUD_CREDENTIAL_KEYS):
+            return True
+    return _backup_path(default_credentials_path()).exists()
+
+
+def overridden_keys() -> set[str]:
+    """Keys whose current value comes from the /auth page; kept out of .env."""
+    with lock:
+        keys = {k for k in _ORIGINAL_ENV if k in OVERRIDE_KEYS}
+    if page_login_active():
+        keys.update(CLOUD_CREDENTIAL_KEYS)
+    return keys
 
 
 def restore_original_env() -> None:
@@ -67,6 +90,12 @@ def restore_original_env() -> None:
             else:
                 os.environ[key] = value
         _ORIGINAL_ENV.clear()
+
+
+def default_credentials_path() -> Path:
+    return Path(os.getenv("BAMBULAB_CONFIG_DIR", DEFAULT_CONFIG_DIR)) / os.getenv(
+        "BAMBULAB_CREDENTIALS_FILE", DEFAULT_CREDENTIALS_FILE
+    )
 
 
 def overrides_path() -> Path:
