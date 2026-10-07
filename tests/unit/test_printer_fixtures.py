@@ -300,3 +300,69 @@ def test_hms_zero_counts_on_healthy_printer() -> None:
     by_severity, by_module = _hms(metrics)
     assert by_severity and all(v == 0.0 for v in by_severity.values())
     assert all(v == 0.0 for v in by_module.values())
+
+
+@pytest.mark.parametrize(
+    ("name", "mode"),
+    [
+        ("h2s", "heating"),
+        ("h2d", "cooling"),
+        ("x2d", "cooling"),
+        ("a2l", None),  # parts only, no modeCur
+        ("x1c_fw0112_ams1", None),  # no airduct
+    ],
+)
+def test_airduct_mode(name: str, mode: str | None) -> None:
+    _, _, metrics = _load(name)
+    got = [labels["mode"] for labels, v in _samples(metrics, "bambulab_airduct_mode_info") if v == 1.0]
+    assert got == ([] if mode is None else [mode])
+
+
+@pytest.mark.parametrize(
+    ("name", "fans"),
+    [
+        ("h2s", {"part_cooling": 10.0, "aux": 0.0, "chamber": 0.0, "inner_loop": 100.0}),
+        ("x2d", {"part_cooling": 80.0, "aux": 10.0, "aux_2": 10.0, "chamber": 70.0}),
+        ("p2s", {"part_cooling": 90.0, "aux": 0.0}),
+        ("a2l", {"part_cooling": 0.0}),
+        ("x1c_fw0112_ams1", {}),
+    ],
+)
+def test_airduct_fan_speeds(name: str, fans: dict[str, float]) -> None:
+    _, _, metrics = _load(name)
+    got = {labels["fan"]: v for labels, v in _samples(metrics, "bambulab_airduct_fan_speed_percent")}
+    assert got == fans
+
+
+@pytest.mark.parametrize(
+    ("name", "drying"),
+    [
+        ("h2c", {"0": 716 * 60.0}),  # AMS 2 Pro drying, 716 minutes left
+        ("x1c_multi_ams", {"2": 583 * 60.0, "128": 0.0}),  # AMS 1 units have no dryer
+        ("x1c_fw0112_ams1", {}),  # AMS 1 only
+    ],
+)
+def test_ams_drying_remaining(name: str, drying: dict[str, float]) -> None:
+    _, _, metrics = _load(name)
+    got = {labels["ams_id"]: v for labels, v in _samples(metrics, "bambulab_ams_drying_remaining_seconds")}
+    assert got == drying
+    # Unset drying settings (-1 or absent) are omitted.
+    assert _samples(metrics, "bambulab_ams_drying_target_temperature_celsius") == []
+    assert _samples(metrics, "bambulab_ams_drying_duration_seconds") == []
+
+
+@pytest.mark.parametrize(
+    ("name", "extruders", "print_time"),
+    [
+        ("x2d", ["0", "1"], True),
+        ("h2c", ["0", "1"], False),  # rack slots 16-21 are not mounted nozzles
+        ("x1c_fw0112_ams1", ["0"], False),
+        ("x1_legacy_firmware", [], False),  # legacy nozzle block has no info list
+    ],
+)
+def test_mounted_nozzle_wear_and_print_time(name: str, extruders: list, print_time: bool) -> None:
+    _, _, metrics = _load(name)
+    wear = sorted(labels["extruder_id"] for labels, _ in _samples(metrics, "bambulab_nozzle_wear_ratio"))
+    assert wear == extruders
+    times = sorted(labels["extruder_id"] for labels, _ in _samples(metrics, "bambulab_nozzle_print_time_seconds"))
+    assert times == (extruders if print_time else [])

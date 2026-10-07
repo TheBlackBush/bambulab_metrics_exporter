@@ -348,6 +348,8 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 | `bambulab_fan_cooling_speed_percent` | Gauge | Cooling fan speed percent. |
 | `bambulab_fan_heatbreak_speed_percent` | Gauge | Heatbreak fan speed percent. |
 | `bambulab_fan_secondary_aux_speed_percent` | Gauge | Secondary auxiliary fan speed percent from `print.device.airduct.parts[id=160]`. |
+| `bambulab_airduct_mode_info{mode}` | Info Gauge | Airduct mode (`cooling`, `heating`, `exhaust`, `full_cooling`, `init`, `unknown`). |
+| `bambulab_airduct_fan_speed_percent{fan}` | Gauge | Airduct fan speed by fan (`part_cooling`, `aux`, `chamber`, `inner_loop`, `aux_2`, ...). |
 | `bambulab_printer_error` | Gauge | 1 when printer error code is non-zero. |
 | `bambulab_printer_error_code` | Gauge | Raw printer error code (`mc_print_error_code`). |
 | `bambulab_print_error_code` | Gauge | Raw `print_error` value from MQTT (legacy alias). |
@@ -380,10 +382,15 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 | `bambulab_ams_heater_state_info{ams_id,ams_model,ams_series,state}` | Info Gauge | AMS dryer state (`off`, `self_check`, `drying`, `cooling`, `stopped`, `error`, `thermal_runaway`, `test_mode`); AMS 2 Pro and AMS HT only. |
 | `bambulab_ams_dry_fan_status{ams_id,ams_model,ams_series,fan_id}` | Gauge | Gen2 AMS drying fan status. |
 | `bambulab_ams_dry_sub_status_info{ams_id,ams_model,ams_series,state}` | Info Gauge | AMS drying sub-status (`none`, `heating`, `dehumidifying`). |
+| `bambulab_ams_drying_remaining_seconds{ams_id}` | Gauge | Remaining AMS drying time (AMS 2 Pro, AMS HT). |
+| `bambulab_ams_drying_target_temperature_celsius{ams_id}` | Gauge | Configured AMS drying temperature. |
+| `bambulab_ams_drying_duration_seconds{ams_id}` | Gauge | Configured AMS drying duration. |
 | `bambulab_external_spool_active` | Gauge | 1 when external spool is active. |
 | `bambulab_external_spool_info{external_id,tray_type,tray_info_idx,tray_color}` | Info Gauge | External spool metadata. |
 | `bambulab_active_extruder_index` | Gauge | Active extruder index (dual-extruder models). |
 | `bambulab_extruder_loaded_slot_info{extruder_id,ams_id,slot_id}` | Info Gauge | Filament loaded in each extruder (AMS slot or `external`). |
+| `bambulab_nozzle_wear_ratio{extruder_id}` | Gauge | Wear value of the mounted nozzle (raw). |
+| `bambulab_nozzle_print_time_seconds{extruder_id}` | Gauge | Total print time of the mounted nozzle. |
 | `bambulab_extruder_temperature_celsius{extruder_id}` | Gauge | Per-extruder current temperature. |
 | `bambulab_extruder_target_temperature_celsius{extruder_id}` | Gauge | Per-extruder target temperature. |
 | `bambulab_extruder_nozzle_info{extruder_id,nozzle_type,nozzle_diameter}` | Info Gauge | Per-extruder nozzle metadata. |

@@ -11,6 +11,7 @@ from bambulab_metrics_exporter.models import (
     _extract_ams_info,
     ams_dry_state_name,
     ams_dry_sub_status_name,
+    parse_ams_drying,
     parse_ams_info,
 )
 
@@ -65,6 +66,30 @@ class ExporterMetrics:
             "bambulab_hms_active_errors_by_module",
             "Active HMS errors by module (mc, mainboard, ams, toolhead, xcam, other)",
             [*label_names, "module"],
+            registry=self.registry,
+        )
+        self.airduct_mode_info = Gauge(
+            "bambulab_airduct_mode_info",
+            "Airduct mode (cooling, heating, exhaust, full_cooling, init, unknown)",
+            [*label_names, "mode"],
+            registry=self.registry,
+        )
+        self.airduct_fan_speed = Gauge(
+            "bambulab_airduct_fan_speed_percent",
+            "Airduct fan speed percent by fan (part_cooling, aux, chamber, aux_2, ...)",
+            [*label_names, "fan"],
+            registry=self.registry,
+        )
+        self.nozzle_wear = Gauge(
+            "bambulab_nozzle_wear_ratio",
+            "Wear value of the nozzle mounted on each extruder (raw, unit unconfirmed)",
+            [*label_names, "extruder_id"],
+            registry=self.registry,
+        )
+        self.nozzle_print_time_seconds = Gauge(
+            "bambulab_nozzle_print_time_seconds",
+            "Total print time of the nozzle mounted on each extruder",
+            [*label_names, "extruder_id"],
             registry=self.registry,
         )
         self.fan_big_1_speed = Gauge("bambulab_fan_big_1_speed_percent", "Big fan 1 speed percent", label_names, registry=self.registry)
@@ -197,6 +222,24 @@ class ExporterMetrics:
             "bambulab_ams_dry_sub_status_info",
             "AMS drying sub-status as labeled info metric (Gen2)",
             [*label_names, "ams_id", "ams_model", "ams_series", "state"],
+            registry=self.registry,
+        )
+        self.ams_drying_remaining_seconds = Gauge(
+            "bambulab_ams_drying_remaining_seconds",
+            "Remaining AMS drying time (0 when not drying)",
+            [*label_names, "ams_id"],
+            registry=self.registry,
+        )
+        self.ams_drying_target_temperature = Gauge(
+            "bambulab_ams_drying_target_temperature_celsius",
+            "Configured AMS drying temperature",
+            [*label_names, "ams_id"],
+            registry=self.registry,
+        )
+        self.ams_drying_duration_seconds = Gauge(
+            "bambulab_ams_drying_duration_seconds",
+            "Configured AMS drying duration",
+            [*label_names, "ams_id"],
             registry=self.registry,
         )
 
@@ -373,6 +416,25 @@ class ExporterMetrics:
                 self.hms_active_errors.labels(**labels, severity=severity).set(float(count))
             for module, count in by_module.items():
                 self.hms_active_errors_by_module.labels(**labels, module=module).set(float(count))
+
+        self.airduct_mode_info.clear()
+        mode = snapshot.airduct_mode_name
+        if mode is not None:
+            self.airduct_mode_info.labels(**labels, mode=mode).set(1.0)
+        self.airduct_fan_speed.clear()
+        for fan, speed in snapshot.airduct_fan_speeds.items():
+            self.airduct_fan_speed.labels(**labels, fan=fan).set(speed)
+
+        self.nozzle_wear.clear()
+        self.nozzle_print_time_seconds.clear()
+        for nozzle in snapshot.mounted_nozzle_entries:
+            extruder = nozzle["extruder_id"]
+            if nozzle["wear"] is not None:
+                self.nozzle_wear.labels(**labels, extruder_id=extruder).set(nozzle["wear"])
+            if nozzle["print_time_seconds"] is not None:
+                self.nozzle_print_time_seconds.labels(**labels, extruder_id=extruder).set(
+                    nozzle["print_time_seconds"]
+                )
         self._set_optional(self.fan_big_1_speed, snapshot.fan_big_1_percent)
         self._set_optional(self.fan_big_2_speed, snapshot.fan_big_2_percent)
         self._set_optional(self.fan_cooling_speed, snapshot.fan_cooling_percent)
@@ -637,6 +699,17 @@ class ExporterMetrics:
                     state=ams_dry_sub_status_name(parsed["dry_sub_status"])
                 ).set(1.0)
 
+            if ams_model in AMS_MODELS_WITH_DRYER:
+                drying = parse_ams_drying(ams)
+                for gauge, key in (
+                    (self.ams_drying_remaining_seconds, "remaining_seconds"),
+                    (self.ams_drying_target_temperature, "target_temperature"),
+                    (self.ams_drying_duration_seconds, "duration_seconds"),
+                ):
+                    value = drying[key]
+                    if value is not None:
+                        gauge.labels(**labels, ams_id=ams_id).set(value)
+
             raw_trays = ams.get("tray")
             trays = [t for t in raw_trays if isinstance(t, dict)] if isinstance(raw_trays, list) else []
             for tray in trays:
@@ -708,6 +781,9 @@ class ExporterMetrics:
         self.ams_heater_state_info.clear()
         self.ams_dry_fan_status.clear()
         self.ams_dry_sub_status_info.clear()
+        self.ams_drying_remaining_seconds.clear()
+        self.ams_drying_target_temperature.clear()
+        self.ams_drying_duration_seconds.clear()
 
     def mark_scrape(self, duration_seconds: float, success: bool, now_ts: float | None = None) -> None:
         labels = self._labels()

@@ -125,6 +125,28 @@ _HMS_MODULE_NAMES: dict[int, str] = {
 }
 HMS_MODULES: tuple[str, ...] = ("mc", "mainboard", "ams", "toolhead", "xcam", "other")
 
+# device.airduct.modeCur, generic names per Bambu Studio (DevFan.h AIR_DUCT).
+AIRDUCT_MODE_NAMES: dict[int, str] = {
+    0: "cooling",
+    1: "heating",
+    2: "exhaust",
+    3: "full_cooling",
+    0xFF: "init",
+}
+AIRDUCT_MODES: tuple[str, ...] = (*AIRDUCT_MODE_NAMES.values(), "unknown")
+# device.airduct.parts[].id >> 4 → fan, per Bambu Studio (DevFan.h AIR_FUN). The `func`
+# field varies between models and is ignored. Left/right placement differs per model.
+AIRDUCT_FAN_NAMES: dict[int, str] = {
+    0: "heatbreak",
+    1: "part_cooling",
+    2: "aux",
+    3: "chamber",
+    4: "heatbreak_2",
+    5: "mc_board",
+    6: "inner_loop",
+    10: "aux_2",
+}
+
 # get_version module name prefix ("n3f/0") → AMS model, for units without info/sn.
 AMS_MODEL_BY_MODULE_PREFIX: dict[str, str] = {
     "ams": "ams_1",
@@ -311,6 +333,26 @@ def ams_dry_state_name(code: int) -> str:
 
 def ams_dry_sub_status_name(code: int) -> str:
     return AMS_DRY_SUB_STATUS_NAMES.get(code, f"unknown_{code}")
+
+
+def parse_ams_drying(unit: dict[str, Any]) -> dict[str, float | None]:
+    """Drying telemetry of an AMS unit with a dryer (Bambu Studio DevFilaSystem).
+
+    `dry_time` is the remaining time in minutes (0 when idle). `dry_setting` holds the
+    configured target temperature (°C) and duration (hours); -1 means unset.
+    """
+    remaining = to_int(unit.get("dry_time"))
+    setting = unit.get("dry_setting")
+    setting = setting if isinstance(setting, dict) else {}
+    target = to_int(setting.get("dry_temperature"))
+    duration = to_int(setting.get("dry_duration"))
+    return {
+        "remaining_seconds": float(remaining * 60) if remaining is not None and remaining >= 0
+        else None,
+        "target_temperature": float(target) if target is not None and target > 0 else None,
+        "duration_seconds": float(duration * 3600) if duration is not None and duration > 0
+        else None,
+    }
 
 
 def _ams_status_name(code: int) -> str:
@@ -928,6 +970,68 @@ class PrinterSnapshot:
                 }
             )
         return loaded
+
+    def _airduct(self) -> dict[str, Any]:
+        device = self.print_block.get("device")
+        airduct = device.get("airduct") if isinstance(device, dict) else None
+        return airduct if isinstance(airduct, dict) else {}
+
+    @property
+    def airduct_mode_name(self) -> str | None:
+        """Airduct mode from `device.airduct.modeCur`; None when absent (older models)."""
+        mode = to_int(self._airduct().get("modeCur"))
+        if mode is None or mode < 0:
+            return None
+        return AIRDUCT_MODE_NAMES.get(mode, "unknown")
+
+    @property
+    def airduct_fan_speeds(self) -> dict[str, float]:
+        """Fan speed percent per airduct fan (`parts[].state`, already 0-100).
+
+        Part id bits 0-3 are the part type (0 fan, 1 door), bits 4-11 the fan number.
+        Doors and unknown fan numbers are skipped.
+        """
+        parts = self._airduct().get("parts")
+        speeds: dict[str, float] = {}
+        if not isinstance(parts, list):
+            return speeds
+        for entry in parts:
+            if not isinstance(entry, dict):
+                continue
+            part_id = to_int(entry.get("id"))
+            state = to_int(entry.get("state"))
+            if part_id is None or state is None or part_id & 0xF != 0:
+                continue
+            name = AIRDUCT_FAN_NAMES.get((part_id >> 4) & 0xFF)
+            if name is not None:
+                speeds[name] = float(state & 0xFF)
+        return speeds
+
+    @property
+    def mounted_nozzle_entries(self) -> list[dict[str, Any]]:
+        """Nozzles mounted on an extruder (`device.nozzle.info[]` ids 0-15; 16-21 are rack
+        slots). Nozzle id 0 is extruder 0 (right on dual-extruder models), 1 extruder 1.
+        `p_t` is the total print time in seconds; `wear` is passed through unscaled."""
+        device = self.print_block.get("device")
+        nozzle = device.get("nozzle") if isinstance(device, dict) else None
+        info = nozzle.get("info") if isinstance(nozzle, dict) else None
+        if not isinstance(info, list):
+            return []
+        out: list[dict[str, Any]] = []
+        for item in info:
+            if not isinstance(item, dict):
+                continue
+            nozzle_id = to_int(item.get("id"))
+            if nozzle_id is None or not 0 <= nozzle_id <= 0xF:
+                continue
+            out.append(
+                {
+                    "extruder_id": str(nozzle_id),
+                    "wear": _to_float(item.get("wear")),
+                    "print_time_seconds": _to_float(item.get("p_t")),
+                }
+            )
+        return out
 
     @property
     def hms_counts(self) -> tuple[dict[str, int], dict[str, int]] | None:
