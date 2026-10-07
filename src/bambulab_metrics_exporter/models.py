@@ -1189,13 +1189,17 @@ class PrinterSnapshot:
 
     @property
     def light_modes(self) -> dict[str, str]:
-        """Light node → mode (on, off, flashing, unknown) for known nodes."""
+        """Light node → mode (on, off, flashing, unknown) for known nodes. A "flashing"
+        work light is skipped: printers report it constantly, also while it is off."""
         modes: dict[str, str] = {}
         for light in self.lights_report:
             node, mode = light.get("node"), light.get("mode")
             if node not in LIGHT_NODES:
                 continue
             mode = mode.strip().lower() if isinstance(mode, str) else ""
+            if node == "work_light" and mode == "flashing":
+                # Reported constantly, also while the light is off (verified on an X1C).
+                continue
             modes[node] = mode if mode in LIGHT_MODES else "unknown"
         return modes
 

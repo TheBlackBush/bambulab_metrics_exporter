@@ -3887,10 +3887,10 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "bambulab_light_mode_info{job=\"$job\", printer_name=\"$printer\"} == 1",
+          "expr": "label_replace(bambulab_light_mode_info{job=\"$job\", printer_name=\"$printer\", light=\"chamber_light\", mode=\"off\"} * 0, \"light\", \"Chamber\", \"light\", \"chamber_light\") or label_replace(bambulab_light_mode_info{job=\"$job\", printer_name=\"$printer\", light=\"chamber_light\", mode=\"on\"} * 1, \"light\", \"Chamber\", \"light\", \"chamber_light\") or label_replace(bambulab_light_mode_info{job=\"$job\", printer_name=\"$printer\", light=\"chamber_light\", mode=\"flashing\"} * 2, \"light\", \"Chamber\", \"light\", \"chamber_light\") or label_replace(bambulab_light_mode_info{job=\"$job\", printer_name=\"$printer\", light=\"chamber_light\", mode=\"unknown\"} * 3, \"light\", \"Chamber\", \"light\", \"chamber_light\") or label_replace(bambulab_light_mode_info{job=\"$job\", printer_name=\"$printer\", light=\"chamber_light2\", mode=\"off\"} * 0, \"light\", \"Chamber 2\", \"light\", \"chamber_light2\") or label_replace(bambulab_light_mode_info{job=\"$job\", printer_name=\"$printer\", light=\"chamber_light2\", mode=\"on\"} * 1, \"light\", \"Chamber 2\", \"light\", \"chamber_light2\") or label_replace(bambulab_light_mode_info{job=\"$job\", printer_name=\"$printer\", light=\"chamber_light2\", mode=\"flashing\"} * 2, \"light\", \"Chamber 2\", \"light\", \"chamber_light2\") or label_replace(bambulab_light_mode_info{job=\"$job\", printer_name=\"$printer\", light=\"chamber_light2\", mode=\"unknown\"} * 3, \"light\", \"Chamber 2\", \"light\", \"chamber_light2\") or label_replace(bambulab_light_mode_info{job=\"$job\", printer_name=\"$printer\", light=\"work_light\", mode=\"off\"} * 0, \"light\", \"Work\", \"light\", \"work_light\") or label_replace(bambulab_light_mode_info{job=\"$job\", printer_name=\"$printer\", light=\"work_light\", mode=\"on\"} * 1, \"light\", \"Work\", \"light\", \"work_light\") or label_replace(bambulab_light_mode_info{job=\"$job\", printer_name=\"$printer\", light=\"work_light\", mode=\"flashing\"} * 2, \"light\", \"Work\", \"light\", \"work_light\") or label_replace(bambulab_light_mode_info{job=\"$job\", printer_name=\"$printer\", light=\"work_light\", mode=\"unknown\"} * 3, \"light\", \"Work\", \"light\", \"work_light\") or label_replace(bambulab_light_mode_info{job=\"$job\", printer_name=\"$printer\", light=\"heatbed_light\", mode=\"off\"} * 0, \"light\", \"Heatbed\", \"light\", \"heatbed_light\") or label_replace(bambulab_light_mode_info{job=\"$job\", printer_name=\"$printer\", light=\"heatbed_light\", mode=\"on\"} * 1, \"light\", \"Heatbed\", \"light\", \"heatbed_light\") or label_replace(bambulab_light_mode_info{job=\"$job\", printer_name=\"$printer\", light=\"heatbed_light\", mode=\"flashing\"} * 2, \"light\", \"Heatbed\", \"light\", \"heatbed_light\") or label_replace(bambulab_light_mode_info{job=\"$job\", printer_name=\"$printer\", light=\"heatbed_light\", mode=\"unknown\"} * 3, \"light\", \"Heatbed\", \"light\", \"heatbed_light\")",
           "instant": true,
           "range": false,
-          "legendFormat": "{{light}}: {{mode}}",
+          "legendFormat": "{{light}}",
           "refId": "A"
         }
       ],
@@ -3907,16 +3907,44 @@
                 "value": null
               }
             ]
-          }
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Off",
+                  "color": "text",
+                  "index": 0
+                },
+                "1": {
+                  "text": "On",
+                  "color": "yellow",
+                  "index": 1
+                },
+                "2": {
+                  "text": "Flashing",
+                  "color": "orange",
+                  "index": 2
+                },
+                "3": {
+                  "text": "Unknown",
+                  "color": "red",
+                  "index": 3
+                }
+              }
+            }
+          ],
+          "noValue": "No lights reported"
         },
         "overrides": []
       },
       "options": {
-        "colorMode": "value",
+        "colorMode": "background",
         "graphMode": "none",
         "justifyMode": "auto",
         "orientation": "auto",
-        "textMode": "name",
+        "textMode": "value_and_name",
         "wideLayout": true,
         "reduceOptions": {
           "calcs": [

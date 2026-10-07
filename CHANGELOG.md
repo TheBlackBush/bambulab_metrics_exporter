@@ -128,6 +128,12 @@ All notable changes to this project are documented in this file.
   `bambulab_print_real_action`, `bambulab_print_gcode_action`, `bambulab_online_ahb`,
   `bambulab_online_ext`).
 - Fixture sanitizer now replaces AMS `chip_id` and serial-style `ams_id` values.
+- `bambulab_work_light_on` is NaN (was 1) while the printer reports the work light as
+  `flashing`, and `bambulab_light_mode_info` omits it then: printers send `flashing`
+  constantly, also while the light is off (verified on an X1C). Real `on`/`off` reports are
+  unchanged.
+- Grafana "Lights" panel shows one readable entry per light with a colored state (Off,
+  On, Flashing) instead of the same green text for every mode.
 - Grafana dashboard: target temperature, total layer, stage and error queries now filter on
   `$printer` (they mixed printers sharing a job); remaining-time trend uses seconds (was
   minutes, 60x too large); AMS temperature and humidity show one value per unit instead of
