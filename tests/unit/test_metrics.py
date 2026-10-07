@@ -403,12 +403,12 @@ class TestDoorOpen:
 
     def test_door_open_model_preference_x1_home_flag_over_stat(self) -> None:
         m = self._m()
-        m.update_from_snapshot(_snap({"model_id": "X1C", "home_flag": 0x00800000, "stat": "46258008"}))
+        m.update_from_snapshot(_snap({"sn": "00MFAKE0TEST001", "home_flag": 0x00800000, "stat": "46258008"}))
         assert self._get(m, "door_open") == 1.0
 
     def test_door_open_model_preference_non_x1_stat_over_home_flag(self) -> None:
         m = self._m()
-        m.update_from_snapshot(_snap({"model_id": "H2D", "home_flag": 0x00800000, "stat": "46258008"}))
+        m.update_from_snapshot(_snap({"sn": "094FAKE0TEST001", "home_flag": 0x00800000, "stat": "46258008"}))
         assert self._get(m, "door_open") == 0.0
 
     def test_door_open_none(self) -> None:
@@ -434,22 +434,22 @@ class TestLidOpen:
 
     def test_lid_open_from_h2_stat_bit(self) -> None:
         m = self._m()
-        m.update_from_snapshot(_snap({"model_id": "H2D", "stat": "01000000"}))
+        m.update_from_snapshot(_snap({"sn": "094FAKE0TEST001", "stat": "01000000"}))
         assert self._get(m, "lid_open") == 1.0
 
     def test_lid_closed_from_h2_stat_bit(self) -> None:
         m = self._m()
-        m.update_from_snapshot(_snap({"model_id": "H2D", "stat": "00000000"}))
+        m.update_from_snapshot(_snap({"sn": "094FAKE0TEST001", "stat": "00000000"}))
         assert self._get(m, "lid_open") == 0.0
 
     def test_lid_open_non_h2_without_direct_is_nan(self) -> None:
         m = self._m()
-        m.update_from_snapshot(_snap({"model_id": "P1S", "stat": "01000000"}))
+        m.update_from_snapshot(_snap({"sn": "01PFAKE0TEST001", "stat": "01000000"}))
         assert math.isnan(self._get(m, "lid_open"))
 
     def test_lid_open_prefers_direct_over_stat(self) -> None:
         m = self._m()
-        m.update_from_snapshot(_snap({"model_id": "H2D", "stat": "00000000", "lid_open": True}))
+        m.update_from_snapshot(_snap({"sn": "094FAKE0TEST001", "stat": "00000000", "lid_open": True}))
         assert self._get(m, "lid_open") == 1.0
 
 
@@ -1466,3 +1466,35 @@ class TestXcamHaltPrintSensitivity:
         assert m.xcam_feature_enabled.labels(**base, feature="spaghetti_detector")._value.get() == 0.0
         labels = {**base, "level": "medium"}
         assert m.xcam_halt_print_sensitivity_info.labels(**labels)._value.get() == 1.0
+
+
+class TestPrinterModelInfo:
+    def _series(self, m: ExporterMetrics) -> list[dict[str, str]]:
+        return [
+            dict(s.labels)
+            for metric in m.registry.collect()
+            if metric.name == "bambulab_printer_model_info"
+            for s in metric.samples
+        ]
+
+    def test_emits_resolved_model(self) -> None:
+        m = _metrics()
+        m.update_from_snapshot(
+            PrinterSnapshot(connected=True, raw={"print": {}}, configured_serial="20PFAKE0TEST001")
+        )
+        assert self._series(m) == [{"printer_name": "test", "serial": "SN123", "model": "X2D"}]
+
+    def test_omitted_when_unknown(self) -> None:
+        m = _metrics()
+        m.update_from_snapshot(_snap({"device": {"type": 1}, "model_id": "AB12CD34EF56GH78"}))
+        assert self._series(m) == []
+
+    def test_clears_previous_model(self) -> None:
+        m = _metrics()
+        m.update_from_snapshot(
+            PrinterSnapshot(connected=True, raw={"print": {}}, configured_serial="00MFAKE0TEST001")
+        )
+        m.update_from_snapshot(
+            PrinterSnapshot(connected=True, raw={"print": {}}, configured_serial="094FAKE0TEST001")
+        )
+        assert [s["model"] for s in self._series(m)] == ["H2D"]

@@ -39,9 +39,11 @@
 
 ## Wrong Printer Model
 
-`bambulab_printer_model_info` shows `unknown`:
-- Model resolved from `product_name → hw_ver+project_name → SN prefix`
-- Open a GitHub issue with your model and serial prefix (first 3 chars)
+`bambulab_printer_model_info` is missing or shows the wrong model:
+- Model is resolved from `product_name` → serial prefix (payload, then `BAMBULAB_SERIAL`) → `BAMBULAB_PRINTER_MODEL` → known `hw_ver`+`project_name` pairs
+- When nothing matches, the series is omitted (no guessed model)
+- Workaround: set `BAMBULAB_PRINTER_MODEL` to your model (for example `P2S` or `X1 Carbon`)
+- Open a GitHub issue with your model and serial prefix (first 3 characters only)
 
 ---
 

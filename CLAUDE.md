@@ -313,7 +313,7 @@ secrets.
 | `LISTEN_PORT` | optional; `9109` | Uvicorn TCP port integer | no | `9109` |
 | `PRINTER_NAME_LABEL` | optional; empty | Canonical stable operator override for `printer_name` label | operational/user text | `test-printer` |
 | `BAMBULAB_PRINTER_NAME` | optional; empty | Discovered/persisted printer name and fallback label | operational/user text | `Test Printer` |
-| `BAMBULAB_PRINTER_MODEL` | optional; empty | Discovered/persisted model metadata | operational | `X1C` |
+| `BAMBULAB_PRINTER_MODEL` | optional; empty | Discovered/persisted model; normalized model-detection hint after serial prefix | operational | `X1C` |
 | `PUID` | container optional; `99` | Runtime numeric UID interpreted by `entrypoint.sh` | no | `1000` |
 | `PGID` | container optional; `100` | Runtime numeric GID interpreted by `entrypoint.sh` | no | `1000` |
 | `UMASK` | container optional; `002` | Shell umask consumed by `entrypoint.sh` | no | `022` |
@@ -709,8 +709,11 @@ Evidence at the time this manual was created:
   Pydantic settings, Uvicorn, cryptography/Fernet, and dotenv.
 - Local and cloud MQTT modes work through the same client architecture. Cloud supports OTP
   authentication, encrypted credential persistence, and refresh-token recovery. Model
-  detection recognizes A1/A1 Mini, P1P/P1S/P2S, H2C/H2D/H2D Pro/H2S, X1/X1C/X1E and AMS
-  variants through multiple fallbacks; only X1C is stated as real-world validated.
+  detection recognizes A1/A1 Mini/A2L, P1P/P1S/P2S, H2C/H2D/H2D Pro/H2S, X1/X1C/X1E/X2D and
+  AMS variants; only X1C is stated as real-world validated. The serial prefix (payload
+  `print.sn` or configured `BAMBULAB_SERIAL`) is the main identity source because pushall
+  omits identity fields. `print.device.type` is a mode bitmask and `print.model_id` an
+  opaque job id; never use either for model identity.
 - Docker, Docker Compose, GHCR amd64/arm64 releases, Unraid, Prometheus examples, Grafana
   dashboard, and GitHub Wiki publishing are present. Home Assistant and Kubernetes/Helm
   integrations are not present.

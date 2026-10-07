@@ -30,8 +30,11 @@ class _E2EClient:
                     "gcode_state": "RUNNING",
                     "mc_percent": 42,
                     "nozzle_temper": 205,
+                    "device": {"type": 1},
                 }
             },
+            # Mirrors LocalMqttBambuClient: identity comes from configuration.
+            configured_serial="094FAKE0TEST001",
         )
 
 
@@ -67,6 +70,10 @@ def test_e2e_collector_populates_metrics_and_readiness() -> None:
         out = http.get("/metrics").text
         assert 'bambulab_print_progress_percent{printer_name="e2e",serial="SN-E2E"} 42.0' in out
         assert 'bambulab_nozzle_temperature_celsius{printer_name="e2e",serial="SN-E2E"} 205.0' in out
+        assert (
+            'bambulab_printer_model_info{model="H2D",printer_name="e2e",serial="SN-E2E"} 1.0'
+            in out
+        )
     finally:
         collector.stop()
         assert client.connected is False

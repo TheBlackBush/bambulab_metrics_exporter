@@ -11,13 +11,16 @@ from bambulab_metrics_exporter.flags import (
 )
 
 
-X1_HOMEFLAG_MODELS = {"X1", "X1C"}
+# X1-family printers report the door sensor in home_flag; other models use stat.
+X1_HOMEFLAG_MODELS = {"X1", "X1C", "X1E"}
 H2_MODEL_PREFIX = "H2"
 
-# product_name → model (priority 1 in resolver)
+# product_name → model (priority 1 in resolver). Keys are normalized with
+# _normalize_product_name, so firmware strings like "Bambu Lab X1-Carbon" match.
 PRODUCT_NAME_TO_PRINTER: dict[str, str] = {
     "bambu lab a1": "A1",
     "bambu lab a1 mini": "A1MINI",
+    "bambu lab a2l": "A2L",
     "bambu lab p1p": "P1P",
     "bambu lab p1s": "P1S",
     "bambu lab p2s": "P2S",
@@ -28,19 +31,12 @@ PRODUCT_NAME_TO_PRINTER: dict[str, str] = {
     "bambu lab x1": "X1",
     "bambu lab x1 carbon": "X1C",
     "bambu lab x1e": "X1E",
+    "bambu lab x2d": "X2D",
 }
 
-# (hw_ver, project_name) → model (priority 2 in resolver, AP-module path)
-_HW_PROJECT_TO_PRINTER: dict[tuple[str, str], str] = {
-    ("AP02", ""): "X1E",
-    ("AP03", "N1"): "A1MINI",
-    ("AP04", "C11"): "P1P",
-    ("AP04", "C12"): "P1S",
-    ("AP05", "N2S"): "A1",
-    ("AP05", ""): "X1C",
-}
-
-# SN-prefix → model (priority 3 – only clearly confirmed prefixes)
+# Serial prefix → model (priorities 2 and 3). The first three characters of a
+# printer serial identify the model; this mirrors the sn_prefix values in Bambu
+# Studio's resources/printers/*.json.
 _SN_PREFIX_TO_PRINTER: dict[str, str] = {
     "00W": "X1",
     "00M": "X1C",
@@ -50,18 +46,45 @@ _SN_PREFIX_TO_PRINTER: dict[str, str] = {
     "030": "A1MINI",
     "039": "A1",
     "22E": "P2S",
+    "20P": "X2D",
+    "26A": "A2L",
     "093": "H2S",
     "094": "H2D",
+    "239": "H2DPRO",
+    "31B": "H2C",
 }
 
-# legacy device.type → model (priority 4)
-_DEVICE_TYPE_TO_PRINTER: dict[int, str] = {
-    0: "X1",
-    1: "X1C",
-    2: "P1P",
-    3: "P1S",
-    4: "A1",
-    5: "A1MINI",
+# Internal model codes (Bambu Studio printer model ids, also returned by the cloud
+# device list as dev_model_name on older models) → model.
+_MODEL_CODE_TO_PRINTER: dict[str, str] = {
+    "BL-P001": "X1C",
+    "BL-P002": "X1",
+    "C11": "P1P",
+    "C12": "P1S",
+    "C13": "X1E",
+    "N1": "A1MINI",
+    "N2S": "A1",
+    "N6": "X2D",
+    "N7": "P2S",
+    "N9": "A2L",
+    "O1C": "H2C",
+    "O1C2": "H2C",
+    "O1D": "H2D",
+    "O1E": "H2DPRO",
+    "O1S": "H2S",
+}
+
+KNOWN_PRINTER_MODELS: frozenset[str] = frozenset(_SN_PREFIX_TO_PRINTER.values())
+
+# (hw_ver, project_name) → model (priority 5, AP-module path). Only unambiguous
+# pairs: hw_ver alone is shared across families (AP05 appears on X1C, H2D, H2S,
+# H2C and A1), so an empty project_name is not enough to identify those models.
+_HW_PROJECT_TO_PRINTER: dict[tuple[str, str], str] = {
+    ("AP02", ""): "X1E",
+    ("AP03", "N1"): "A1MINI",
+    ("AP04", "C11"): "P1P",
+    ("AP04", "C12"): "P1S",
+    ("AP05", "N2S"): "A1",
 }
 
 
@@ -87,6 +110,7 @@ AMS_TYPE_TO_MODEL: dict[int, str] = {
     2: "ams_lite",
     3: "ams_2_pro",
     4: "ams_ht",
+    5: "ams_lite",  # AMS Lite on the A2L ("mixed" type)
 }
 
 HOTEND_RACK_SLOT_IDS: tuple[int, ...] = (16, 17, 18, 19, 20, 21)
@@ -395,13 +419,48 @@ _to_hex_int = to_hex_int
 def _normalize_product_name(value: Any) -> str:
     if not isinstance(value, str):
         return ""
-    return " ".join(value.strip().lower().split())
+    return " ".join(value.strip().lower().replace("-", " ").split())
+
+
+def _model_from_serial(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    return _SN_PREFIX_TO_PRINTER.get(value.strip().upper()[:3])
+
+
+def normalize_model_hint(value: Any) -> str | None:
+    """Map a free-form model string to a known model, or None.
+
+    Accepts the forms seen in configuration and the cloud device list: marketing
+    names with or without the "Bambu Lab" prefix ("X1 Carbon", "Bambu Lab H2D Pro"),
+    internal codes ("BL-P001", "N6") and normalized names ("H2DPRO"). Anything
+    unrecognized returns None so raw strings never become label values.
+    """
+    name = _normalize_product_name(value)
+    if not name:
+        return None
+    if name.startswith("bambu lab "):
+        name = name[len("bambu lab "):]
+    mapped = PRODUCT_NAME_TO_PRINTER.get(f"bambu lab {name}")
+    if mapped:
+        return mapped
+    code = str(value).strip().upper()
+    if code in _MODEL_CODE_TO_PRINTER:
+        return _MODEL_CODE_TO_PRINTER[code]
+    compact = name.replace(" ", "").upper()
+    return compact if compact in KNOWN_PRINTER_MODELS else None
 
 
 @dataclass(slots=True)
 class PrinterSnapshot:
     connected: bool
     raw: dict[str, Any]
+    # Serial from configuration (BAMBULAB_SERIAL). Regular pushall reports omit
+    # print.sn, so the configured serial is usually the reliable identity source.
+    configured_serial: str | None = None
+    # Model from configuration or cloud discovery (BAMBULAB_PRINTER_MODEL); used
+    # only after normalization through the known-model tables.
+    configured_model: str | None = None
 
     @property
     def print_block(self) -> dict[str, Any]:
@@ -436,14 +495,33 @@ class PrinterSnapshot:
 
     @property
     def printer_type(self) -> str | None:
-        # --- Step 1: product_name mapping ---
+        """Resolve the printer model from the most reliable source available.
+
+        Order: get_version product_name, payload serial prefix, configured serial
+        prefix, configured/cloud model, then unambiguous legacy hw_ver pairs.
+        print.device.type is deliberately not used: it is a mode bitmask
+        (FDM=0x1, laser=0x10, cut=0x100) that reads 1 on every FDM printer.
+        print.model_id is not used either: it carries an opaque per-job id.
+        """
+        # --- Step 1: product_name mapping (get_version module list) ---
         modules = self.modules
         for mod in modules:
             mapped = PRODUCT_NAME_TO_PRINTER.get(_normalize_product_name(mod.get("product_name")))
             if mapped:
                 return mapped
 
-        # --- Step 2: hw_ver + project_name mapping ---
+        # --- Steps 2-3: serial prefix (payload first, then configuration) ---
+        for serial in (self.sn, self.configured_serial):
+            mapped = _model_from_serial(serial)
+            if mapped:
+                return mapped
+
+        # --- Step 4: configured or cloud-discovered model ---
+        mapped = normalize_model_hint(self.configured_model)
+        if mapped:
+            return mapped
+
+        # --- Step 5: legacy hw_ver + project_name mapping ---
         ap_module = next(
             (
                 m
@@ -462,23 +540,6 @@ class PrinterSnapshot:
             if project_name == "N1":
                 return "A1MINI"
 
-        # --- Step 3: SN-prefix mapping ---
-        sn = self.sn
-        if sn:
-            for prefix, model in _SN_PREFIX_TO_PRINTER.items():
-                if sn.upper().startswith(prefix.upper()):
-                    return model
-
-        # --- Step 4: legacy device.type ---
-        device = self.print_block.get("device")
-        dtype = to_int(device.get("type") if isinstance(device, dict) else None)
-        if dtype is not None and dtype in _DEVICE_TYPE_TO_PRINTER:
-            return _DEVICE_TYPE_TO_PRINTER[dtype]
-
-        # --- Step 5: model_id fallback ---
-        model_id = self.print_block.get("model_id")
-        if isinstance(model_id, str) and model_id.strip():
-            return model_id.strip().upper().replace(" ", "")
         return None
 
     @property

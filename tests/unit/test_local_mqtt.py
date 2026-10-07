@@ -159,6 +159,30 @@ def test_fetch_snapshot_timeout_returns_partial(monkeypatch) -> None:
     assert snap.raw == {}
 
 
+def test_fetch_snapshot_carries_configured_identity(monkeypatch) -> None:
+    """Configured serial and model reach the snapshot on both return paths."""
+    fake = _FakeMQTTClient()
+    monkeypatch.setattr("bambulab_metrics_exporter.client.local_mqtt.mqtt.Client", lambda *a, **k: fake)
+    settings = _settings(serial="20PFAKE0TEST001", request_timeout=0.2)
+    settings.bambulab_printer_model = "X2D"
+    client = LocalMqttBambuClient(settings)
+
+    # Timeout path (no state yet).
+    empty = client.fetch_snapshot(0.01)
+    assert empty.configured_serial == "20PFAKE0TEST001"
+    assert empty.configured_model == "X2D"
+
+    # Normal path: a pushall without sn or module still resolves the model.
+    msg = SimpleNamespace(
+        topic="device/20PFAKE0TEST001/report",
+        payload=json.dumps({"print": {"device": {"type": 1}}}).encode("utf-8"),
+    )
+    client._on_message(None, None, msg)
+    snap = client.fetch_snapshot(1.0)
+    assert snap.configured_serial == "20PFAKE0TEST001"
+    assert snap.model_name == "X2D"
+
+
 def test_request_pushall_publish(monkeypatch) -> None:
     fake = _FakeMQTTClient()
     monkeypatch.setattr("bambulab_metrics_exporter.client.local_mqtt.mqtt.Client", lambda *a, **k: fake)
