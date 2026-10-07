@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Development images: every push to the `develop` branch publishes
+  `ghcr.io/theblackbush/bambulab_metrics_exporter:develop` and `:develop-<short-sha>`
+  (amd64/arm64) after the full test suite passes. Stable `latest` and version tags are
+  unchanged.
+
 ## [0.1.40] - 2026-03-22
 
 ### Added

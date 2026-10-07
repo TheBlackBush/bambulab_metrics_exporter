@@ -143,9 +143,14 @@ Important boundaries:
   local default.
 - `unraid-bambulab-metrics-exporter.xml`: supported Unraid template. Coordinate ports,
   paths, variables, secret masking, and image behavior with Docker changes.
-- `.github/workflows/ci.yml`: pull-request compile, Ruff, and full pytest checks.
+- `.github/workflows/ci.yml`: compile, Ruff, and full pytest checks on pull requests to
+  `main` and `develop`.
 - `.github/workflows/docker-publish.yml`: release-only full checks (including mypy), then
-  amd64/arm64 GHCR build and publish.
+  amd64/arm64 GHCR build and publish (`<version>` and `latest` tags).
+- `.github/workflows/docker-develop.yml`: on every push to the `develop` branch, the same
+  full checks, then amd64/arm64 GHCR images tagged `develop` and `develop-<short-sha>`.
+  Never publishes `latest` or version tags. Feature branches target `develop`; `develop`
+  merges into `main` for releases.
 - `.github/workflows/wiki-sync.yml`: syncs `docs/wiki/*.md` to the GitHub Wiki on `main`.
 - `scripts/` and `config/` currently contain no tracked implementation files. Do not invent
   validation commands for them.
