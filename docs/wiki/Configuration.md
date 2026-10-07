@@ -63,7 +63,7 @@ BAMBULAB_SECRET_KEY=a3f1c8e2d4b7901234567890abcdef1234567890abcdef1234567890abcd
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `BAMBULAB_REQUEST_PUSHALL` | no | `true` | Request full snapshot each poll |
+| `BAMBULAB_REQUEST_PUSHALL` | no | `true` | Request full snapshot each poll, and the module list (`get_version`) on each connect |
 | `POLLING_INTERVAL_SECONDS` | no | `10` | Polling interval (seconds) |
 | `REQUEST_TIMEOUT_SECONDS` | no | `8` | Per-cycle timeout (seconds) |
 | `LISTEN_HOST` | no | `0.0.0.0` | HTTP bind host |

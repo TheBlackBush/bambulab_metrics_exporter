@@ -195,9 +195,10 @@ configuration and reachable printer/cloud services and may update `.env`.
   configures no explicit retry/backoff policy. `RECONNECT_INTERVAL_SECONDS` is currently
   unused; do not claim it controls reconnect behavior.
 - By default, each fetch publishes one QoS 1 `pushall` snapshot request to
-  `device/<serial>/request`. This is the only existing publish and is a read-only telemetry
-  request, not a printer-control operation. Setting `BAMBULAB_REQUEST_PUSHALL=false` makes
-  collection subscription-driven.
+  `device/<serial>/request`, and each successful connect publishes one QoS 1 `get_version`
+  request (module list with product names, used for model detection). These are the only
+  publishes; both are read-only telemetry requests, not printer-control operations. Setting
+  `BAMBULAB_REQUEST_PUSHALL=false` disables both and makes collection subscription-driven.
 - Exact-topic messages are decoded as UTF-8 JSON and recursively merged under a lock into
   `_latest_state`: dictionaries merge; lists and scalar values replace. Partial reports
   retain previously received fields. Fetch returns a deep copy after state exists or the
@@ -295,7 +296,7 @@ secrets.
 | `BAMBULAB_SERIAL` | required; empty | Device ID used in MQTT topics; use a synthetic value in tests | operational | `FAKE00TEST000001` |
 | `BAMBULAB_ACCESS_CODE` | local required; empty | LAN MQTT password/access code | **secret** | `fake-access-code` |
 | `BAMBULAB_USERNAME` | optional; `bblp` | LAN MQTT username | operational | `bblp` |
-| `BAMBULAB_REQUEST_PUSHALL` | optional; `true` | Boolean controlling snapshot-request publishing | no | `true` |
+| `BAMBULAB_REQUEST_PUSHALL` | optional; `true` | Boolean controlling the `pushall` and on-connect `get_version` requests | no | `true` |
 | `BAMBULAB_CLOUD_MQTT_HOST` | optional; `us.mqtt.bambulab.com` | Cloud broker DNS name | no | `us.mqtt.bambulab.com` |
 | `BAMBULAB_CLOUD_MQTT_PORT` | optional; `8883` | Cloud MQTT TLS port integer | no | `8883` |
 | `BAMBULAB_CLOUD_USER_ID` | cloud conditional; empty | Cloud user identifier; needed with access token | **secret/identity** | `fake-user-123` |
@@ -385,8 +386,8 @@ Metrics are a public compatibility surface.
 - Validate configured transport, positive timeouts, ports/ranges, host values, and serial
   values before using them in topics or connections. Existing validation is incomplete for
   host and serial shape; do not assume it is sufficient.
-- The report subscription is passive. The existing `pushall` publish is a narrowly scoped
-  state-snapshot request and is on by default. Do not add print, pause, stop, movement,
+- The report subscription is passive. The existing `pushall` and `get_version` publishes are
+  narrowly scoped read-only requests and are on by default. Do not add print, pause, stop, movement,
   temperature, light, calibration, firmware, or any other printer-control publish unless the
   task explicitly requests it and the user approves live-device risk. Keep the exporter
   operationally read-only by default.
@@ -684,7 +685,7 @@ Agents must not:
   payloads.
 - Use real serials, IPs, hosts, usernames, emails, or access codes in fixtures/examples.
 - Contact a real printer/cloud account or publish printer-control commands without explicit
-  approval. The existing `pushall` telemetry request is not permission to add controls.
+  approval. The existing `pushall` and `get_version` requests are not permission to add controls.
 - Disable TLS or TLS verification to make tests pass, or silently change the existing insecure
   verification compatibility behavior.
 - Silently rename/remove metrics, change metric type/labels/missing-value semantics, or

@@ -91,6 +91,15 @@ class LocalMqttBambuClient(BambuClient):
         }
         self._client.publish(self._topic_request, json.dumps(payload), qos=1)
 
+    def _request_version(self) -> None:
+        """Ask for the module list (read-only, no printer control).
+
+        The reply arrives on the report topic as `info.module` and carries the
+        product name used for model detection.
+        """
+        payload = {"info": {"sequence_id": "0", "command": "get_version"}}
+        self._client.publish(self._topic_request, json.dumps(payload), qos=1)
+
     def _on_connect(
         self,
         _client: mqtt.Client,
@@ -113,6 +122,8 @@ class LocalMqttBambuClient(BambuClient):
             self._connected = True
         logger.info("MQTT connected")
         _client.subscribe(self._topic_report, qos=1)
+        if self._settings.bambulab_request_pushall:
+            self._request_version()
 
     def _on_disconnect(
         self,

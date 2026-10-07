@@ -194,3 +194,74 @@ def test_request_pushall_publish(monkeypatch) -> None:
     assert topic == "device/SERIALX/request"
     assert qos == 1
     assert json.loads(payload)["pushing"]["command"] == "pushall"
+
+
+# ---------------------------------------------------------------------------
+# get_version request on connect
+# ---------------------------------------------------------------------------
+
+def _client_with_fake(monkeypatch, **overrides) -> tuple[LocalMqttBambuClient, _FakeMQTTClient]:
+    fake = _FakeMQTTClient()
+    monkeypatch.setattr("bambulab_metrics_exporter.client.local_mqtt.mqtt.Client", lambda *a, **k: fake)
+    settings = _settings(serial="SERIALX")
+    for key, value in overrides.items():
+        setattr(settings, key, value)
+    return LocalMqttBambuClient(settings), fake
+
+
+def test_on_connect_requests_version_once(monkeypatch) -> None:
+    client, fake = _client_with_fake(monkeypatch)
+
+    client._on_connect(fake, None, None, 0, None)
+
+    # Exactly one read-only request; no printer-control command is sent.
+    assert len(fake.published) == 1
+    topic, payload, qos = fake.published[0]
+    assert topic == "device/SERIALX/request"
+    assert qos == 1
+    assert json.loads(payload) == {"info": {"sequence_id": "0", "command": "get_version"}}
+
+
+def test_on_connect_skips_version_when_requests_disabled(monkeypatch) -> None:
+    client, fake = _client_with_fake(monkeypatch, bambulab_request_pushall=False)
+
+    client._on_connect(fake, None, None, 0, None)
+
+    assert fake.published == []
+
+
+def test_on_connect_failure_does_not_request_version(monkeypatch) -> None:
+    client, fake = _client_with_fake(monkeypatch)
+
+    client._on_connect(fake, None, None, 5, None)
+
+    assert fake.published == []
+
+
+def test_get_version_reply_resolves_model_from_product_name(monkeypatch) -> None:
+    """The reply lands under info.module and wins over an unknown serial prefix."""
+    client, _fake = _client_with_fake(monkeypatch)
+    reply = {
+        "info": {
+            "command": "get_version",
+            "sequence_id": "0",
+            "module": [
+                {"name": "ota", "product_name": "Bambu Lab P2S", "sw_ver": "01.00.00.00"},
+                {"name": "ams/0", "product_name": "AMS 2 Pro (1)"},
+            ],
+        }
+    }
+    client._on_message(
+        None, None, SimpleNamespace(topic="device/SERIALX/report", payload=json.dumps(reply).encode())
+    )
+    client._on_message(
+        None,
+        None,
+        SimpleNamespace(
+            topic="device/SERIALX/report",
+            payload=json.dumps({"print": {"device": {"type": 1}}}).encode(),
+        ),
+    )
+
+    snap = client.fetch_snapshot(1.0)
+    assert snap.model_name == "P2S"

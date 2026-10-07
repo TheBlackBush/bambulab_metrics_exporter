@@ -3,9 +3,8 @@
 ## Status (2026-10-07)
 
 Phases 1, 2 (door group only), 3 and 5 implemented on branch `feat/model-detection`
-(uncommitted). Phase 4 (`get_version` request) approved by the maintainer but not yet
-applied: the edit adding the publish was blocked by the session permission policy and is
-waiting for the maintainer. Unknown models keep omitting `bambulab_printer_model_info`. Sources: BambuStudio `da8b44ee` (AGPL-3.0),
+(uncommitted). Phase 4 (`get_version` request on connect) implemented after explicit
+maintainer instruction. Unknown models keep omitting `bambulab_printer_model_info`. Sources: BambuStudio `da8b44ee` (AGPL-3.0),
 ha-bambulab `0e027ff1` (MIT), OpenBambuAPI `cc383a2c` (FDL-1.3). Reimplement facts and
 identifiers only; do not copy code. The Bambu Handy APK could not be obtained (all mirrors
 behind Cloudflare challenges) and is not needed: BambuStudio carries the same identifiers.

@@ -58,7 +58,7 @@ Full operator documentation lives in the [GitHub Wiki](https://github.com/TheBla
 
 - Supports both LAN MQTT (`local_mqtt`) and Cloud MQTT (`cloud_mqtt`).
 - Uses `device/<serial>/report` and `device/<serial>/request` topics.
-- Requests full snapshots with `pushall` and maps stable telemetry fields to Prometheus metrics.
+- Requests full snapshots with `pushall`, requests the module list once per connection with `get_version` (read-only; used for model detection), and maps stable telemetry fields to Prometheus metrics.
 - Printer model detection order: `product_name` from the module list → serial prefix (payload `print.sn`, then the configured `BAMBULAB_SERIAL`) → `BAMBULAB_PRINTER_MODEL` → unambiguous `hw_ver`+`project_name` pairs. Recognized models: X1, X1C, X1E, X2D, P1P, P1S, P2S, A1, A1 mini, A2L, H2D, H2D Pro, H2S, H2C. Detection is not the same as validation: only the X1C has been tested on real hardware.
 
 > **Deployment:** This project is deployed via Docker. There is no pip/PyPI distribution.
@@ -160,7 +160,7 @@ In any of these cases, start the container without `BAMBULAB_CLOUD_CODE` to trig
 | `BAMBULAB_SERIAL` | yes | - | Printer serial/device id |
 | `BAMBULAB_ACCESS_CODE` | yes (local) | - | Printer LAN access code |
 | `BAMBULAB_USERNAME` | no | `bblp` | MQTT username |
-| `BAMBULAB_REQUEST_PUSHALL` | no | `true` | Request full snapshot every poll |
+| `BAMBULAB_REQUEST_PUSHALL` | no | `true` | Request full snapshot every poll, and the module list (`get_version`) on each connect |
 | `BAMBULAB_SECRET_KEY` | yes (cloud) | - | Encrypts stored cloud credentials; keep stable |
 | `BAMBULAB_CLOUD_EMAIL` | yes (cloud) | - | Bambu account email for OTP flow |
 | `BAMBULAB_CLOUD_CODE` | bootstrap only | - | One-time OTP code; remove after first auth |
