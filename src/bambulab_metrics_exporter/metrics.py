@@ -281,6 +281,12 @@ class ExporterMetrics:
     def _labels(self) -> dict[str, str]:
         return self._base_labels
 
+    def last_success_timestamp(self) -> float | None:
+        """Unix time of the last successful polling cycle, or None before the first."""
+        return self.registry.get_sample_value(
+            "bambulab_exporter_last_success_unixtime", self._base_labels
+        )
+
     def update_from_snapshot(self, snapshot: PrinterSnapshot) -> None:
         labels = self._labels()
         has_payload = 1.0 if snapshot.raw else 0.0
