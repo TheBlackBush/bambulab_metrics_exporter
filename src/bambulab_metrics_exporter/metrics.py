@@ -92,6 +92,54 @@ class ExporterMetrics:
             [*label_names, "extruder_id"],
             registry=self.registry,
         )
+        self.firmware_update_available = Gauge(
+            "bambulab_firmware_update_available",
+            "1 when a firmware update is available, 0 when up to date",
+            label_names,
+            registry=self.registry,
+        )
+        self.module_firmware_info = Gauge(
+            "bambulab_module_firmware_info",
+            "Firmware version per module from get_version (module ota is the printer)",
+            [*label_names, "module", "version"],
+            registry=self.registry,
+        )
+        self.tool_head_info = Gauge(
+            "bambulab_tool_head_info",
+            "Mounted tool head (none, laser_10w, laser_40w, cutter, cooling_fan, other)",
+            [*label_names, "tool"],
+            registry=self.registry,
+        )
+        self.accessory_present = Gauge(
+            "bambulab_accessory_present",
+            "1 if the accessory is installed, 0 if not",
+            [*label_names, "accessory"],
+            registry=self.registry,
+        )
+        self.light_mode_info = Gauge(
+            "bambulab_light_mode_info",
+            "Light mode per light (on, off, flashing, unknown)",
+            [*label_names, "light", "mode"],
+            registry=self.registry,
+        )
+        self.timelapse_storage_free_bytes = Gauge(
+            "bambulab_timelapse_storage_free_bytes",
+            "Free timelapse storage space",
+            [*label_names, "storage"],
+            registry=self.registry,
+        )
+        self.timelapse_storage_total_bytes = Gauge(
+            "bambulab_timelapse_storage_total_bytes",
+            "Total timelapse storage space",
+            [*label_names, "storage"],
+            registry=self.registry,
+        )
+        self.toolhead_filament_present = Gauge(
+            "bambulab_toolhead_filament_present",
+            "1 if the extruder filament sensor detects filament",
+            [*label_names, "extruder_id"],
+            registry=self.registry,
+        )
         self.fan_big_1_speed = Gauge("bambulab_fan_big_1_speed_percent", "Big fan 1 speed percent", label_names, registry=self.registry)
         self.fan_big_2_speed = Gauge("bambulab_fan_big_2_speed_percent", "Big fan 2 speed percent", label_names, registry=self.registry)
         self.fan_cooling_speed = Gauge("bambulab_fan_cooling_speed_percent", "Cooling fan speed percent", label_names, registry=self.registry)
@@ -424,6 +472,28 @@ class ExporterMetrics:
         self.airduct_fan_speed.clear()
         for fan, speed in snapshot.airduct_fan_speeds.items():
             self.airduct_fan_speed.labels(**labels, fan=fan).set(speed)
+
+        self._set_optional(self.firmware_update_available, snapshot.firmware_update_available)
+        self.module_firmware_info.clear()
+        for module, version in snapshot.module_firmware_versions.items():
+            self.module_firmware_info.labels(**labels, module=module, version=version).set(1.0)
+        self.tool_head_info.clear()
+        if snapshot.tool_head_name is not None:
+            self.tool_head_info.labels(**labels, tool=snapshot.tool_head_name).set(1.0)
+        self.accessory_present.clear()
+        for accessory, present in snapshot.accessories_present.items():
+            self.accessory_present.labels(**labels, accessory=accessory).set(present)
+        self.light_mode_info.clear()
+        for light_node, light_mode in snapshot.light_modes.items():
+            self.light_mode_info.labels(**labels, light=light_node, mode=light_mode).set(1.0)
+        self.timelapse_storage_free_bytes.clear()
+        self.timelapse_storage_total_bytes.clear()
+        for storage, (free, total) in snapshot.timelapse_storage.items():
+            self.timelapse_storage_free_bytes.labels(**labels, storage=storage).set(free)
+            self.timelapse_storage_total_bytes.labels(**labels, storage=storage).set(total)
+        self.toolhead_filament_present.clear()
+        for extruder, present in snapshot.toolhead_filament_present.items():
+            self.toolhead_filament_present.labels(**labels, extruder_id=extruder).set(present)
 
         self.nozzle_wear.clear()
         self.nozzle_print_time_seconds.clear()

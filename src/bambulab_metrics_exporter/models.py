@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -146,6 +147,35 @@ AIRDUCT_FAN_NAMES: dict[int, str] = {
     6: "inner_loop",
     10: "aux_2",
 }
+
+# Lights in lights_report; modes per Bambu Studio DevLamp / Bambu Handy BblpLightNode.
+LIGHT_NODES: tuple[str, ...] = ("chamber_light", "chamber_light2", "work_light", "heatbed_light")
+LIGHT_MODES: tuple[str, ...] = ("on", "off", "flashing")
+
+# device.ext_tool (mounted 2D tool head or 3D accessory). Bambu Studio maps CP00 cutter,
+# LB00 laser, F000 fan; LB01 (40 W laser) is from ha-bambulab only.
+_TOOL_HEAD_TYPES: dict[str, str] = {
+    "LB00": "laser_10w",
+    "LB01": "laser_40w",
+    "CP00": "cutter",
+    "F000": "cooling_fan",
+}
+TOOL_HEADS: tuple[str, ...] = ("none", *_TOOL_HEAD_TYPES.values(), "other")
+
+# Accessories and how they are detected: get_version product_name substring (Bambu
+# Studio DevFirmware), plus payload flags where the printer reports one.
+ACCESSORY_PRODUCT_NAMES: dict[str, str] = {
+    "filament_buffer": "Filament Buffer",
+    "external_exhaust_fan": "Exhaust Fan",
+    "fire_extinguisher": "Extinguishing System",
+    "rotary_attachment": "Rotary",
+    "filament_switch": "Filament Track",
+    "air_pump": "Air Pump",
+}
+_AUX_FILAMENT_SWITCH_BIT = 29
+
+_FIRMWARE_VERSION_RE = re.compile(r"^\d{2}\.\d{2}\.\d{2}\.\d{2}$")
+_MODULE_NAME_RE = re.compile(r"^[a-z0-9_-]{1,16}(/\d{1,3})?$")
 
 # get_version module name prefix ("n3f/0") → AMS model, for units without info/sn.
 AMS_MODEL_BY_MODULE_PREFIX: dict[str, str] = {
@@ -435,6 +465,33 @@ STG_CUR_NAMES: dict[int, str] = {
     56: "calibrating_cutter_model_offset",
     57: "measuring_surface",
     58: "thermal_preconditioning",
+    # 59-88: Bambu Handy BblpPrintStage (59-77 also in Bambu Studio and ha-bambulab).
+    59: "homing_blade_holder",
+    60: "calibrating_camera_offset",
+    61: "calibrating_blade_holder_position",
+    62: "hotend_pick_and_place_test",
+    63: "waiting_chamber_temperature_equalize",
+    64: "preparing_hotend",
+    65: "calibrating_nozzle_clumping_detection",
+    66: "purifying_chamber_air",
+    67: "measuring_rotary_attachment",
+    68: "toolhead_moving_above_purge_chute",
+    69: "cooling_nozzle",
+    70: "toolhead_moving_to_bed_center",
+    71: "active_arc_fitting",
+    72: "detecting_hotend_type",
+    73: "detecting_build_plate_alignment",
+    74: "detecting_foreign_object_on_bed_surface",
+    75: "detecting_foreign_object_under_bed",
+    76: "pre_extruding",
+    77: "preparing_ams",
+    78: "compensating_timing_belt_artifacts",
+    79: "preparing_accessory",
+    81: "detecting_cutting_pad_offset",
+    82: "stabilizing_heatbed_temperature",
+    83: "calibrating_tool_rack_position",
+    84: "tool_pick_and_place_test",
+    88: "processing_2d_job",
     255: "idle",
 }
 
@@ -1034,6 +1091,138 @@ class PrinterSnapshot:
         return out
 
     @property
+    def firmware_update_available(self) -> float | None:
+        """1 when new firmware is offered (`upgrade_state.new_version_state` 1 or
+        `new_version` true), 0 when up to date (state 2); None when unknown (0/absent)."""
+        upgrade = self.print_block.get("upgrade_state")
+        if not isinstance(upgrade, dict):
+            return None
+        state = to_int(upgrade.get("new_version_state"))
+        if state == 1 or upgrade.get("new_version") is True:
+            return 1.0
+        if state == 2:
+            return 0.0
+        return None
+
+    @property
+    def module_firmware_versions(self) -> dict[str, str]:
+        """get_version module name → firmware version ("ota" is the printer firmware).
+        Names and versions that do not match the expected shapes are skipped."""
+        versions: dict[str, str] = {}
+        for mod in self.modules:
+            name, version = mod.get("name"), mod.get("sw_ver")
+            if not isinstance(name, str) or not isinstance(version, str):
+                continue
+            name, version = name.strip().lower(), version.strip()
+            if _MODULE_NAME_RE.match(name) and _FIRMWARE_VERSION_RE.match(version):
+                versions[name] = version
+        return versions
+
+    @property
+    def tool_head_name(self) -> str | None:
+        """Mounted tool head from `device.ext_tool`; None without the block.
+
+        `mount` 1 is a mounted 2D tool (laser, cutter), `mount_3d` 1 a 3D accessory
+        (toolhead cooling fan)."""
+        device = self.print_block.get("device")
+        ext_tool = device.get("ext_tool") if isinstance(device, dict) else None
+        if not isinstance(ext_tool, dict):
+            return None
+        if to_int(ext_tool.get("mount")) != 1 and to_int(ext_tool.get("mount_3d")) != 1:
+            return "none"
+        tool_type = ext_tool.get("type")
+        if not isinstance(tool_type, str):
+            return "other"
+        return _TOOL_HEAD_TYPES.get(tool_type.strip().upper(), "other")
+
+    @property
+    def accessories_present(self) -> dict[str, float]:
+        """Accessory → 1/0. An accessory is only reported when a source can tell: the
+        get_version module list, or the printer's own flag for it."""
+        names = [
+            mod["product_name"] for mod in self.modules
+            if isinstance(mod.get("product_name"), str)
+        ]
+        have_modules = bool(self.modules)
+        device = self.print_block.get("device")
+        device = device if isinstance(device, dict) else {}
+        flags: dict[str, bool] = {}
+        for key, accessory in (
+            ("fire_ext", "fire_extinguisher"),
+            ("fourth_axis", "rotary_attachment"),
+        ):
+            block = device.get(key)
+            connected = to_int(block.get("connect_flag")) if isinstance(block, dict) else None
+            if connected is not None:
+                flags[accessory] = connected == 1
+        aux = self.print_block.get("aux")
+        if isinstance(aux, str):
+            try:
+                flags["filament_switch"] = bool(int(aux, 16) >> _AUX_FILAMENT_SWITCH_BIT & 1)
+            except ValueError:
+                pass
+        out: dict[str, float] = {}
+        for accessory, product in ACCESSORY_PRODUCT_NAMES.items():
+            in_modules = any(product in name for name in names)
+            if accessory in flags:
+                out[accessory] = 1.0 if flags[accessory] or in_modules else 0.0
+            elif have_modules:
+                out[accessory] = 1.0 if in_modules else 0.0
+        return out
+
+    @property
+    def light_modes(self) -> dict[str, str]:
+        """Light node → mode (on, off, flashing, unknown) for known nodes."""
+        modes: dict[str, str] = {}
+        for light in self.lights_report:
+            node, mode = light.get("node"), light.get("mode")
+            if node not in LIGHT_NODES:
+                continue
+            mode = mode.strip().lower() if isinstance(mode, str) else ""
+            modes[node] = mode if mode in LIGHT_MODES else "unknown"
+        return modes
+
+    @property
+    def timelapse_storage(self) -> dict[str, tuple[float, float]]:
+        """Storage → (free, total) bytes from `tl_{internal,external}_{free,total}_kb`
+        (`device.cam` per Bambu Studio, `ipcam` on X2D firmware). Values are KiB; -1
+        means unknown and a total of 0 means no storage, both omitted."""
+        device = self.print_block.get("device")
+        blocks = [
+            device.get("cam") if isinstance(device, dict) else None,
+            self.print_block.get("ipcam"),
+        ]
+        out: dict[str, tuple[float, float]] = {}
+        for storage in ("internal", "external"):
+            for block in blocks:
+                if not isinstance(block, dict):
+                    continue
+                free = to_int(block.get(f"tl_{storage}_free_kb"))
+                total = to_int(block.get(f"tl_{storage}_total_kb"))
+                if free is not None and total is not None and free >= 0 and total > 0:
+                    out[storage] = (float(free * 1024), float(total * 1024))
+                    break
+        return out
+
+    @property
+    def toolhead_filament_present(self) -> dict[str, float]:
+        """Extruder → 1 when its filament sensor detects filament.
+
+        New firmware: `device.extruder.info[].info` bit 1 (Bambu Studio DevExtruderSystem).
+        Older firmware: `hw_switch_state` for the single extruder (non-zero = present)."""
+        out: dict[str, float] = {}
+        for entry in self.extruder_entries:
+            info = entry.get("info")
+            if isinstance(info, int):
+                out[entry["id"]] = float(info >> 1 & 1)
+        if out:
+            return out
+        state = to_int(self.print_block.get("hw_switch_state"))
+        if state is not None:
+            out["0"] = 1.0 if state != 0 else 0.0
+        return out
+
+    @property
     def hms_counts(self) -> tuple[dict[str, int], dict[str, int]] | None:
         """Active HMS errors counted by severity and by module; None without an `hms` list.
 
@@ -1154,6 +1343,7 @@ class PrinterSnapshot:
                     "hnow": to_int(item.get("hnow")),
                     # Loaded slot: (ams_id << 8) | slot, see active_filament_source.
                     "snow": to_int(item.get("snow")),
+                    "info": to_int(item.get("info")),
                 }
             )
         return out

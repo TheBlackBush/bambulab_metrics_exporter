@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added
+- Firmware: `bambulab_firmware_update_available` and
+  `bambulab_module_firmware_info{module,version}` (from `get_version`).
+- Accessories: `bambulab_tool_head_info{tool}` (laser, cutter, cooling fan) and
+  `bambulab_accessory_present{accessory}` (filament buffer, external exhaust fan, fire
+  extinguisher, rotary attachment, filament switch, air pump).
+- `bambulab_light_mode_info{light,mode}` covering `chamber_light2` and `heatbed_light`.
+- `bambulab_toolhead_filament_present{extruder_id}` and X2D timelapse storage
+  (`bambulab_timelapse_storage_{free,total}_bytes{storage}`).
+- Print stage names for codes 59-84 and 88 (previously `unknown_<n>`).
 - AMS drying (AMS 2 Pro, AMS HT): `bambulab_ams_drying_remaining_seconds{ams_id}`,
   `bambulab_ams_drying_target_temperature_celsius{ams_id}` and
   `bambulab_ams_drying_duration_seconds{ams_id}`.

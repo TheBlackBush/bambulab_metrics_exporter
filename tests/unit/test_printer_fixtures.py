@@ -366,3 +366,86 @@ def test_mounted_nozzle_wear_and_print_time(name: str, extruders: list, print_ti
     assert wear == extruders
     times = sorted(labels["extruder_id"] for labels, _ in _samples(metrics, "bambulab_nozzle_print_time_seconds"))
     assert times == (extruders if print_time else [])
+
+
+@pytest.mark.parametrize(
+    ("name", "expected", "ota"),
+    [
+        ("x1c_fw0112_ams1", 0.0, "01.12.00.00"),
+        ("h2d", 0.0, "01.01.01.00"),
+        ("h2d_pro", None, "01.01.00.00"),  # new_version_state 0: unknown
+    ],
+)
+def test_firmware_update_and_versions(name: str, expected: float | None, ota: str) -> None:
+    _, _, metrics = _load(name)
+    got = _value(metrics, "bambulab_firmware_update_available")
+    assert math.isnan(got) if expected is None else got == expected
+    versions = {
+        labels["module"]: labels["version"]
+        for labels, _ in _samples(metrics, "bambulab_module_firmware_info")
+    }
+    assert versions["ota"] == ota and "mc" in versions
+
+
+@pytest.mark.parametrize(
+    ("name", "tool"),
+    [
+        ("h2d", "laser_10w"),
+        ("h2c", "cooling_fan"),  # mount_3d 1, type F000
+        ("x2d", "none"),
+        ("a1", None),  # no ext_tool block
+    ],
+)
+def test_tool_head(name: str, tool: str | None) -> None:
+    _, _, metrics = _load(name)
+    got = [labels["tool"] for labels, _ in _samples(metrics, "bambulab_tool_head_info")]
+    assert got == ([] if tool is None else [tool])
+
+
+@pytest.mark.parametrize(
+    ("name", "present"),
+    [
+        ("x2d", {"filament_buffer", "external_exhaust_fan"}),
+        ("p2s", {"filament_buffer"}),
+        ("x1c_multi_ams", set()),  # "AMS Hub" is not a filament buffer
+        ("h2s", set()),  # fire_ext block present but connect_flag 0
+    ],
+)
+def test_accessories(name: str, present: set[str]) -> None:
+    _, _, metrics = _load(name)
+    got = {labels["accessory"]: v for labels, v in _samples(metrics, "bambulab_accessory_present")}
+    assert set(got) == {
+        "filament_buffer", "external_exhaust_fan", "fire_extinguisher", "rotary_attachment",
+        "filament_switch", "air_pump",
+    }
+    assert {k for k, v in got.items() if v == 1.0} == present
+
+
+def test_light_modes() -> None:
+    _, _, metrics = _load("h2d")
+    got = {labels["light"]: labels["mode"] for labels, _ in _samples(metrics, "bambulab_light_mode_info")}
+    assert got == {"chamber_light": "on", "chamber_light2": "on", "work_light": "flashing"}
+
+
+def test_timelapse_storage_x2d() -> None:
+    _, _, metrics = _load("x2d")
+    free = {labels["storage"]: v for labels, v in _samples(metrics, "bambulab_timelapse_storage_free_bytes")}
+    total = {labels["storage"]: v for labels, v in _samples(metrics, "bambulab_timelapse_storage_total_bytes")}
+    # External storage reports 0/0 (none inserted) and is omitted.
+    assert free == {"internal": 881996 * 1024.0}
+    assert total == {"internal": 962560 * 1024.0}
+
+
+@pytest.mark.parametrize(
+    ("name", "present"),
+    [
+        ("h2d", {"0": 1.0, "1": 0.0}),  # hw_switch_state 1
+        ("x2d", {"0": 0.0, "1": 1.0}),  # hw_switch_state 2
+        ("p1p_no_ams", {"0": 1.0}),  # legacy hw_switch_state only
+        ("x1c_fw0112_ams1", {"0": 0.0}),
+    ],
+)
+def test_toolhead_filament_present(name: str, present: dict[str, float]) -> None:
+    _, _, metrics = _load(name)
+    got = {labels["extruder_id"]: v for labels, v in _samples(metrics, "bambulab_toolhead_filament_present")}
+    assert got == present

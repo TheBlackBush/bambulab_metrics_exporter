@@ -482,7 +482,7 @@ def test_extruder_entries_unpack_temp() -> None:
         connected=True,
         raw={"print": {"device": {"extruder": {"info": [{"id": 0, "temp": packed, "hnow": 1}]}}}},
     )
-    assert snap.extruder_entries == [{"id": "0", "actual_temp": 210.0, "target_temp": 220.0, "hnow": 1, "snow": None}]
+    assert snap.extruder_entries == [{"id": "0", "actual_temp": 210.0, "target_temp": 220.0, "hnow": 1, "snow": None, "info": None}]
 
 
 def test_extruder_nozzle_info_entries_map_via_hnow() -> None:
