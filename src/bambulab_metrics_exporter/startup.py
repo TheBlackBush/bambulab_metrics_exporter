@@ -87,7 +87,7 @@ def _validate_cloud(settings: Settings) -> None:
                 return
             logger.warning("Refresh produced new tokens but probe still failed; falling back to re-auth")
         except CloudAuthTransientError as exc:
-            # Network/server issue — don't force 2FA; surface the transient error clearly
+            # Network/server issue, so don't force 2FA; surface the transient error clearly
             raise RuntimeError(
                 f"Cloud token refresh failed due to a transient network or API issue: {exc}. "
                 "Will not force 2FA. Check network connectivity and retry."
@@ -113,8 +113,8 @@ def _try_token_refresh(settings: Settings, refresh_token: str) -> None:
     """Exchange ``refresh_token`` for new credentials and persist them.
 
     Raises:
-        CloudAuthInvalidError: Token definitively rejected — caller should fall back to 2FA.
-        CloudAuthTransientError: Network/API issue — caller should NOT force 2FA.
+        CloudAuthInvalidError: Token definitively rejected; caller should fall back to 2FA.
+        CloudAuthTransientError: Network/API issue; caller should NOT force 2FA.
     """
     result = refresh_access_token(refresh_token)  # may raise CloudAuthInvalidError / CloudAuthTransientError
 

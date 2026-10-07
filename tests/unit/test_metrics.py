@@ -895,7 +895,7 @@ class TestAmsExistingMetricLabelsUnchanged:
         )
         m.update_from_snapshot(snap)
         labels = {"printer_name": "test", "serial": "SN123"}
-        # Must work with only ams_id — no ams_model/ams_series
+        # Must work with only ams_id; no ams_model/ams_series
         v = m.ams_unit_humidity.labels(**labels, ams_id="0")._value.get()
         assert v == 55.0
 
@@ -922,7 +922,7 @@ class TestAmsExistingMetricLabelsUnchanged:
         )
         m.update_from_snapshot(snap)
         labels = {"printer_name": "test", "serial": "SN123"}
-        # Must work with only ams_id + slot_id — no ams_model/ams_series
+        # Must work with only ams_id + slot_id; no ams_model/ams_series
         v = m.ams_slot_active.labels(**labels, ams_id="0", slot_id="1")._value.get()
         assert v == 1.0
 

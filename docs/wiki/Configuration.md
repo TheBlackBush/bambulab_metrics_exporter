@@ -9,10 +9,10 @@ All configuration is via environment variables. Copy `.env.example` to `.env` an
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `BAMBULAB_TRANSPORT` | no | `local_mqtt` | Transport: `local_mqtt` or `cloud_mqtt` |
-| `BAMBULAB_HOST` | yes (LAN) | — | Printer IP or hostname |
+| `BAMBULAB_HOST` | yes (LAN) | - | Printer IP or hostname |
 | `BAMBULAB_PORT` | no | `8883` | Printer MQTT TLS port |
-| `BAMBULAB_SERIAL` | yes | — | Printer serial / device ID |
-| `BAMBULAB_ACCESS_CODE` | yes (LAN) | — | Printer LAN access code |
+| `BAMBULAB_SERIAL` | yes | - | Printer serial / device ID |
+| `BAMBULAB_ACCESS_CODE` | yes (LAN) | - | Printer LAN access code |
 | `BAMBULAB_USERNAME` | no | `bblp` | MQTT username |
 
 ---
@@ -21,12 +21,12 @@ All configuration is via environment variables. Copy `.env.example` to `.env` an
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `BAMBULAB_CLOUD_USER_ID` | yes (cloud) | — | Cloud user ID |
-| `BAMBULAB_CLOUD_ACCESS_TOKEN` | yes (cloud) | — | Cloud access token |
+| `BAMBULAB_CLOUD_USER_ID` | yes (cloud) | - | Cloud user ID |
+| `BAMBULAB_CLOUD_ACCESS_TOKEN` | yes (cloud) | - | Cloud access token |
 | `BAMBULAB_CLOUD_MQTT_HOST` | no | `us.mqtt.bambulab.com` | Cloud MQTT broker |
 | `BAMBULAB_CLOUD_MQTT_PORT` | no | `8883` | Cloud MQTT TLS port |
-| `BAMBULAB_CLOUD_EMAIL` | conditional | — | Required only when cloud credentials are missing or expired (triggers re-auth flow) |
-| `BAMBULAB_CLOUD_CODE` | no | — | Verification code for re-auth |
+| `BAMBULAB_CLOUD_EMAIL` | conditional | - | Required only when cloud credentials are missing or expired (triggers re-auth flow) |
+| `BAMBULAB_CLOUD_CODE` | no | - | Verification code for re-auth |
 
 ---
 
@@ -34,7 +34,7 @@ All configuration is via environment variables. Copy `.env.example` to `.env` an
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `BAMBULAB_SECRET_KEY` | yes (cloud) | — | Encryption key for local credentials |
+| `BAMBULAB_SECRET_KEY` | yes (cloud) | - | Encryption key for local credentials |
 | `BAMBULAB_CONFIG_DIR` | no | `/config/bambulab-metrics-exporter` | Config directory |
 
 ### Generating `BAMBULAB_SECRET_KEY`
@@ -55,7 +55,7 @@ BAMBULAB_SECRET_KEY=a3f1c8e2d4b7901234567890abcdef1234567890abcdef1234567890abcd
 
 > **Safety notes:**
 > - **Never commit or share this key.** Add `.env` to `.gitignore`.
-> - **Keep the key stable.** Changing it will invalidate any encrypted credentials on the config volume — you will need to re-run `bambulab-cloud-auth` to re-authenticate.
+> - **Keep the key stable.** Changing it will invalidate any encrypted credentials on the config volume; you will need to re-run `bambulab-cloud-auth` to re-authenticate.
 
 ---
 
@@ -78,9 +78,9 @@ BAMBULAB_SECRET_KEY=a3f1c8e2d4b7901234567890abcdef1234567890abcdef1234567890abcd
 | `PRINTER_NAME_LABEL` | no | empty | **Canonical** custom printer name label; takes priority over all other sources |
 | `BAMBULAB_PRINTER_NAME` | no | `auto` | Discovered printer name (auto-persisted) |
 
-> **Note:** `PRINTER_NAME_LABEL` is the current canonical variable for setting a stable printer label. Older examples or documentation may reference `PRINTER_NAME` — that name is no longer used. Use `PRINTER_NAME_LABEL` in all new configurations.
+> **Note:** `PRINTER_NAME_LABEL` is the current canonical variable for setting a stable printer label. Older examples or documentation may reference `PRINTER_NAME`; that name is no longer used. Use `PRINTER_NAME_LABEL` in all new configurations.
 
-> **Deprecated — no effect:** `SITE` and `LOCATION` variables appeared in older configurations but are **inactive** and have no effect. Do not set them; they are ignored by the exporter.
+> **Deprecated (no effect):** `SITE` and `LOCATION` variables appeared in older configurations but are **inactive** and have no effect. Do not set them; they are ignored by the exporter.
 
 All metrics include `printer_name` and `serial` labels.
 

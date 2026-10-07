@@ -272,7 +272,7 @@ def test_try_token_refresh_persists_credentials(tmp_path: Path, monkeypatch: pyt
 
 
 # ---------------------------------------------------------------------------
-# _validate_cloud — refresh token scenarios
+# _validate_cloud: refresh token scenarios
 # ---------------------------------------------------------------------------
 
 def test_validate_cloud_invalid_access_valid_refresh_skips_2fa(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -377,7 +377,7 @@ def test_startup_validate_dispatch(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Additional edge cases — startup token refresh and reauth branches
+# Additional edge cases: startup token refresh and reauth branches
 # ---------------------------------------------------------------------------
 
 def test_try_token_refresh_no_secret_key_warns(monkeypatch: pytest.MonkeyPatch) -> None:

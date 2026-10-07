@@ -11,7 +11,7 @@
 **Cloud re-auth loop**
 1. Check email for the verification code
 2. Add `BAMBULAB_CLOUD_CODE=<code>` to `.env` and restart
-3. On success, credentials are saved encrypted — code is no longer needed
+3. On success, credentials are saved encrypted; the code is no longer needed
 
 **LAN connection preflight fails**
 - Verify printer IP and LAN access code (Settings → Network on printer)
@@ -22,8 +22,8 @@
 
 ## No Metrics / Empty /metrics
 
-- Check `/ready` — "Warming Up" means still connecting
-- Check `bambulab_exporter_scrape_success` — if 0, look at logs
+- Check `/ready`: "Warming Up" means still connecting
+- Check `bambulab_exporter_scrape_success`; if 0, look at logs
 - Set `LOG_LEVEL=DEBUG` for verbose output
 - Verify `BAMBULAB_REQUEST_PUSHALL=true` (default)
 
@@ -31,7 +31,7 @@
 
 ## Stale Metrics
 
-- Check `bambulab_printer_connected` — if 0, MQTT session dropped
+- Check `bambulab_printer_connected`; if 0, MQTT session dropped
 - Cloud: access token may have expired; restart to trigger re-auth
 - Check `bambulab_exporter_last_success_unixtime` for staleness
 
@@ -62,7 +62,7 @@
 
 ## Fan Metrics Look Wrong
 
-Fan values use step-aware normalization (raw 0–15 → nearest-10 %) — this is intentional.
+Fan values use step-aware normalization (raw 0–15 → nearest-10 %); this is intentional.
 
 ---
 

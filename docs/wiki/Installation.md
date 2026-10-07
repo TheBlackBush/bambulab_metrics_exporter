@@ -8,7 +8,7 @@
 
 ---
 
-## Option 1: Pre-built Container (GHCR) — Recommended
+## Option 1 (Recommended): Pre-built Container (GHCR)
 
 ```bash
 docker pull ghcr.io/theblackbush/bambulab_metrics_exporter:latest
@@ -61,7 +61,7 @@ A ready-to-import Unraid template is included: `unraid-bambulab-metrics-exporter
 
 ## Choosing a Mode
 
-The exporter supports two transport modes. **`local_mqtt` is the default** — it is used when `BAMBULAB_TRANSPORT` is not set or is set to `local_mqtt`.
+The exporter supports two transport modes. **`local_mqtt` is the default**: it is used when `BAMBULAB_TRANSPORT` is not set or is set to `local_mqtt`.
 
 | Mode | When to use |
 |------|-------------|
@@ -72,10 +72,10 @@ If `BAMBULAB_TRANSPORT=cloud_mqtt` is not explicitly set, the exporter always fa
 
 ---
 
-### Local Mode — minimum required env vars
+### Local Mode: minimum required env vars
 
 ```dotenv
-BAMBULAB_TRANSPORT=local_mqtt   # optional — this is the default
+BAMBULAB_TRANSPORT=local_mqtt   # optional: this is the default
 BAMBULAB_HOST=192.168.1.100     # printer IP/hostname
 BAMBULAB_SERIAL=01P00A000000000 # printer serial number
 BAMBULAB_ACCESS_CODE=12345678   # LAN access code
@@ -85,7 +85,7 @@ The container will refuse to start if any of these three values are missing whil
 
 ---
 
-### Cloud Mode — minimum required env vars
+### Cloud Mode: minimum required env vars
 
 ```dotenv
 BAMBULAB_TRANSPORT=cloud_mqtt
@@ -94,7 +94,7 @@ BAMBULAB_SECRET_KEY=<32-byte hex> # generated with: openssl rand -hex 32
 BAMBULAB_CLOUD_EMAIL=you@example.com
 ```
 
-After the first successful authentication, credentials are stored encrypted in the config volume. On subsequent starts the stored credentials are loaded automatically — no OTP needed unless re-authentication is required (see below).
+After the first successful authentication, credentials are stored encrypted in the config volume. On subsequent starts the stored credentials are loaded automatically; no OTP needed unless re-authentication is required (see below).
 
 > **Important:** keep `BAMBULAB_SECRET_KEY` stable. Changing it invalidates the stored credential file and forces a full re-authentication.
 
@@ -104,7 +104,7 @@ After the first successful authentication, credentials are stored encrypted in t
 
 Cloud authentication uses the `bambulab-cloud-auth` tool included in the container image. No local Python installation is required.
 
-**Step 1 — Send a verification code to your Bambu account email:**
+**Step 1: Send a verification code to your Bambu account email:**
 
 ```bash
 docker run --rm -it \
@@ -112,7 +112,7 @@ docker run --rm -it \
   bambulab-cloud-auth --email you@example.com --send-code
 ```
 
-**Step 2 — Exchange the code and save encrypted credentials:**
+**Step 2: Exchange the code and save encrypted credentials:**
 
 ```bash
 docker run --rm -it \
@@ -136,7 +136,7 @@ Mount `/path/to/config` to the same location used by the running exporter so the
 3. Check your email for the code.
 4. Add `BAMBULAB_CLOUD_CODE=<code from email>` to your `.env` and restart the container.
 5. The container authenticates, persists encrypted credentials to the config volume, and continues running normally.
-6. **Remove `BAMBULAB_CLOUD_CODE` from `.env`** — it is not needed again for normal operation.
+6. **Remove `BAMBULAB_CLOUD_CODE` from `.env`**: it is not needed again for normal operation.
 
 After this, the exporter reuses stored credentials automatically on every restart.
 
@@ -146,7 +146,7 @@ Repeat the flow above if any of the following occur:
 
 - Stored credentials are missing or cleared (fresh config volume, accidental deletion).
 - The Bambu Cloud session has expired or the account password was changed.
-- `BAMBULAB_SECRET_KEY` was changed — the encrypted credential file can no longer be decrypted.
+- `BAMBULAB_SECRET_KEY` was changed: the encrypted credential file can no longer be decrypted.
 
 In all cases: start the container without `BAMBULAB_CLOUD_CODE` to trigger a new code delivery, then follow steps 3–6 above.
 
@@ -154,5 +154,5 @@ In all cases: start the container without `BAMBULAB_CLOUD_CODE` to trigger a new
 
 ## Next Steps
 
-Once the exporter is running, configure Prometheus to scrape it — see [Prometheus Setup](Prometheus-Setup).
+Once the exporter is running, configure Prometheus to scrape it; see [Prometheus Setup](Prometheus-Setup).
 For a full env var reference see [Configuration](Configuration).

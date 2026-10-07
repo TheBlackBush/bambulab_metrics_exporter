@@ -15,7 +15,7 @@ Get the exporter running in under 5 minutes.
 
 ## Mode Selection
 
-The exporter supports two transport modes. **`local_mqtt` is the default** — no extra configuration needed if your printer is on the same LAN.
+The exporter supports two transport modes. **`local_mqtt` is the default**: no extra configuration needed if your printer is on the same LAN.
 
 | Mode | `BAMBULAB_TRANSPORT` value | When to use |
 |------|---------------------------|-------------|
@@ -31,7 +31,7 @@ Omitting `BAMBULAB_TRANSPORT` is equivalent to setting it to `local_mqtt`.
 ### Step 1: Create your `.env` file
 
 ```dotenv
-BAMBULAB_TRANSPORT=local_mqtt   # optional — this is the default
+BAMBULAB_TRANSPORT=local_mqtt   # optional: this is the default
 BAMBULAB_HOST=192.168.1.100     # your printer's IP
 BAMBULAB_SERIAL=01P00A000000000 # your printer serial
 BAMBULAB_ACCESS_CODE=12345678   # LAN access code
@@ -70,7 +70,7 @@ Use this mode when the printer is not directly reachable over LAN.
 |----------|----------|-------------|
 | `BAMBULAB_TRANSPORT` | ✅ | Must be `cloud_mqtt` |
 | `BAMBULAB_SERIAL` | ✅ | Printer serial number |
-| `BAMBULAB_SECRET_KEY` | ✅ | Encrypts stored credentials — keep stable |
+| `BAMBULAB_SECRET_KEY` | ✅ | Encrypts stored credentials; keep stable |
 | `BAMBULAB_CLOUD_EMAIL` | ✅ (for OTP flow) | Your Bambu account email |
 | `BAMBULAB_CLOUD_USER_ID` + `BAMBULAB_CLOUD_ACCESS_TOKEN` | Alternative | Use if you already have tokens |
 
@@ -94,7 +94,7 @@ BAMBULAB_SECRET_KEY=<output from above>
 
 Cloud authentication uses a one-time verification code sent to your Bambu account email.
 
-**Step 1 — Send the verification code:**
+**Step 1: Send the verification code:**
 
 ```bash
 docker run --rm -it \
@@ -102,7 +102,7 @@ docker run --rm -it \
   bambulab-cloud-auth --email you@example.com --send-code
 ```
 
-**Step 2 — Exchange the code and save credentials:**
+**Step 2: Exchange the code and save credentials:**
 
 ```bash
 docker run --rm -it \
@@ -115,7 +115,7 @@ docker run --rm -it \
 
 Mount `/your/config/path` to the same path the running exporter uses for its config volume so the saved credentials are picked up automatically.
 
-**Step 3 — Start the exporter:**
+**Step 3: Start the exporter:**
 
 ```dotenv
 BAMBULAB_TRANSPORT=cloud_mqtt
@@ -135,7 +135,7 @@ docker run -d \
 
 ### BAMBULAB_CLOUD_CODE lifecycle
 
-The container handles cloud authentication natively on startup — no manual `bambulab-cloud-auth` runs required if you use this flow.
+The container handles cloud authentication natively on startup; no manual `bambulab-cloud-auth` runs required if you use this flow.
 
 **Initial authentication (container-native OTP flow):**
 
@@ -144,7 +144,7 @@ The container handles cloud authentication natively on startup — no manual `ba
 3. Check your email for the code.
 4. Add `BAMBULAB_CLOUD_CODE=<code from email>` to your `.env` and restart the container.
 5. The container authenticates, persists encrypted credentials to the config volume, and continues running normally.
-6. **Remove `BAMBULAB_CLOUD_CODE` from `.env`** — codes are single-use. It is not needed for steady-state operation.
+6. **Remove `BAMBULAB_CLOUD_CODE` from `.env`**: codes are single-use. It is not needed for steady-state operation.
 
 After step 6, the exporter loads stored credentials automatically on every restart.
 
@@ -154,7 +154,7 @@ Repeat the flow above if any of the following occur:
 
 - Stored credentials are missing or cleared (fresh config volume, accidental deletion).
 - The Bambu Cloud session has expired or the account password was changed.
-- `BAMBULAB_SECRET_KEY` was changed — the encrypted credential file can no longer be decrypted.
+- `BAMBULAB_SECRET_KEY` was changed: the encrypted credential file can no longer be decrypted.
 
 In all these cases, start the container without `BAMBULAB_CLOUD_CODE` to trigger a new code delivery, then follow steps 3–6 above.
 
