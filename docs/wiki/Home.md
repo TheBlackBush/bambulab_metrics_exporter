@@ -1,6 +1,6 @@
 # bambulab_metrics_exporter
 
-Production-oriented Prometheus exporter for Bambu Lab printers — homelab and self-hosted friendly.
+Production-oriented Prometheus exporter for Bambu Lab printers, homelab and self-hosted friendly.
 
 Connects to your printer via LAN MQTT or Cloud MQTT, requests periodic full-state snapshots, and exposes stable Prometheus metrics for print state, temperatures, AMS, fans, and more.
 
@@ -37,7 +37,7 @@ Once running, the exporter exposes:
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /` | Landing page — version, health, readiness |
+| `GET /` | Landing page: version, health, readiness |
 | `GET /metrics` | Prometheus metrics |
 | `GET /health` | Liveness check |
 | `GET /ready` | Readiness check |

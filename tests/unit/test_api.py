@@ -44,7 +44,7 @@ def test_ready_endpoint_warmup() -> None:
 
 
 # ---------------------------------------------------------------------------
-# / root endpoint — state and settings branches
+# / root endpoint: state and settings branches
 # ---------------------------------------------------------------------------
 
 def test_root_endpoint_warming_up_no_settings() -> None:

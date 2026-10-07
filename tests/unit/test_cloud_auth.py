@@ -411,7 +411,7 @@ def test_refresh_access_token_503_raises_transient(monkeypatch: pytest.MonkeyPat
 
 
 # ---------------------------------------------------------------------------
-# Additional edge cases — retry paths and missing key branches
+# Additional edge cases: retry paths and missing key branches
 # ---------------------------------------------------------------------------
 
 def test_as_int_float_input() -> None:

@@ -245,7 +245,7 @@ def refresh_access_token(
                     data: dict[str, object] = json.loads(body) if body else {}
 
                 if "error" in data:
-                    # Server returned 200 but with an error body — treat as invalid
+                    # Server returned 200 but with an error body; treat as invalid
                     raise CloudAuthInvalidError(
                         f"Refresh token rejected by {api_base}: {data['error']}"
                     )
@@ -254,7 +254,7 @@ def refresh_access_token(
                     access_token = str(data["accessToken"])
                     new_refresh = str(data.get("refreshToken", refresh_token))
                     expires_in = _as_int(data.get("expiresIn", 0))
-                    # user_id is not always returned in refresh response — extract best-effort
+                    # user_id is not always returned in refresh response; extract best-effort
                     user_id = _extract_user_id(
                         data,
                         access_token,
@@ -303,7 +303,7 @@ def refresh_access_token(
             + " || ".join(invalid_errors)
         )
 
-    # Mix of transient + invalid, or purely transient — don't force 2FA
+    # Mix of transient + invalid, or purely transient; don't force 2FA
     all_errors = transient_errors + invalid_errors
     raise CloudAuthTransientError(
         "Token refresh failed due to transient issues. Tried: "

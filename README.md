@@ -24,7 +24,7 @@ Full operator documentation lives in the [GitHub Wiki](https://github.com/TheBla
 | [Configuration](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Configuration) | Full environment variable reference |
 | [Prometheus Setup](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Prometheus-Setup) | Scrape config, job examples |
 | [Metrics Reference](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Metrics-Reference) | All metrics, PromQL examples |
-| [Grafana Dashboard](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Grafana-Dashboard) | Import steps, panel list, alert rules — also on [Grafana.com](https://grafana.com/grafana/dashboards/25033-bambulab-metrics/) |
+| [Grafana Dashboard](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Grafana-Dashboard) | Import steps, panel list, alert rules; also on [Grafana.com](https://grafana.com/grafana/dashboards/25033-bambulab-metrics/) |
 | [Troubleshooting](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Troubleshooting) | Common issues and debugging steps |
 
 ---
@@ -49,7 +49,7 @@ Full operator documentation lives in the [GitHub Wiki](https://github.com/TheBla
 - Periodically requests a full state snapshot (`pushall`)
 - Parses print state/telemetry into stable Prometheus metrics
 - Exposes:
-  - `GET /` — landing page with version and status
+  - `GET /`: landing page with version and status
   - `GET /metrics`
   - `GET /health`
   - `GET /ready`
@@ -67,7 +67,7 @@ Full operator documentation lives in the [GitHub Wiki](https://github.com/TheBla
 ## Quick start
 
 ```bash
-# Pull and run (Local mode — printer must be on same LAN)
+# Pull and run (Local mode: printer must be on same LAN)
 docker run -d \
   --name bambulab-exporter \
   -p 9109:9109 \
@@ -97,14 +97,14 @@ curl http://localhost:9109/metrics | grep bambulab_printer_connected
 
 ## Local mode vs Cloud mode
 
-The exporter supports two transport modes. **`local_mqtt` is the default** — no extra configuration needed if your printer is on the same LAN.
+The exporter supports two transport modes. **`local_mqtt` is the default**: no extra configuration needed if your printer is on the same LAN.
 
 | Mode | `BAMBULAB_TRANSPORT` | When to use |
 |------|----------------------|-------------|
 | **Local mode** (default) | `local_mqtt` (or omit) | Printer is on your LAN and LAN Mode is enabled |
 | **Cloud mode** | `cloud_mqtt` | Printer is not directly reachable (remote, CGNAT, etc.) |
 
-**Local mode — required vars:**
+**Local mode required vars:**
 
 ```dotenv
 BAMBULAB_HOST=192.168.1.100
@@ -112,7 +112,7 @@ BAMBULAB_SERIAL=01P00A000000000
 BAMBULAB_ACCESS_CODE=12345678
 ```
 
-**Cloud mode — required vars:**
+**Cloud mode required vars:**
 
 ```dotenv
 BAMBULAB_TRANSPORT=cloud_mqtt
@@ -134,7 +134,7 @@ Cloud credentials are obtained via the `bambulab-cloud-auth` CLI bundled in the 
 3. Check your email for the code.
 4. Add `BAMBULAB_CLOUD_CODE=<code>` to `.env` and restart the container.
 5. The container authenticates, stores encrypted credentials to the config volume, and starts normally.
-6. **Remove `BAMBULAB_CLOUD_CODE` from `.env`** — codes are single-use; it is not needed for normal operation.
+6. **Remove `BAMBULAB_CLOUD_CODE` from `.env`**: codes are single-use; it is not needed for normal operation.
 
 On every subsequent restart, stored credentials are loaded automatically.
 
@@ -144,7 +144,7 @@ On every subsequent restart, stored credentials are loaded automatically.
 
 - Stored credentials are missing or cleared (fresh config volume, accidental deletion).
 - The Bambu Cloud session expired or account password changed.
-- `BAMBULAB_SECRET_KEY` was changed — the encrypted credential file can no longer be decrypted.
+- `BAMBULAB_SECRET_KEY` was changed: the encrypted credential file can no longer be decrypted.
 
 In any of these cases, start the container without `BAMBULAB_CLOUD_CODE` to trigger a new code delivery, then follow steps 3–6 above.
 
@@ -161,7 +161,7 @@ In any of these cases, start the container without `BAMBULAB_CLOUD_CODE` to trig
 | `BAMBULAB_ACCESS_CODE` | yes (local) | - | Printer LAN access code |
 | `BAMBULAB_USERNAME` | no | `bblp` | MQTT username |
 | `BAMBULAB_REQUEST_PUSHALL` | no | `true` | Request full snapshot every poll |
-| `BAMBULAB_SECRET_KEY` | yes (cloud) | - | Encrypts stored cloud credentials — keep stable |
+| `BAMBULAB_SECRET_KEY` | yes (cloud) | - | Encrypts stored cloud credentials; keep stable |
 | `BAMBULAB_CLOUD_EMAIL` | yes (cloud) | - | Bambu account email for OTP flow |
 | `BAMBULAB_CLOUD_CODE` | bootstrap only | - | One-time OTP code; remove after first auth |
 | `BAMBULAB_CLOUD_USER_ID` | no | - | Cloud user id (if already obtained) |
@@ -207,7 +207,7 @@ docker run -d --name bambulab-exporter -p 9109:9109 --env-file .env \
 
 A ready-to-import template is included: `unraid-bambulab-metrics-exporter.xml`
 
-1. **Docker → Add Container → Template** — paste XML content or use Template URL.
+1. **Docker → Add Container → Template**: paste XML content or use Template URL.
 2. Fill in `BAMBULAB_SECRET_KEY` and required transport fields.
 3. Start container and verify `/metrics`.
 

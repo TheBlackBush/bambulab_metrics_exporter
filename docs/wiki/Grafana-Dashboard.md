@@ -9,7 +9,7 @@ The dashboard is also published on the [Grafana.com dashboard listing](https://g
 
 | File | Description |
 |------|-------------|
-| `examples/grafana/dashboard.sample.json` | Grafana dashboard JSON — import directly |
+| `examples/grafana/dashboard.sample.json` | Grafana dashboard JSON (import directly) |
 | `examples/grafana/dashboard-sample.jpg` | Screenshot of the sample dashboard |
 
 ---
@@ -33,12 +33,12 @@ Set `$printer` variable to your `printer_name` label value.
 
 ## Included Panels
 
-- **Print status** — progress %, remaining time, layer, gcode state
-- **Temperatures** — nozzle, bed, chamber (current and target)
-- **Fans** — big1, big2, cooling, heatbreak, secondary aux
-- **AMS** — humidity index per unit, remaining % per slot, filament type/color
-- **Print stage** — current stage name
-- **Exporter health** — last success, scrape duration, connectivity
+- **Print status**: progress %, remaining time, layer, gcode state
+- **Temperatures**: nozzle, bed, chamber (current and target)
+- **Fans**: big1, big2, cooling, heatbreak, secondary aux
+- **AMS**: humidity index per unit, remaining % per slot, filament type/color
+- **Print stage**: current stage name
+- **Exporter health**: last success, scrape duration, connectivity
 
 ---
 

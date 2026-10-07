@@ -35,8 +35,8 @@ A ready-to-use snippet is available at `examples/prometheus/prometheus.scrape.ym
 After reloading Prometheus:
 
 1. Open Prometheus UI → **Status → Targets**
-2. Find the `bambulab` job — state should be **UP**
-3. Query `bambulab_printer_connected` — expect value `1`
+2. Find the `bambulab` job: state should be **UP**
+3. Query `bambulab_printer_connected`: expect value `1`
 
 ---
 

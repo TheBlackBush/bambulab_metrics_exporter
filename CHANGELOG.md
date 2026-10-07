@@ -26,9 +26,9 @@ All notable changes to this project are documented in this file.
   - `refresh_access_token()` in `cloud_auth.py` uses the existing multi-base request pattern
     and returns an updated `LoginResult` with new `access_token` + `refresh_token`.
   - Two new exception types for precise error classification:
-    - `CloudAuthInvalidError` — credentials definitively rejected (HTTP 401/403 or error
+    - `CloudAuthInvalidError`: credentials definitively rejected (HTTP 401/403 or error
       body); triggers 2FA fallback.
-    - `CloudAuthTransientError` — network/server issue (connection error, 5xx); does **not**
+    - `CloudAuthTransientError`: network/server issue (connection error, 5xx); does **not**
       force 2FA, surfaces a clear transient error instead.
   - On successful refresh, updated credentials are persisted to the encrypted store (when
     `BAMBULAB_SECRET_KEY` is set) and synced to `.env`.
@@ -203,11 +203,11 @@ All notable changes to this project are documented in this file.
   - `unknown` fallback
 - **AMS series mapping**: `ams_1`/`ams_lite`→`gen_1`, `ams_2_pro`/`ams_ht`→`gen_2`
 - **New info metric**: `bambulab_ams_unit_info{printer_name,serial,ams_id,ams_model,ams_series,ams_serial}=1`
-- Existing AMS-scoped metrics (`bambulab_ams_unit_humidity*`, `bambulab_ams_slot_*`) retain their original label sets unchanged — model/series is only available via `bambulab_ams_unit_info`
+- Existing AMS-scoped metrics (`bambulab_ams_unit_humidity*`, `bambulab_ams_slot_*`) retain their original label sets unchanged; model/series is only available via `bambulab_ams_unit_info`
 - **Gen2 drying telemetry metrics** (emitted only when `ams_info` is present):
-  - `bambulab_ams_heater_state_info{...,ams_id,ams_model,ams_series,state}=1` — heater/dry state (bits 4-7)
-  - `bambulab_ams_dry_fan_status{...,ams_id,ams_model,ams_series,fan_id}` — fan1/fan2 state (bits 18-21)
-  - `bambulab_ams_dry_sub_status_info{...,ams_id,ams_model,ams_series,state}=1` — drying sub-status (bits 22-25)
+  - `bambulab_ams_heater_state_info{...,ams_id,ams_model,ams_series,state}=1`: heater/dry state (bits 4-7)
+  - `bambulab_ams_dry_fan_status{...,ams_id,ams_model,ams_series,fan_id}`: fan1/fan2 state (bits 18-21)
+  - `bambulab_ams_dry_sub_status_info{...,ams_id,ams_model,ams_series,state}=1`: drying sub-status (bits 22-25)
 - New `parse_ams_info()` utility function for `ams_info` bitmask parsing
 - New `resolve_ams_model()` and `resolve_ams_series()` functions in models module
 - New `ams_units_with_model` property on `PrinterSnapshot` returning enriched AMS unit dicts

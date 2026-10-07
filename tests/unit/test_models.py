@@ -872,7 +872,7 @@ class TestAmsSerialPrefixEdgeCases:
 
     def test_prefix_match_is_prefix_not_substring(self) -> None:
         # A serial that contains the prefix but NOT at the start should not match
-        # e.g. "XXX006ABCDEF" — prefix "006" is not at start
+        # e.g. "XXX006ABCDEF"; prefix "006" is not at start
         assert resolve_ams_model({"sn": "XXX006ABCDEF"}) == "unknown"
 
     def test_all_lowercase_prefix_matches(self) -> None:
@@ -1065,7 +1065,7 @@ class TestAmsUnknownFallbacks:
 
 
 # ---------------------------------------------------------------------------
-# Additional edge cases — uncovered branches from _parse_ams_info, _unpack_temperature,
+# Additional edge cases: uncovered branches from _parse_ams_info, _unpack_temperature,
 # printer_type, modules, chamber_temp, ams, extruder, hotend_rack, etc.
 # ---------------------------------------------------------------------------
 
