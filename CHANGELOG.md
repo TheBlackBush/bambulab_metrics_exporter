@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added
+- AMS drying (AMS 2 Pro, AMS HT): `bambulab_ams_drying_remaining_seconds{ams_id}`,
+  `bambulab_ams_drying_target_temperature_celsius{ams_id}` and
+  `bambulab_ams_drying_duration_seconds{ams_id}`.
+- Airduct (P2S, X2D, H2 family): `bambulab_airduct_mode_info{mode}` and
+  `bambulab_airduct_fan_speed_percent{fan}` with a fixed fan name set.
+- Mounted nozzles: `bambulab_nozzle_wear_ratio{extruder_id}` (raw value, unit unconfirmed)
+  and `bambulab_nozzle_print_time_seconds{extruder_id}`.
 - `bambulab_chamber_target_temperature_celsius` and `bambulab_chamber_heater_state` for
   models with a chamber heater (X1E, X2D, H2D, H2D Pro, H2S, H2C).
 - `bambulab_extruder_loaded_slot_info{extruder_id,ams_id,slot_id}`: filament loaded in each

@@ -88,6 +88,8 @@ Fan values: raw levels 0–15 → nearest-10 percent normalization.
 | `bambulab_fan_cooling_speed_percent` | Gauge | Cooling fan speed percent |
 | `bambulab_fan_heatbreak_speed_percent` | Gauge | Heatbreak fan speed percent |
 | `bambulab_fan_secondary_aux_speed_percent` | Gauge | Secondary auxiliary fan speed percent (airduct fan 10, part id 160; X2D). NaN when the printer has no such fan |
+| `bambulab_airduct_mode_info{mode}` | Info Gauge | Airduct mode (`device.airduct.modeCur`): `cooling`, `heating`, `exhaust`, `full_cooling`, `init`, `unknown`. P2S, X2D and the H2 family; omitted on printers without an airduct mode |
+| `bambulab_airduct_fan_speed_percent{fan}` | Gauge | Airduct fan speed by fan (part id >> 4): `heatbreak`, `part_cooling`, `aux`, `chamber`, `heatbreak_2`, `mc_board`, `inner_loop`, `aux_2`. Left/right placement of `aux` and `aux_2` differs per model |
 
 ---
 
@@ -139,6 +141,9 @@ Fan values: raw levels 0–15 → nearest-10 percent normalization.
 | `bambulab_ams_heater_state_info{...,state}` | Info Gauge | AMS dryer state: `off`, `self_check`, `drying`, `cooling`, `stopped`, `error`, `thermal_runaway`, `test_mode` (`unknown_<n>` otherwise); only for units with a dryer (AMS 2 Pro, AMS HT) |
 | `bambulab_ams_dry_fan_status{...,fan_id}` | Gauge | Gen2 AMS drying fan status |
 | `bambulab_ams_dry_sub_status_info{...,state}` | Info Gauge | AMS drying sub-status: `none`, `heating`, `dehumidifying` |
+| `bambulab_ams_drying_remaining_seconds{ams_id}` | Gauge | Remaining drying time (`dry_time`, minutes in the payload), 0 when not drying. AMS 2 Pro and AMS HT only |
+| `bambulab_ams_drying_target_temperature_celsius{ams_id}` | Gauge | Configured drying temperature (`dry_setting.dry_temperature`). Omitted when unset or on older firmware |
+| `bambulab_ams_drying_duration_seconds{ams_id}` | Gauge | Configured drying duration (`dry_setting.dry_duration`, hours in the payload). Omitted when unset |
 
 ---
 
@@ -161,6 +166,8 @@ Fan values: raw levels 0–15 → nearest-10 percent normalization.
 | `bambulab_extruder_nozzle_info{extruder_id,nozzle_type,nozzle_diameter}` | Info Gauge | Per-extruder nozzle metadata |
 | `bambulab_active_nozzle_info{nozzle_type,nozzle_diameter}` | Info Gauge | Active nozzle metadata (also from top-level `nozzle_type` on A1, P1 and older X1 firmware) |
 | `bambulab_extruder_loaded_slot_info{extruder_id,ams_id,slot_id}` | Info Gauge | Filament loaded in each extruder (`device.extruder.info[].snow`): AMS unit and slot, or `external`. Extruders with nothing loaded are omitted |
+| `bambulab_nozzle_wear_ratio{extruder_id}` | Gauge | Wear value of the nozzle mounted on each extruder (`device.nozzle.info[].wear`, passed through unscaled; the unit is not confirmed) |
+| `bambulab_nozzle_print_time_seconds{extruder_id}` | Gauge | Total print time of the mounted nozzle (`p_t`). Only on firmware that reports it (X2D, H2C) |
 
 ---
 

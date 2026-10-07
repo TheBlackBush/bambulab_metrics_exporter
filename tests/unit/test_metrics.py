@@ -1580,3 +1580,64 @@ class TestHmsAndLoadedSlotEdgeCases:
         m.update_from_snapshot(_snap({"device": {"extruder": {"info": [{"id": 0, "snow": 0xFFFF}]}}}))
         samples = [s for metric in m.registry.collect() if metric.name == "bambulab_extruder_loaded_slot_info" for s in metric.samples]
         assert samples == []
+
+
+class TestDryingAirductNozzleEdgeCases:
+    labels = {"printer_name": "test", "serial": "SN123"}
+
+    def _names(self, m: ExporterMetrics) -> set[str]:
+        return {metric.name for metric in m.registry.collect() for _ in metric.samples}
+
+    def test_drying_settings_converted_to_seconds(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        unit = {
+            "id": "0", "info": "1003", "dry_time": 90,
+            "dry_setting": {"dry_temperature": 55, "dry_duration": 8, "dry_filament": "PLA"},
+        }
+        m.update_from_snapshot(_snap({"ams": {"ams": [unit]}}))
+        assert m.ams_drying_remaining_seconds.labels(**self.labels, ams_id="0")._value.get() == 5400.0
+        assert m.ams_drying_target_temperature.labels(**self.labels, ams_id="0")._value.get() == 55.0
+        assert m.ams_drying_duration_seconds.labels(**self.labels, ams_id="0")._value.get() == 28800.0
+
+    def test_drying_malformed_and_cleared(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        unit = {"id": "0", "info": "1003", "dry_time": 10}
+        m.update_from_snapshot(_snap({"ams": {"ams": [unit]}}))
+        bad = {"id": "0", "info": "1003", "dry_time": "x", "dry_setting": "bad"}
+        m.update_from_snapshot(_snap({"ams": {"ams": [bad]}}))
+        assert "bambulab_ams_drying_remaining_seconds" not in self._names(m)
+
+    def test_airduct_skips_doors_unknown_fans_and_malformed(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        parts = [
+            {"id": 17, "state": 50},  # type 1: door
+            {"id": 0x70, "state": 50},  # fan 7: unknown
+            {"id": "x", "state": 5},
+            {"id": 48},
+            "bad",
+            {"id": 48, "state": 0x1FF},  # only the low byte is the percent
+        ]
+        m.update_from_snapshot(_snap({"device": {"airduct": {"modeCur": 9, "parts": parts}}}))
+        fans = {
+            s.labels["fan"]: s.value
+            for metric in m.registry.collect() if metric.name == "bambulab_airduct_fan_speed_percent"
+            for s in metric.samples
+        }
+        assert fans == {"chamber": 255.0}
+        assert m.airduct_mode_info.labels(**self.labels, mode="unknown")._value.get() == 1.0
+
+    def test_airduct_and_nozzle_series_clear_between_updates(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({"device": {
+            "airduct": {"modeCur": 0, "parts": [{"id": 16, "state": 40}]},
+            "nozzle": {"info": [{"id": 0, "wear": 0.25, "p_t": 3600}, "bad", {"id": "x"}]},
+        }}))
+        assert m.nozzle_wear.labels(**self.labels, extruder_id="0")._value.get() == 0.25
+        assert m.nozzle_print_time_seconds.labels(**self.labels, extruder_id="0")._value.get() == 3600.0
+        m.update_from_snapshot(_snap({"device": {"airduct": {"modeCur": -1}, "nozzle": {"info": "bad"}}}))
+        names = self._names(m)
+        for name in (
+            "bambulab_airduct_mode_info", "bambulab_airduct_fan_speed_percent",
+            "bambulab_nozzle_wear_ratio", "bambulab_nozzle_print_time_seconds",
+        ):
+            assert name not in names
