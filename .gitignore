@@ -40,3 +40,9 @@ RELEASE_RULES.md
 ruvector.db
 .claude/proven-config.json
 .claude/.proven-config-version
+
+# third-party app binaries used for local analysis only
+apk_app/
+*.apk
+*.apkm
+*.xapk
