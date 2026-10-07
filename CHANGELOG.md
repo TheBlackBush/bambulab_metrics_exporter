@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added
+- `bambulab_chamber_target_temperature_celsius` and `bambulab_chamber_heater_state` for
+  models with a chamber heater (X1E, X2D, H2D, H2D Pro, H2S, H2C).
+- `bambulab_extruder_loaded_slot_info{extruder_id,ams_id,slot_id}`: filament loaded in each
+  extruder (AMS slot or external spool).
+- HMS error counts: `bambulab_hms_active_errors{severity}` and
+  `bambulab_hms_active_errors_by_module{module}`, with fixed label sets (full HMS codes are
+  never used as labels). New example alert `BambuHmsSeriousError`.
 - Per-model capability table (`capabilities.py`, documented in the wiki Metrics Reference as
   "Supported models"), replacing scattered model checks.
 - Model codes: `O2D` and the cloud short name `H2DP` (H2D Pro), `A1M`, `A04`, `A12`, `N2`

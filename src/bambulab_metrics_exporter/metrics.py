@@ -37,6 +37,36 @@ class ExporterMetrics:
         self.bed_temp = Gauge("bambulab_bed_temperature_celsius", "Bed temperature", label_names, registry=self.registry)
         self.bed_target_temp = Gauge("bambulab_bed_target_temperature_celsius", "Bed target temperature", label_names, registry=self.registry)
         self.chamber_temp = Gauge("bambulab_chamber_temperature_celsius", "Chamber temperature", label_names, registry=self.registry)
+        self.chamber_target_temp = Gauge(
+            "bambulab_chamber_target_temperature_celsius",
+            "Chamber heater target temperature (0 while the heater is off)",
+            label_names,
+            registry=self.registry,
+        )
+        self.chamber_heater_state = Gauge(
+            "bambulab_chamber_heater_state",
+            "Chamber heater state: 0 idle, 1 heating, 2 holding, 3 cooling",
+            label_names,
+            registry=self.registry,
+        )
+        self.extruder_loaded_slot_info = Gauge(
+            "bambulab_extruder_loaded_slot_info",
+            "Filament source loaded in each extruder (ams_id/slot_id, or external)",
+            [*label_names, "extruder_id", "ams_id", "slot_id"],
+            registry=self.registry,
+        )
+        self.hms_active_errors = Gauge(
+            "bambulab_hms_active_errors",
+            "Active HMS errors by severity (fatal, serious, common, info, unknown)",
+            [*label_names, "severity"],
+            registry=self.registry,
+        )
+        self.hms_active_errors_by_module = Gauge(
+            "bambulab_hms_active_errors_by_module",
+            "Active HMS errors by module (mc, mainboard, ams, toolhead, xcam, other)",
+            [*label_names, "module"],
+            registry=self.registry,
+        )
         self.fan_big_1_speed = Gauge("bambulab_fan_big_1_speed_percent", "Big fan 1 speed percent", label_names, registry=self.registry)
         self.fan_big_2_speed = Gauge("bambulab_fan_big_2_speed_percent", "Big fan 2 speed percent", label_names, registry=self.registry)
         self.fan_cooling_speed = Gauge("bambulab_fan_cooling_speed_percent", "Cooling fan speed percent", label_names, registry=self.registry)
@@ -327,6 +357,22 @@ class ExporterMetrics:
         self._set_optional(self.bed_temp, snapshot.bed_temp)
         self._set_optional(self.bed_target_temp, snapshot.bed_target_temp)
         self._set_optional(self.chamber_temp, snapshot.chamber_temp)
+        self._set_optional(self.chamber_target_temp, snapshot.chamber_target_temp)
+        self._set_optional(self.chamber_heater_state, snapshot.chamber_heater_state)
+
+        self.extruder_loaded_slot_info.clear()
+        for slot in snapshot.extruder_loaded_slots:
+            self.extruder_loaded_slot_info.labels(**labels, **slot).set(1.0)
+
+        self.hms_active_errors.clear()
+        self.hms_active_errors_by_module.clear()
+        hms = snapshot.hms_counts
+        if hms is not None:
+            by_severity, by_module = hms
+            for severity, count in by_severity.items():
+                self.hms_active_errors.labels(**labels, severity=severity).set(float(count))
+            for module, count in by_module.items():
+                self.hms_active_errors_by_module.labels(**labels, module=module).set(float(count))
         self._set_optional(self.fan_big_1_speed, snapshot.fan_big_1_percent)
         self._set_optional(self.fan_big_2_speed, snapshot.fan_big_2_percent)
         self._set_optional(self.fan_cooling_speed, snapshot.fan_cooling_percent)

@@ -228,3 +228,75 @@ def test_hotend_rack_max_temperature_and_deprecated_alias() -> None:
         for labels, v in _samples(metrics, "bambulab_hotend_rack_hotend_runtime_minutes")
     )
     assert alias == max_temps
+
+
+# ---------------------------------------------------------------------------
+# New metrics: chamber heater, loaded slot per extruder, HMS counts
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    ("name", "target", "state"),
+    [
+        ("h2s", 60.0, 2.0),  # heating to 60, holding
+        ("h2d", 0.0, 0.0),  # heater off
+        ("x2d", 0.0, 0.0),
+        ("x1c_fw0112_ams1", None, None),  # X1C has no chamber heater
+        ("p2s", None, None),
+        ("a1", None, None),  # no chamber at all
+    ],
+)
+def test_chamber_target_and_heater_state(name: str, target: float | None, state: float | None) -> None:
+    _, _, metrics = _load(name)
+    got_target = _value(metrics, "bambulab_chamber_target_temperature_celsius")
+    got_state = _value(metrics, "bambulab_chamber_heater_state")
+    assert math.isnan(got_target) if target is None else got_target == target
+    assert math.isnan(got_state) if state is None else got_state == state
+
+
+@pytest.mark.parametrize(
+    ("name", "loaded"),
+    [
+        ("h2d", [("0", "1", "3")]),  # extruder 0 holds AMS 1 slot 3; extruder 1 empty
+        ("h2d_external_spool", [("0", "external", "external")]),
+        ("x2d", [("1", "0", "1")]),
+        ("h2s", [("0", "0", "0")]),
+        ("x1c_fw0112_ams1", []),  # nothing loaded
+        ("a1", []),  # no per-extruder data on this firmware
+    ],
+)
+def test_extruder_loaded_slot_info(name: str, loaded: list) -> None:
+    _, _, metrics = _load(name)
+    got = sorted(
+        (labels["extruder_id"], labels["ams_id"], labels["slot_id"])
+        for labels, _ in _samples(metrics, "bambulab_extruder_loaded_slot_info")
+    )
+    assert got == loaded
+
+
+def _hms(metrics: ExporterMetrics) -> tuple[dict[str, float], dict[str, float]]:
+    severity = {labels["severity"]: v for labels, v in _samples(metrics, "bambulab_hms_active_errors")}
+    module = {labels["module"]: v for labels, v in _samples(metrics, "bambulab_hms_active_errors_by_module")}
+    return severity, module
+
+
+@pytest.mark.parametrize(
+    ("name", "severity", "module"),
+    [
+        ("x1_legacy_firmware", "common", "xcam"),  # attr 0x0C000300, code 0x00030007
+        ("x2d", "serious", "mainboard"),  # attr 0x05001000, code 0x00020070
+    ],
+)
+def test_hms_counts(name: str, severity: str, module: str) -> None:
+    _, _, metrics = _load(name)
+    by_severity, by_module = _hms(metrics)
+    assert set(by_severity) == {"fatal", "serious", "common", "info", "unknown"}
+    assert set(by_module) == {"mc", "mainboard", "ams", "toolhead", "xcam", "other"}
+    assert by_severity[severity] == 1.0 and sum(by_severity.values()) == 1.0
+    assert by_module[module] == 1.0 and sum(by_module.values()) == 1.0
+
+
+def test_hms_zero_counts_on_healthy_printer() -> None:
+    _, _, metrics = _load("x1c_fw0112_ams1")
+    by_severity, by_module = _hms(metrics)
+    assert by_severity and all(v == 0.0 for v in by_severity.values())
+    assert all(v == 0.0 for v in by_module.values())

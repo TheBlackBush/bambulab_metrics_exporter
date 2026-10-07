@@ -1558,3 +1558,25 @@ def test_ams_dry_name_helpers_fall_back_to_unknown() -> None:
     assert ams_dry_state_name(12) == "unknown_12"
     assert ams_dry_sub_status_name(1) == "heating"
     assert ams_dry_sub_status_name(3) == "unknown_3"
+
+
+class TestHmsAndLoadedSlotEdgeCases:
+    def test_hms_absent_omits_series(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({}))
+        names = {metric.name for metric in m.registry.collect() for _ in metric.samples}
+        assert "bambulab_hms_active_errors" not in names
+
+    def test_hms_malformed_entries_count_as_unknown(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({"hms": [{"attr": "x"}, {"code": 0x00090001}, "bad"]}))
+        labels = {"printer_name": "test", "serial": "SN123"}
+        assert m.hms_active_errors.labels(**labels, severity="unknown")._value.get() == 2.0
+        assert m.hms_active_errors_by_module.labels(**labels, module="other")._value.get() == 2.0
+
+    def test_loaded_slots_clear_between_updates(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({"device": {"extruder": {"info": [{"id": 0, "snow": 0x0102}]}}}))
+        m.update_from_snapshot(_snap({"device": {"extruder": {"info": [{"id": 0, "snow": 0xFFFF}]}}}))
+        samples = [s for metric in m.registry.collect() if metric.name == "bambulab_extruder_loaded_slot_info" for s in metric.samples]
+        assert samples == []

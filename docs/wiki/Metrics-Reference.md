@@ -72,6 +72,8 @@ Unknown models export whatever the payload carries.
 | `bambulab_bed_temperature_celsius` | Gauge | Current bed temperature |
 | `bambulab_bed_target_temperature_celsius` | Gauge | Target bed temperature |
 | `bambulab_chamber_temperature_celsius` | Gauge | Chamber temperature (`device.ctc` on new firmware, unpacked; `chamber_temper` on older firmware). NaN on models without a chamber sensor (A1, A1 mini, A2L, P1P, P1S) |
+| `bambulab_chamber_target_temperature_celsius` | Gauge | Chamber heater target (0 while the heater is off). Only on models with a chamber heater (X1E, X2D, H2D, H2D Pro, H2S, H2C); NaN otherwise |
+| `bambulab_chamber_heater_state` | Gauge | Chamber heater state: 0 idle, 1 heating, 2 holding, 3 cooling. NaN on models without a chamber heater |
 
 ---
 
@@ -97,6 +99,8 @@ Fan values: raw levels 0–15 → nearest-10 percent normalization.
 | `bambulab_printer_error_code` | Gauge | Raw printer error code |
 | `bambulab_print_error` | Gauge | Raw print_error value from MQTT |
 | `bambulab_ap_error_code` | Gauge | Raw ap_err value from MQTT |
+| `bambulab_hms_active_errors{severity}` | Gauge | Active HMS (health management) errors by severity: `fatal`, `serious`, `common`, `info`, `unknown`. All values present (0 when none); omitted when the printer sends no `hms` list |
+| `bambulab_hms_active_errors_by_module{module}` | Gauge | Active HMS errors by module: `mc`, `mainboard`, `ams`, `toolhead`, `xcam`, `other` |
 
 ---
 
@@ -147,7 +151,7 @@ Fan values: raw levels 0–15 → nearest-10 percent normalization.
 
 ---
 
-## Multi-Extruder (H2D / H2D Pro)
+## Extruders (H2D, H2D Pro, H2C, X2D, and new firmware on other models)
 
 | Metric | Type | Description |
 |--------|------|-------------|
@@ -156,6 +160,7 @@ Fan values: raw levels 0–15 → nearest-10 percent normalization.
 | `bambulab_extruder_target_temperature_celsius{extruder_id}` | Gauge | Per-extruder target temperature |
 | `bambulab_extruder_nozzle_info{extruder_id,nozzle_type,nozzle_diameter}` | Info Gauge | Per-extruder nozzle metadata |
 | `bambulab_active_nozzle_info{nozzle_type,nozzle_diameter}` | Info Gauge | Active nozzle metadata (also from top-level `nozzle_type` on A1, P1 and older X1 firmware) |
+| `bambulab_extruder_loaded_slot_info{extruder_id,ams_id,slot_id}` | Info Gauge | Filament loaded in each extruder (`device.extruder.info[].snow`): AMS unit and slot, or `external`. Extruders with nothing loaded are omitted |
 
 ---
 
@@ -218,6 +223,13 @@ Fan values: raw levels 0–15 → nearest-10 percent normalization.
 ## PromQL Examples
 
 ```promql
+# Active serious or fatal HMS errors
+sum by (printer_name) (bambulab_hms_active_errors{severity=~"fatal|serious"}) > 0
+
+# Chamber still heating up
+bambulab_chamber_target_temperature_celsius > 0
+  and bambulab_chamber_temperature_celsius < bambulab_chamber_target_temperature_celsius - 2
+
 # Average AMS humidity index over 15 minutes
 avg_over_time(bambulab_ams_unit_humidity_index{printer_name="$printer"}[15m])
 
