@@ -21,7 +21,12 @@ from bambulab_metrics_exporter.collector import PollingCollector
 from bambulab_metrics_exporter.config import Settings
 from bambulab_metrics_exporter.env_sync import sync_env_file
 from bambulab_metrics_exporter.metrics import ExporterMetrics
-from bambulab_metrics_exporter.reauth import credentials_path, log_reauth_banner
+from bambulab_metrics_exporter.reauth import (
+    apply_credentials,
+    credentials_path,
+    load_stored_credentials,
+    log_reauth_banner,
+)
 from bambulab_metrics_exporter.startup import ReauthRequiredError, startup_validate
 
 logger = logging.getLogger(__name__)
@@ -179,7 +184,14 @@ class ExporterRuntime:
             if self._wait(self._store_poll_seconds):
                 return
             if _store_fingerprint(path) != seen:
-                logger.info("Encrypted credentials changed; retrying connection")
+                # Use the new file right away: the env tokens were already rejected, so
+                # retrying them first would only add failed connection attempts.
+                payload = load_stored_credentials(self.settings)
+                if payload:
+                    apply_credentials(self.settings, payload)
+                    logger.info("New encrypted credentials found; connecting with them")
+                else:
+                    logger.info("Encrypted credentials changed; retrying connection")
                 return
 
     def _load_settings(self) -> Settings:
@@ -223,7 +235,7 @@ class ExporterRuntime:
                 self._validate(settings)
             except ReauthRequiredError as exc:
                 self._set_state(STATE_AUTH_REQUIRED, f"Re-authentication required: {exc}")
-                log_reauth_banner(str(exc))
+                log_reauth_banner(str(exc), port=settings.listen_port)
                 self._wait_for_credentials()
                 continue
             except Exception as exc:  # noqa: BLE001 - retry later instead of exiting

@@ -149,9 +149,10 @@ def test_hand_over_skipped_when_not_root(tmp_path: Path, monkeypatch) -> None:
 # ---------------------------------------------------------------------------
 
 def test_banner_points_to_page_and_command(caplog) -> None:
-    reauth.log_reauth_banner("token expired")
+    reauth.log_reauth_banner("token expired", port=9110)
     assert "RE-AUTHENTICATION REQUIRED" in caplog.text
-    assert "/auth" in caplog.text
+    assert "http://<docker-host>:9110/auth" in caplog.text
+    assert "9110 is the container port" in caplog.text
     assert "docker exec -it <container> bambulab-reauth" in caplog.text
 
 

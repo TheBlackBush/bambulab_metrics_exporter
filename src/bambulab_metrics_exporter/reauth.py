@@ -142,7 +142,7 @@ def save_login_result(settings: Settings, result: LoginResult) -> dict[str, str]
     return payload
 
 
-def log_reauth_banner(reason: str) -> None:
+def log_reauth_banner(reason: str, port: int = 9109) -> None:
     lines = [
         "=" * 72,
         "BAMBU CLOUD RE-AUTHENTICATION REQUIRED",
@@ -151,7 +151,9 @@ def log_reauth_banner(reason: str) -> None:
         "The exporter is waiting and will resume automatically, no restart needed.",
         "Either open the connection page in a browser:",
         "",
-        "    http://<docker-host>:<port>/auth",
+        f"    http://<docker-host>:{port}/auth",
+        "",
+        f"({port} is the container port; use the host port if you mapped a different one.)",
         "",
         "or run from the Docker host:",
         "",

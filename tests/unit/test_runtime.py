@@ -1,6 +1,7 @@
 """Tests for bambulab_metrics_exporter.runtime."""
 from __future__ import annotations
 
+import logging
 import os
 import threading
 import time
@@ -317,3 +318,53 @@ def test_discover_cloud_metadata_skips_local_and_missing_token() -> None:
         rt.discover_cloud_metadata(_local())
         rt.discover_cloud_metadata(_local(bambulab_transport="cloud_mqtt"))
     bind.assert_not_called()
+
+
+def test_new_store_credentials_are_used_on_first_retry(tmp_path: Path, monkeypatch, caplog) -> None:
+    """After bambulab-reauth writes the store, the first attempt must use the new token
+    instead of re-probing the already rejected env token."""
+    from bambulab_metrics_exporter.credentials_store import save_encrypted_credentials
+
+    caplog.set_level(logging.INFO)
+    secret = "fake-development-key-never-use"
+    monkeypatch.setenv("BAMBULAB_SECRET_KEY", secret)
+    monkeypatch.setenv("BAMBULAB_TRANSPORT", "cloud_mqtt")
+    monkeypatch.setenv("BAMBULAB_SERIAL", "FAKE00TEST000001")
+    monkeypatch.setenv("BAMBULAB_CLOUD_USER_ID", "u")
+    monkeypatch.setenv("BAMBULAB_CLOUD_ACCESS_TOKEN", "stale_token")
+    monkeypatch.setenv("BAMBULAB_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("LISTEN_PORT", "9110")
+    seen_tokens: list[str] = []
+
+    def validate(s: Settings) -> None:
+        seen_tokens.append(s.bambulab_cloud_access_token)
+        if s.bambulab_cloud_access_token != "fresh_token":
+            raise ReauthRequiredError("token expired")
+
+    runtime = rt.ExporterRuntime(
+        settings_factory=Settings,
+        validate=validate,
+        client_factory=lambda s: _Client(),
+        discover=lambda s: None,
+        store_poll_seconds=0.02,
+    )
+    runtime.start()
+    try:
+        _wait_until(lambda: runtime.status()["state"] == rt.STATE_AUTH_REQUIRED)
+        assert "http://<docker-host>:9110/auth" in caplog.text
+        save_encrypted_credentials(
+            tmp_path / "credentials.enc.json",
+            secret,
+            {
+                "BAMBULAB_CLOUD_USER_ID": "u",
+                "BAMBULAB_CLOUD_ACCESS_TOKEN": "fresh_token",
+                "BAMBULAB_CLOUD_REFRESH_TOKEN": "fresh_refresh",
+            },
+        )
+        _wait_until(lambda: runtime.status()["state"] == rt.STATE_RUNNING)
+    finally:
+        runtime.stop()
+
+    assert seen_tokens == ["stale_token", "fresh_token"]
+    assert "New encrypted credentials found" in caplog.text
+    assert "fresh_token" not in caplog.text
