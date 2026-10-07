@@ -40,3 +40,5 @@ RELEASE_RULES.md
 ruvector.db
 .claude/proven-config.json
 .claude/.proven-config-version
+agentdb.rvf
+agentdb.rvf.lock
