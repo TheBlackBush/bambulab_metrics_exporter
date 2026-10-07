@@ -173,15 +173,27 @@ def test_metrics_full_update_with_ams_lights_xcam() -> None:
     assert metrics.ams_slot_tray_info.labels(**labels, ams_id="1", slot_id="3", tray_type="PETG", tray_color="#161616FF")._value.get() == 1.0
 
 
-def test_metrics_work_light_flashing_treated_as_on() -> None:
+def test_metrics_work_light_flashing_is_unknown() -> None:
+    """Printers report the work light as "flashing" constantly, also while it is off
+    (verified on an X1C), so that report is not a light state."""
     metrics = _metrics("p1", "SN123")
     snapshot = PrinterSnapshot(
         connected=True,
-        raw={"print": {"lights_report": [{"node": "work_light", "mode": "flashing"}]}},
+        raw={"print": {"lights_report": [
+            {"node": "work_light", "mode": "flashing"},
+            {"node": "chamber_light", "mode": "flashing"},
+        ]}},
     )
     metrics.update_from_snapshot(snapshot)
     labels = dict(printer_name="p1", serial="SN123")
-    assert metrics.work_light_on.labels(**labels)._value.get() == 1.0
+    assert math.isnan(metrics.work_light_on.labels(**labels)._value.get())
+    assert metrics.chamber_light_on.labels(**labels)._value.get() == 1.0
+    lights = {
+        s.labels["light"]: s.labels["mode"]
+        for m in metrics.registry.collect() if m.name == "bambulab_light_mode_info"
+        for s in m.samples
+    }
+    assert lights == {"chamber_light": "flashing"}
 
 
 # ---------------------------------------------------------------------------

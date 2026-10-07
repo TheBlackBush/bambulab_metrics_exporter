@@ -367,7 +367,7 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 | `bambulab_online_ahb` | Gauge | Online AHB flag. |
 | `bambulab_online_ext` | Gauge | Online external flag. |
 | `bambulab_chamber_light_on` | Gauge | Chamber light status (1/0). |
-| `bambulab_work_light_on` | Gauge | Work light status (1/0). |
+| `bambulab_work_light_on` | Gauge | Work light status (1/0); NaN while the printer reports the meaningless `flashing`. |
 | `bambulab_light_mode_info{light,mode}` | Info Gauge | Mode per light (`on`, `off`, `flashing`, `unknown`). |
 | `bambulab_tool_head_info{tool}` | Info Gauge | Mounted tool head (`none`, `laser_10w`, `laser_40w`, `cutter`, `cooling_fan`, `other`). |
 | `bambulab_accessory_present{accessory}` | Gauge | Installed accessories (filament buffer, exhaust fan, fire extinguisher, ...). |

@@ -205,8 +205,8 @@ Fan values: raw levels 0–15 → nearest-10 percent normalization.
 | `bambulab_online_ext` | Gauge | Extension board online flag (`online.ext`) |
 | `bambulab_sdcard_status_info{status}` | Info Gauge | SD card status |
 | `bambulab_chamber_light_on` | Gauge | Chamber light (1/0) |
-| `bambulab_work_light_on` | Gauge | Work light (1/0) |
-| `bambulab_light_mode_info{light,mode}` | Info Gauge | Mode per light: `light` is `chamber_light`, `chamber_light2` (H2 family), `work_light` or `heatbed_light`; `mode` is `on`, `off`, `flashing` or `unknown` |
+| `bambulab_work_light_on` | Gauge | Work light (1/0). NaN when the printer reports `flashing`: printers send that constantly, also while the light is off |
+| `bambulab_light_mode_info{light,mode}` | Info Gauge | Mode per light: `light` is `chamber_light`, `chamber_light2` (H2 family), `work_light` (omitted while reported `flashing`, see above) or `heatbed_light`; `mode` is `on`, `off`, `flashing` or `unknown` |
 | `bambulab_tool_head_info{tool}` | Info Gauge | Mounted tool head (`device.ext_tool`): `none`, `laser_10w`, `laser_40w`, `cutter`, `cooling_fan`, `other`. `laser_40w` (`LB01`) comes from ha-bambulab only |
 | `bambulab_accessory_present{accessory}` | Gauge | 1/0 per accessory: `filament_buffer`, `external_exhaust_fan`, `fire_extinguisher`, `rotary_attachment`, `filament_switch`, `air_pump`. Detected from `get_version` product names, plus `fire_ext`/`fourth_axis` `connect_flag` and `aux` bit 29 (filament switch). Omitted when no source is available |
 | `bambulab_toolhead_filament_present{extruder_id}` | Gauge | 1 when the extruder's filament sensor detects filament (`device.extruder.info[].info` bit 1; `hw_switch_state` on older firmware) |

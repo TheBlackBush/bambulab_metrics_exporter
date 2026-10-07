@@ -545,7 +545,9 @@ class ExporterMetrics:
             if node == "chamber_light":
                 chamber_light = light_state
             if node == "work_light":
-                work_light = light_state
+                # Printers report the work light as "flashing" constantly, also while it is
+                # off (verified on an X1C); that report carries no state.
+                work_light = float("nan") if mode == "flashing" else light_state
         self._set_optional(self.chamber_light_on, chamber_light)
         self._set_optional(self.work_light_on, work_light)
 

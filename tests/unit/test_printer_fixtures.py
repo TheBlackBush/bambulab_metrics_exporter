@@ -424,7 +424,8 @@ def test_accessories(name: str, present: set[str]) -> None:
 def test_light_modes() -> None:
     _, _, metrics = _load("h2d")
     got = {labels["light"]: labels["mode"] for labels, _ in _samples(metrics, "bambulab_light_mode_info")}
-    assert got == {"chamber_light": "on", "chamber_light2": "on", "work_light": "flashing"}
+    # work_light is always reported "flashing" (also while off), so it is omitted.
+    assert got == {"chamber_light": "on", "chamber_light2": "on"}
 
 
 def test_timelapse_storage_x2d() -> None:
