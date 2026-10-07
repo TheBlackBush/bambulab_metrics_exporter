@@ -225,14 +225,14 @@ def parse_ams_info(ams_info: int) -> dict[str, int]:
       bits 4-7:   dry/heater state
       bits 18-19: dry fan1 state
       bits 20-21: dry fan2 state
-      bits 22-25: dry sub-status
+      bits 22-23: dry sub-status (2 bits; bits 24-27 are the filament switcher input)
     """
     return {
         "ams_type": ams_info & 0xF,
         "dry_heater_state": (ams_info >> 4) & 0xF,
         "dry_fan1": (ams_info >> 18) & 0x3,
         "dry_fan2": (ams_info >> 20) & 0x3,
-        "dry_sub_status": (ams_info >> 22) & 0xF,
+        "dry_sub_status": (ams_info >> 22) & 0x3,
     }
 
 
@@ -261,25 +261,32 @@ AMS_RFID_STATUS_NAMES: dict[int, str] = {
     6: "reading_stop",
 }
 
-# AMS drying heater state code → human-readable name (bits 4-7 of ams_info).
+# AMS dry status (ams_info bits 4-7), names per Bambu Studio / Bambu Handy.
 AMS_DRY_HEATER_STATE_NAMES: dict[int, str] = {
     0: "off",
-    1: "drying",
-    2: "cooling",
-    3: "standby",
-}
-
-# AMS drying sub-status code → human-readable name (bits 22-25 of ams_info).
-AMS_DRY_SUB_STATUS_NAMES: dict[int, str] = {
-    0: "idle",
-    1: "pre_heat",
+    1: "self_check",
     2: "drying",
     3: "cooling",
-    4: "done",
-    5: "cancelled",
-    6: "error",
-    7: "paused",
+    4: "stopped",
+    5: "error",
+    6: "thermal_runaway",
+    7: "test_mode",
 }
+
+# AMS dry sub-status (ams_info bits 22-23).
+AMS_DRY_SUB_STATUS_NAMES: dict[int, str] = {
+    0: "none",
+    1: "heating",
+    2: "dehumidifying",
+}
+
+
+def ams_dry_state_name(code: int) -> str:
+    return AMS_DRY_HEATER_STATE_NAMES.get(code, f"unknown_{code}")
+
+
+def ams_dry_sub_status_name(code: int) -> str:
+    return AMS_DRY_SUB_STATUS_NAMES.get(code, f"unknown_{code}")
 
 
 def _ams_status_name(code: int) -> str:
@@ -1116,7 +1123,10 @@ class PrinterSnapshot:
                     "nozzle_type": str(item.get("type", "")).strip(),
                     "nozzle_diameter": _to_float(item.get("diameter")),
                     "wear": _to_float(item.get("wear")),
-                    "runtime_minutes": _to_float(item.get("tm")),
+                    # `tm` is the hotend's maximum temperature (°C), `p_t` its total
+                    # print time in seconds (ha-bambulab, Bambu Studio).
+                    "max_temperature": _to_float(item.get("tm")),
+                    "print_time_seconds": _to_float(item.get("p_t")),
                 }
             )
         return out
@@ -1344,6 +1354,16 @@ class PrinterSnapshot:
         if stage_id is None:
             return None
         return STG_CUR_NAMES.get(stage_id, f"unknown_{stage_id}")
+
+    @property
+    def filament_tangle_detection_enabled(self) -> float | None:
+        """Tangle-detection setting (home_flag bit 20), only when the printer reports the
+        feature as supported (bit 19); otherwise the bit carries no meaning."""
+        flags = self.home_flags
+        if not flags.get("filament_tangle_detect_supported"):
+            return None
+        enabled = flags.get("filament_tangle_detection_enabled")
+        return None if enabled is None else (1.0 if enabled else 0.0)
 
     @property
     def camera_recording(self) -> float | None:

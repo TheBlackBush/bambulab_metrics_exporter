@@ -560,7 +560,8 @@ def test_hotend_rack_hotend_entries_from_nozzle_info() -> None:
             "nozzle_type": "HS00",
             "nozzle_diameter": 0.2,
             "wear": 0.1,
-            "runtime_minutes": 120.0,
+            "max_temperature": 120.0,
+            "print_time_seconds": None,
         }
     ]
 
@@ -936,20 +937,20 @@ class TestParseAmsInfo:
         parsed = parse_ams_info(0x200000)
         assert parsed["dry_fan2"] == 2
 
-    def test_dry_sub_status_bits_22_25(self) -> None:
-        # bits 22-25: value 7 -> 0b0111 << 22 = 0x1C00000
-        parsed = parse_ams_info(0x1C00000)
-        assert parsed["dry_sub_status"] == 7
+    def test_dry_sub_status_bits_22_23(self) -> None:
+        # bits 22-23: value 2 (dehumidifying); bits 24-27 are the switcher input
+        parsed = parse_ams_info(2 << 22 | 0xF << 24)
+        assert parsed["dry_sub_status"] == 2
 
     def test_combined_value(self) -> None:
-        # ams_type=2, dry_heater=3, dry_fan1=1, dry_fan2=2, dry_sub_status=5
-        val = (2) | (3 << 4) | (1 << 18) | (2 << 20) | (5 << 22)
+        # ams_type=2, dry_heater=3, dry_fan1=1, dry_fan2=2, dry_sub_status=1
+        val = (2) | (3 << 4) | (1 << 18) | (2 << 20) | (1 << 22)
         parsed = parse_ams_info(val)
         assert parsed["ams_type"] == 2
         assert parsed["dry_heater_state"] == 3
         assert parsed["dry_fan1"] == 1
         assert parsed["dry_fan2"] == 2
-        assert parsed["dry_sub_status"] == 5
+        assert parsed["dry_sub_status"] == 1
 
 
 class TestAmsUnitsWithModel:
@@ -1146,9 +1147,9 @@ class TestParseAmsInfoEdgeCases:
         assert parsed["dry_fan2"] == 3
 
     def test_max_dry_sub_status(self) -> None:
-        # bits 22-25 all set = 15
+        # bits 22-23 both set = 3 (2-bit field)
         parsed = parse_ams_info(0xF << 22)
-        assert parsed["dry_sub_status"] == 15
+        assert parsed["dry_sub_status"] == 3
 
     def test_all_fields_max(self) -> None:
         # All fields at max values simultaneously
@@ -1158,7 +1159,7 @@ class TestParseAmsInfoEdgeCases:
         assert parsed["dry_heater_state"] == 15
         assert parsed["dry_fan1"] == 3
         assert parsed["dry_fan2"] == 3
-        assert parsed["dry_sub_status"] == 15
+        assert parsed["dry_sub_status"] == 3
 
     def test_bits_8_to_17_are_ignored(self) -> None:
         # Bits 8-17 are not mapped; setting them should not affect known fields
@@ -1177,7 +1178,7 @@ class TestParseAmsInfoEdgeCases:
         assert parsed["dry_heater_state"] == 15   # bits 4-7
         assert parsed["dry_fan1"] == 3            # bits 18-19
         assert parsed["dry_fan2"] == 3            # bits 20-21
-        assert parsed["dry_sub_status"] == 15     # bits 22-25
+        assert parsed["dry_sub_status"] == 3      # bits 22-23
 
     def test_fan1_and_fan2_independent(self) -> None:
         # fan1=2, fan2=1 simultaneously

@@ -2694,14 +2694,14 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
-          "expr": "bambulab_filament_tangle_detected{job=\"$job\", printer_name=\"$printer\"}",
+          "expr": "bambulab_filament_tangle_detection_enabled{job=\"$job\", printer_name=\"$printer\"}",
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Filament Tangled?",
+      "title": "Tangle Detection",
       "type": "stat"
     },
     {

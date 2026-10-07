@@ -1058,7 +1058,7 @@ class TestAmsGen2DryingTelemetry:
         return ExporterMetrics(printer_name="test", serial="SN123")
 
     def _ams_info(
-        self, ams_type: int = 3, dry_heater: int = 2, fan1: int = 1, fan2: int = 2, sub: int = 5
+        self, ams_type: int = 3, dry_heater: int = 2, fan1: int = 1, fan2: int = 2, sub: int = 1
     ) -> int:
         return ams_type | (dry_heater << 4) | (fan1 << 18) | (fan2 << 20) | (sub << 22)
 
@@ -1072,7 +1072,7 @@ class TestAmsGen2DryingTelemetry:
         m.update_from_snapshot(snap)
         labels = {"printer_name": "test", "serial": "SN123"}
         v = m.ams_heater_state_info.labels(
-            **labels, ams_id="0", ams_model="ams_2_pro", ams_series="gen_2", state="2"
+            **labels, ams_id="0", ams_model="ams_2_pro", ams_series="gen_2", state="drying"
         )._value.get()
         assert v == 1.0
 
@@ -1096,7 +1096,7 @@ class TestAmsGen2DryingTelemetry:
 
     def test_dry_sub_status_emitted(self) -> None:
         m = self._m()
-        info = self._ams_info(ams_type=3, sub=7)
+        info = self._ams_info(ams_type=3, sub=2)
         snap = PrinterSnapshot(
             connected=True,
             raw={"print": {"ams": {"ams": [{"id": "0", "ams_info": info}]}}},
@@ -1104,7 +1104,7 @@ class TestAmsGen2DryingTelemetry:
         m.update_from_snapshot(snap)
         labels = {"printer_name": "test", "serial": "SN123"}
         v = m.ams_dry_sub_status_info.labels(
-            **labels, ams_id="0", ams_model="ams_2_pro", ams_series="gen_2", state="7"
+            **labels, ams_id="0", ams_model="ams_2_pro", ams_series="gen_2", state="dehumidifying"
         )._value.get()
         assert v == 1.0
 
@@ -1238,7 +1238,7 @@ class TestAmsGen2DryingTelemetryAdditional:
         m.update_from_snapshot(snap)
         labels = {"printer_name": "test", "serial": "SN123"}
         v = m.ams_heater_state_info.labels(
-            **labels, ams_id="0", ams_model="ams_2_pro", ams_series="gen_2", state="0"
+            **labels, ams_id="0", ams_model="ams_2_pro", ams_series="gen_2", state="off"
         )._value.get()
         assert v == 1.0
 
@@ -1283,7 +1283,7 @@ class TestAmsGen2DryingTelemetryAdditional:
         m.update_from_snapshot(snap)
         labels = {"printer_name": "test", "serial": "SN123"}
         v = m.ams_heater_state_info.labels(
-            **labels, ams_id="0", ams_model="ams_2_pro", ams_series="gen_2", state="3"
+            **labels, ams_id="0", ams_model="ams_2_pro", ams_series="gen_2", state="cooling"
         )._value.get()
         assert v == 1.0
 
@@ -1302,10 +1302,10 @@ class TestAmsGen2DryingTelemetryAdditional:
         m.update_from_snapshot(snap)
         labels = {"printer_name": "test", "serial": "SN123"}
         v0 = m.ams_heater_state_info.labels(
-            **labels, ams_id="0", ams_model="ams_2_pro", ams_series="gen_2", state="1"
+            **labels, ams_id="0", ams_model="ams_2_pro", ams_series="gen_2", state="self_check"
         )._value.get()
         v1 = m.ams_heater_state_info.labels(
-            **labels, ams_id="1", ams_model="ams_ht", ams_series="gen_2", state="2"
+            **labels, ams_id="1", ams_model="ams_ht", ams_series="gen_2", state="drying"
         )._value.get()
         assert v0 == 1.0
         assert v1 == 1.0
@@ -1524,3 +1524,37 @@ class TestPrinterModelInfo:
             PrinterSnapshot(connected=True, raw={"print": {}}, configured_serial="094FAKE0TEST001")
         )
         assert [s["model"] for s in self._series(m)] == ["H2D"]
+
+
+class TestHotendRackPrintTime:
+    def test_print_time_from_p_t(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        snap = PrinterSnapshot(
+            connected=True,
+            raw={"print": {"device": {"nozzle": {"info": [
+                {"id": 16, "type": "HS00", "diameter": 0.4, "tm": 350, "p_t": 7200, "wear": 0.1}
+            ]}}}},
+        )
+        m.update_from_snapshot(snap)
+        labels = {"printer_name": "test", "serial": "SN123"}
+        assert m.hotend_rack_hotend_print_time_seconds.labels(**labels, slot_id="16")._value.get() == 7200.0
+        assert m.hotend_rack_hotend_max_temperature_celsius.labels(**labels, slot_id="16")._value.get() == 350.0
+
+
+class TestPromptSoundFlags:
+    def test_bits_17_and_18_are_prompt_sound(self) -> None:
+        from bambulab_metrics_exporter.flags import HOME_FLAG_MASKS, decode_home_flags
+
+        flags = decode_home_flags(1 << 18)
+        assert flags["prompt_sound_supported"] is True
+        assert flags["prompt_sound_enabled"] is False
+        assert "wired_network" not in HOME_FLAG_MASKS
+
+
+def test_ams_dry_name_helpers_fall_back_to_unknown() -> None:
+    from bambulab_metrics_exporter.models import ams_dry_state_name, ams_dry_sub_status_name
+
+    assert ams_dry_state_name(6) == "thermal_runaway"
+    assert ams_dry_state_name(12) == "unknown_12"
+    assert ams_dry_sub_status_name(1) == "heating"
+    assert ams_dry_sub_status_name(3) == "unknown_3"

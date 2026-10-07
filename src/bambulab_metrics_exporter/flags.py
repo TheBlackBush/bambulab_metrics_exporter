@@ -14,10 +14,12 @@ HOME_FLAG_MASKS: dict[str, int] = {
     "sd_card_present": 0x00000100,
     "sd_card_abnormal": 0x00000200,
     "ams_auto_switch": 0x00000400,
-    "xcam_allow_prompt_sound": 0x00020000,
-    "wired_network": 0x00040000,
+    # Bits 17-20 per Bambu Studio (DevPrintOptions): bit 18 is not a wired-network flag
+    # (set on a Wi-Fi-only X1C), and bit 20 is the tangle-detection setting, not an event.
+    "prompt_sound_enabled": 0x00020000,
+    "prompt_sound_supported": 0x00040000,
     "filament_tangle_detect_supported": 0x00080000,
-    "filament_tangle_detected": 0x00100000,
+    "filament_tangle_detection_enabled": 0x00100000,
     "supports_motor_calibration": 0x00200000,
     "door_open": 0x00800000,
     "installed_plus": 0x04000000,
