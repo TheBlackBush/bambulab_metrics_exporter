@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Iterable
 from pathlib import Path
 
 ALLOWED_ENV_KEYS = [
@@ -41,7 +42,13 @@ def _shell_escape(value: str) -> str:
     return "'" + value.replace("'", "'\\''") + "'"
 
 
-def sync_env_file(env_file: Path) -> None:
+def sync_env_file(env_file: Path, exclude: Iterable[str] = ()) -> None:
+    """Write allowed runtime values from the environment into ``env_file``.
+
+    Keys in ``exclude`` are left exactly as they are in the file (used for values that
+    came from /auth page overrides, which must not leak into ``.env``).
+    """
+    skip = set(exclude)
     existing: dict[str, str] = {}
     lines: list[str] = []
 
@@ -55,7 +62,7 @@ def sync_env_file(env_file: Path) -> None:
 
     merged = dict(existing)
     for key in ALLOWED_ENV_KEYS:
-        if key in os.environ:
+        if key in os.environ and key not in skip:
             merged[key] = _shell_escape(os.environ[key])
 
     output_lines: list[str] = []

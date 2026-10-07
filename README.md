@@ -50,6 +50,8 @@ Full operator documentation lives in the [GitHub Wiki](https://github.com/TheBla
 - Parses print state/telemetry into stable Prometheus metrics
 - Exposes:
   - `GET /`: landing page with version and status
+  - `GET /auth`: connection page to choose local or cloud mode and log in (no login of its own; keep port 9109 on a trusted network)
+  - `GET /auth/status`: JSON connection state (`running`, `connecting`, `auth_required`, `setup_required`, `error`)
   - `GET /metrics`
   - `GET /health`
   - `GET /ready`
@@ -127,12 +129,43 @@ BAMBULAB_CLOUD_EMAIL=you@example.com
 
 Cloud credentials are obtained via the `bambulab-cloud-auth` CLI bundled in the container image. No local Python installation is required.
 
-### Container-native OTP flow (recommended)
+### Connecting from the browser: the `/auth` page (recommended)
+
+Open `http://<docker-host>:9109/auth` (also linked from the landing page). Choose:
+
+- **Local (LAN):** enter the printer IP, serial number and LAN access code.
+- **Bambu Cloud:** enter your account email, click **Send code**, then enter the emailed code in the same form and click **Log in**.
+  The serial is optional when the account has a single printer.
+
+The exporter reconnects immediately; no restart needed. When the cloud login fails later
+(expired session, changed password, new config volume) the exporter does **not** exit: it logs
+a `BAMBU CLOUD RE-AUTHENTICATION REQUIRED` banner and waits until you log in again on the page.
+
+Settings saved on the page are stored encrypted in the config volume and **override** the
+container's env vars (including Unraid template values) after restarts. **Reset to env vars**
+on the page removes them. Persisting requires `BAMBULAB_SECRET_KEY`; without it, page settings
+apply until the next restart.
+
+> **Security:** the page has no login. Anyone who can reach port 9109 can change which printer
+> or account the exporter uses. Do not expose the port outside a trusted network. Saved
+> secrets are never shown on the page.
+
+Shell alternative (same result, no browser):
+
+```bash
+docker exec -it <container> bambulab-reauth
+```
+
+Replace `<container>` with your container name (`bambulab-exporter` in the `docker run`
+examples, `bambulab-metrics-exporter` with the Compose file). On Unraid, open the container's
+**Console** and run `bambulab-reauth`.
+
+### Env-variable OTP flow
 
 1. Set `BAMBULAB_CLOUD_EMAIL` in your `.env`. **Do not set `BAMBULAB_CLOUD_CODE` yet.**
-2. Start the container. It detects no valid credentials, sends a verification code to your Bambu account email, and exits.
+2. Start the container. It detects no valid credentials, sends one verification code to your Bambu account email, and waits.
 3. Check your email for the code.
-4. Add `BAMBULAB_CLOUD_CODE=<code>` to `.env` and restart the container.
+4. Add `BAMBULAB_CLOUD_CODE=<code>` to `.env` and recreate the container (or use the `/auth` page instead).
 5. The container authenticates, stores encrypted credentials to the config volume, and starts normally.
 6. **Remove `BAMBULAB_CLOUD_CODE` from `.env`**: codes are single-use; it is not needed for normal operation.
 
@@ -146,7 +179,7 @@ On every subsequent restart, stored credentials are loaded automatically.
 - The Bambu Cloud session expired or account password changed.
 - `BAMBULAB_SECRET_KEY` was changed: the encrypted credential file can no longer be decrypted.
 
-In any of these cases, start the container without `BAMBULAB_CLOUD_CODE` to trigger a new code delivery, then follow steps 3–6 above.
+In any of these cases, use the `/auth` page (above), or start the container without `BAMBULAB_CLOUD_CODE` to trigger a new code delivery and follow steps 3–6.
 
 > For the manual `bambulab-cloud-auth` flow and full credential lifecycle details, see [Installation](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Installation) and [Quick Start](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Quick-Start).
 

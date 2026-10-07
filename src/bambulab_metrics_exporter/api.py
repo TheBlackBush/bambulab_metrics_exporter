@@ -1,18 +1,148 @@
-from pathlib import Path
+from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException, Response
-from fastapi.responses import HTMLResponse
+import html
+import ipaddress
+import logging
+import re
+import secrets
+import time
+from collections import OrderedDict
+from collections.abc import Awaitable, Callable
+from pathlib import Path
+from typing import TYPE_CHECKING, Protocol
+from urllib.parse import parse_qs, urlsplit
+
+from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+from starlette.concurrency import run_in_threadpool
 
 from bambulab_metrics_exporter import __version__
-from bambulab_metrics_exporter.collector import PollingCollector
+from bambulab_metrics_exporter.auth_actions import (
+    ActionResult,
+    AttemptLimiter,
+    AuthInputError,
+    CodeSender,
+    configure_cloud,
+    configure_local,
+    mask_serial,
+)
 from bambulab_metrics_exporter.config import Settings
 from bambulab_metrics_exporter.metrics import ExporterMetrics
+from bambulab_metrics_exporter.overrides import (
+    clear_overrides,
+    restore_credentials_backup,
+    restore_original_env,
+)
+from bambulab_metrics_exporter.overrides import lock as overrides_lock
+from bambulab_metrics_exporter.reauth import credentials_path
 
-_TEMPLATE_PATH = Path(__file__).parent / "templates" / "index.html"
-_TEMPLATE = _TEMPLATE_PATH.read_text(encoding="utf-8")
+if TYPE_CHECKING:
+    from bambulab_metrics_exporter.runtime import ExporterRuntime
+
+logger = logging.getLogger(__name__)
+
+_TEMPLATE_DIR = Path(__file__).parent / "templates"
+_TEMPLATE = (_TEMPLATE_DIR / "index.html").read_text(encoding="utf-8")
+_AUTH_TEMPLATE = (_TEMPLATE_DIR / "auth.html").read_text(encoding="utf-8")
 _STATIC_PATH = Path(__file__).parent / "static"
+
+_STATE_LABELS: dict[str, tuple[str, str]] = {
+    "starting": ("Starting", "wait"),
+    "connecting": ("Connecting", "wait"),
+    "running": ("Connected", "ok"),
+    "setup_required": ("Setup required", "bad"),
+    "auth_required": ("Login required", "bad"),
+    "error": ("Connection error", "bad"),
+}
+
+
+_REFRESH_STATES = {"starting", "connecting"}
+
+_PRINTER_ICON = (
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    '<polyline points="6 9 6 2 18 2 18 9"/>'
+    '<path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>'
+    '<rect x="6" y="14" width="12" height="8"/></svg>'
+)
+
+_ALERT_ICON = (
+    '<svg class="alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>'
+    '<line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
+)
+
+
+def _alert(kind: str, title: str, detail: str) -> str:
+    return (
+        f'<a class="alert {kind}" href="/auth">{_ALERT_ICON}'
+        f'<span class="alert-text"><strong>{title}</strong><span>{detail}</span></span>'
+        '<span class="alert-cta">Open &rarr;</span></a>'
+    )
+
+
+# Shown on the landing page when the runtime needs the operator. Fixed text only.
+_ALERTS: dict[str, str] = {
+    "auth_required": _alert(
+        "bad", "Bambu Cloud login required", "The cloud session expired. Sign in again to resume."
+    ),
+    "setup_required": _alert(
+        "", "Printer not configured", "Choose local or cloud mode and enter the printer details."
+    ),
+    "error": _alert(
+        "bad", "Cannot reach the printer", "Retrying automatically. Check the connection settings."
+    ),
+}
+
+# Runtime state -> (label, pill class) for the landing page "Printer" card.
+_PRINTER_STATES: dict[str, tuple[str, str]] = {
+    "starting": ("Starting", "warming"),
+    "connecting": ("Connecting", "warming"),
+    "auth_required": ("Login required", "attention"),
+    "setup_required": ("Setup required", "attention"),
+    "error": ("Connection error", "attention"),
+}
+
+
+def _printer_state(state: str, ready: bool) -> tuple[str, str]:
+    if state in _PRINTER_STATES:
+        return _PRINTER_STATES[state]
+    return ("Connected", "ready") if ready else ("Warming Up", "warming")
+
+
+def _last_update(last: float | None, poll: float | None, now: float) -> tuple[str, str]:
+    """Human age of the last successful poll and a freshness class."""
+    if last is None:
+        return "Never", "none"
+    age = max(now - last, 0.0)
+    if age < 60:
+        text = f"{int(age)}s ago"
+    elif age < 3600:
+        text = f"{int(age // 60)}m ago"
+    else:
+        text = f"{int(age // 3600)}h ago"
+    fresh = age <= 3 * (poll or 10.0)
+    return text, "fresh" if fresh else "stale"
+
+
+def _notice_html(result: ActionResult) -> str:
+    kind, icon = ("ok", "&#10003;") if result.ok else ("bad", "!")
+    note = (
+        f'<span class="notice-note">{html.escape(result.note)}</span>' if result.note else ""
+    )
+    return (
+        f'<div class="notice {kind}" role="status">'
+        f'<span class="notice-icon" aria-hidden="true">{icon}</span>'
+        f'<span class="notice-text">{html.escape(result.message)}{note}</span></div>'
+    )
+
+
+class _ReadyFlag(Protocol):
+    @property
+    def ready(self) -> bool: ...
 
 
 def _check_health(metrics: ExporterMetrics) -> tuple[bool, str]:
@@ -30,8 +160,117 @@ def _check_health(metrics: ExporterMetrics) -> tuple[bool, str]:
     return healthy, status
 
 
-def build_app(metrics: ExporterMetrics, collector: PollingCollector, settings: Settings | None = None) -> FastAPI:
+_MAX_FORM_BYTES = 8192
+_FLASH_COOKIE = "bme_auth"
+_FLASH_TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{16,64}$")
+_FLASH_LIMIT = 64
+
+# Names that only resolve on a local network. A DNS-rebinding attacker needs a public
+# domain they control, so these (plus IP addresses) are safe to accept without config.
+_LOCAL_HOST_SUFFIXES = (
+    ".local", ".lan", ".home", ".internal", ".localdomain", ".home.arpa", ".localhost",
+)
+
+# Ask browsers not to show the pages inside frames on other sites (clickjacking).
+_SECURITY_HEADERS = {
+    "X-Frame-Options": "DENY",
+    "Content-Security-Policy": "frame-ancestors 'none'",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "same-origin",
+}
+
+
+def _host_allowed(host_header: str, extra: set[str]) -> bool:
+    """Accept the Host header for /auth only when it names this machine on the local
+    network: an IP address, localhost, a single-label or local-domain name, or a name the
+    operator listed in AUTH_ALLOWED_HOSTS. Blocks DNS rebinding from public domains."""
+    host = host_header.strip().lower()
+    if host.startswith("["):
+        name = host[1:host.find("]")] if "]" in host else ""
+    elif host.count(":") == 1:
+        name = host.split(":", 1)[0]
+    else:
+        name = host
+    name = name.rstrip(".")
+    if not name:
+        return False
+    try:
+        ipaddress.ip_address(name)
+        return True
+    except ValueError:
+        pass
+    if name in extra or name == "localhost" or "." not in name:
+        return True
+    return name.endswith(_LOCAL_HOST_SUFFIXES)
+
+
+def _short_error(exc: Exception) -> str:
+    if isinstance(exc, OSError) and exc.strerror:
+        return exc.strerror
+    return str(exc)[:200]
+
+
+def _same_origin(request: Request) -> bool:
+    """Reject cross-site form posts (CSRF) while allowing same-page posts and non-browser
+    clients that send no Origin header."""
+    origin = request.headers.get("origin")
+    if not origin or origin == "null":
+        return origin is None
+    return urlsplit(origin).netloc == request.headers.get("host", "")
+
+
+async def _form(request: Request) -> dict[str, str]:
+    """Parse a small urlencoded form; refuse oversized bodies instead of buffering them."""
+    declared = request.headers.get("content-length", "")
+    if declared.isdigit() and int(declared) > _MAX_FORM_BYTES:
+        raise HTTPException(status_code=413, detail="form_too_large")
+    chunks: list[bytes] = []
+    size = 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > _MAX_FORM_BYTES:
+            raise HTTPException(status_code=413, detail="form_too_large")
+        chunks.append(chunk)
+    body = b"".join(chunks).decode("utf-8", errors="replace")
+    return {k: v[0] for k, v in parse_qs(body, keep_blank_values=True).items()}
+
+
+def build_app(
+    metrics: ExporterMetrics | None = None,
+    collector: _ReadyFlag | None = None,
+    settings: Settings | None = None,
+    runtime: ExporterRuntime | None = None,
+) -> FastAPI:
+    """Build the HTTP app. Pass ``runtime`` in production; the /auth page needs it to
+    reconnect. ``metrics``/``collector``/``settings`` remain for static wiring in tests."""
+    if runtime is None and (metrics is None or collector is None):
+        raise ValueError("build_app needs either runtime or metrics and collector")
+
+    def get_metrics() -> ExporterMetrics:
+        if runtime is not None:
+            return runtime.metrics
+        assert metrics is not None
+        return metrics
+
+    def is_ready() -> bool:
+        if runtime is not None:
+            return runtime.ready
+        assert collector is not None
+        return collector.ready
+
+    def get_settings() -> Settings | None:
+        return runtime.settings if runtime is not None else settings
+
     app = FastAPI(title="bambulab-metrics-exporter", version=__version__)
+
+    @app.middleware("http")
+    async def security_headers(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        response = await call_next(request)
+        for name, value in _SECURITY_HEADERS.items():
+            response.headers.setdefault(name, value)
+        return response
 
     # Mount static files for serving the logo and other assets
     if _STATIC_PATH.is_dir():
@@ -39,50 +278,253 @@ def build_app(metrics: ExporterMetrics, collector: PollingCollector, settings: S
 
     @app.get("/", response_class=HTMLResponse)
     def root_handler() -> HTMLResponse:
-        ready = collector.ready
-        ready_status = "Connected" if ready else "Warming Up"
-        ready_class = "ready" if ready else "warming"
+        status = runtime.status() if runtime is not None else None
+        state = status["state"] if status else ""
+        current = get_settings()
 
-        healthy, _ = _check_health(metrics)
+        healthy, _ = _check_health(get_metrics())
         health_status = "Healthy" if healthy else "Unhealthy"
         health_class = "healthy" if healthy else "unhealthy"
 
-        # Resolve printer name from settings; fall back to empty string
+        ready_status, ready_class = _printer_state(state, is_ready())
+        mode = ""
+        if current is not None:
+            mode = "Bambu Cloud" if current.bambulab_transport == "cloud_mqtt" else "Local (LAN)"
+
+        last = get_metrics().last_success_timestamp()
+        poll = current.polling_interval_seconds if current is not None else None
+        last_text, last_class = _last_update(last, poll, time.time())
+
         raw_printer_name = ""
-        if settings is not None:
-            raw_printer_name = settings.printer_name_label or settings.bambulab_printer_name or ""
-        # Render as a separate badge element when set, or empty string when not set
+        if current is not None:
+            raw_printer_name = current.printer_name_label or current.bambulab_printer_name or ""
         printer_badge = (
-            f'<span class="printer-badge">🖨 {raw_printer_name}</span>'
+            f'<span class="printer-badge">{_PRINTER_ICON}{html.escape(raw_printer_name)}</span>'
             if raw_printer_name
             else ""
         )
+        mode_badge = f'<span class="badge">{html.escape(mode)}</span>' if mode else ""
 
-        html = (
+        # Refresh quickly while connecting, slowly otherwise (read-only page, safe to reload).
+        refresh = 3 if state in _REFRESH_STATES or (state == "running" and not is_ready()) else 15
+
+        page = (
             _TEMPLATE
+            .replace("{{REFRESH}}", f'<meta http-equiv="refresh" content="{refresh}">')
             .replace("{{VERSION}}", __version__)
-            .replace("{{READY_STATUS}}", ready_status)
-            .replace("{{READY_CLASS}}", ready_class)
+            .replace("{{PRINTER_BADGE}}", printer_badge)
+            .replace("{{MODE_BADGE}}", mode_badge)
+            .replace("{{ALERT}}", _ALERTS.get(state, ""))
             .replace("{{HEALTH_STATUS}}", health_status)
             .replace("{{HEALTH_CLASS}}", health_class)
-            .replace("{{PRINTER_BADGE}}", printer_badge)
+            .replace("{{READY_STATUS}}", ready_status)
+            .replace("{{READY_CLASS}}", ready_class)
+            .replace("{{READY_DETAIL}}", html.escape(mode) or "Printer data")
+            .replace("{{LAST_UPDATE}}", last_text)
+            .replace("{{LAST_UPDATE_CLASS}}", last_class)
+            .replace(
+                "{{POLL_DETAIL}}", f"Polling every {poll:g}s" if poll is not None else "Polling"
+            )
         )
-        return HTMLResponse(content=html)
+        return HTMLResponse(content=page)
 
     @app.get("/metrics")
     def metrics_handler() -> Response:
-        data = generate_latest(metrics.registry)
+        data = generate_latest(get_metrics().registry)
         return Response(content=data, media_type=CONTENT_TYPE_LATEST)
 
     @app.get("/health")
     def health_handler() -> dict[str, str]:
-        _, status = _check_health(metrics)
+        _, status = _check_health(get_metrics())
         return {"status": status}
 
     @app.get("/ready")
     def ready_handler() -> dict[str, str]:
-        if collector.ready:
+        if is_ready():
             return {"status": "ready"}
         raise HTTPException(status_code=503, detail="warming_up")
 
+    if runtime is not None:
+        _add_auth_routes(app, runtime)
+
     return app
+
+
+def _add_auth_routes(app: FastAPI, runtime: ExporterRuntime) -> None:
+    code_sender = CodeSender()
+    login_limiter = AttemptLimiter(max_attempts=5, window_seconds=60.0)
+    # Last action result per visitor (cookie), shown once. Kept server-side so the page
+    # never renders text taken from the URL, and one visitor never sees another's result.
+    flashes: OrderedDict[str, ActionResult] = OrderedDict()
+
+    def allowed_hosts() -> set[str]:
+        raw = getattr(runtime.settings, "auth_allowed_hosts", "") or ""
+        return {h.strip().lower() for h in str(raw).split(",") if h.strip()}
+
+    def guard(request: Request) -> None:
+        if not _host_allowed(request.headers.get("host", ""), allowed_hosts()):
+            raise HTTPException(
+                status_code=403,
+                detail="host_not_allowed: add this host name to AUTH_ALLOWED_HOSTS",
+            )
+
+    def visitor(request: Request) -> str:
+        token = request.cookies.get(_FLASH_COOKIE, "")
+        return token if _FLASH_TOKEN_RE.match(token) else ""
+
+    def set_flash(token: str, result: ActionResult) -> None:
+        flashes[token] = result
+        flashes.move_to_end(token)
+        while len(flashes) > _FLASH_LIMIT:
+            flashes.popitem(last=False)
+
+    def render(
+        request: Request,
+        email: str = "",
+        cloud_tab: bool | None = None,
+        allow_refresh: bool = True,
+        result: ActionResult | None = None,
+    ) -> HTMLResponse:
+        status = runtime.status()
+        label, css = _STATE_LABELS.get(status["state"], (status["state"], "wait"))
+        current = runtime.settings
+        if current.bambulab_transport == "cloud_mqtt":
+            where = "Bambu Cloud"
+        else:
+            where = f"Local, {current.bambulab_host or 'no host set'}"
+        printer = mask_serial(current.bambulab_serial) or "no printer set"
+        message = (
+            f'<div class="detail">{html.escape(status["message"])}</div>'
+            if status["message"]
+            else ""
+        )
+        # While connecting, reload every few seconds so the status updates by itself, and
+        # keep the last result visible until the state settles. Pages answering a post do
+        # not reload, so the email the visitor typed stays in the form.
+        refreshing = status["state"] in _REFRESH_STATES and allow_refresh
+        token = visitor(request)
+        if result is None and token:
+            result = flashes.get(token) if refreshing else flashes.pop(token, None)
+        flash_html = _notice_html(result) if result else ""
+        cloud = current.bambulab_transport == "cloud_mqtt" if cloud_tab is None else cloud_tab
+        page = (
+            _AUTH_TEMPLATE
+            .replace("{{VERSION}}", __version__)
+            .replace("{{STATE_LABEL}}", html.escape(label))
+            .replace("{{STATE_CLASS}}", css)
+            .replace("{{CURRENT}}", html.escape(f"{where}, printer {printer}"))
+            .replace("{{STATE_MESSAGE}}", message)
+            .replace("{{FLASH}}", flash_html)
+            .replace(
+                "{{REFRESH}}",
+                '<meta http-equiv="refresh" content="3;url=/auth">' if refreshing else "",
+            )
+            .replace("{{LOCAL_CHECKED}}", "" if cloud else "checked")
+            .replace("{{CLOUD_CHECKED}}", "checked" if cloud else "")
+            # Echo only the email the visitor just submitted; it is never stored.
+            .replace("{{CLOUD_EMAIL}}", html.escape(email, quote=True))
+        )
+        return HTMLResponse(content=page, headers={"Cache-Control": "no-store"})
+
+    def with_visitor(response: Response, token: str) -> Response:
+        response.set_cookie(
+            _FLASH_COOKIE, token, httponly=True, samesite="strict", path="/auth", max_age=3600
+        )
+        return response
+
+    async def run_action(
+        request: Request, action: Callable[[dict[str, str]], ActionResult]
+    ) -> tuple[dict[str, str], ActionResult]:
+        guard(request)
+        if not _same_origin(request):
+            raise HTTPException(status_code=403, detail="cross_origin_form_post")
+        form = await _form(request)
+
+        def locked() -> ActionResult:
+            # One page change at a time: env writes and file saves must not interleave.
+            with overrides_lock:
+                return action(form)
+
+        try:
+            result = await run_in_threadpool(locked)
+        except AuthInputError as exc:
+            result = ActionResult(False, str(exc))
+        except (OSError, RuntimeError) as exc:
+            logger.warning("Saving /auth page settings failed: %s", exc)
+            result = ActionResult(False, f"Could not save the settings: {_short_error(exc)}")
+        return form, result
+
+    async def handle(
+        request: Request, action: Callable[[dict[str, str]], ActionResult], reconnect: bool
+    ) -> Response:
+        _form_data, result = await run_action(request, action)
+        token = visitor(request) or secrets.token_urlsafe(16)
+        set_flash(token, result)
+        if reconnect and result.ok:
+            runtime.reconfigure()
+        return with_visitor(RedirectResponse("/auth", status_code=303), token)
+
+    async def cloud_action(
+        request: Request, action: Callable[[dict[str, str]], ActionResult], reconnect: bool
+    ) -> Response:
+        """Cloud steps answer with the page itself (not a redirect) while the visitor still
+        has to act, so the email they typed stays filled in for the next step."""
+        form, result = await run_action(request, action)
+        if reconnect and result.ok:
+            token = visitor(request) or secrets.token_urlsafe(16)
+            set_flash(token, result)
+            runtime.reconfigure()
+            return with_visitor(RedirectResponse("/auth", status_code=303), token)
+        return render(
+            request,
+            email=form.get("email", "").strip(),
+            cloud_tab=True,
+            allow_refresh=False,
+            result=result,
+        )
+
+    @app.get("/auth", response_class=HTMLResponse)
+    def auth_page(request: Request) -> HTMLResponse:
+        guard(request)
+        return render(request)
+
+    @app.get("/auth/status")
+    def auth_status(request: Request) -> dict[str, str]:
+        guard(request)
+        return runtime.status()
+
+    @app.post("/auth/local")
+    async def auth_local(request: Request) -> Response:
+        return await handle(
+            request,
+            lambda f: configure_local(
+                f.get("host", ""), f.get("serial", ""), f.get("access_code", ""), f.get("port", "")
+            ),
+            reconnect=True,
+        )
+
+    @app.post("/auth/cloud/send-code")
+    async def auth_send_code(request: Request) -> Response:
+        return await cloud_action(
+            request, lambda f: code_sender.send(f.get("email", "")), reconnect=False
+        )
+
+    @app.post("/auth/cloud/login")
+    async def auth_cloud_login(request: Request) -> Response:
+        def login(f: dict[str, str]) -> ActionResult:
+            login_limiter.check()
+            return configure_cloud(f.get("email", ""), f.get("code", ""), f.get("serial", ""))
+
+        return await cloud_action(request, login, reconnect=True)
+
+    @app.post("/auth/reset")
+    async def auth_reset(request: Request) -> Response:
+        def reset(_form: dict[str, str]) -> ActionResult:
+            removed = clear_overrides()
+            restored = restore_credentials_backup(credentials_path(runtime.settings))
+            restore_original_env()
+            if removed or restored:
+                return ActionResult(True, "Page settings removed; using the container's env vars.")
+            return ActionResult(True, "No saved page settings; already using env vars.")
+
+        return await handle(request, reset, reconnect=True)

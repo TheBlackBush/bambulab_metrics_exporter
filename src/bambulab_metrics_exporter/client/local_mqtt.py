@@ -26,6 +26,7 @@ class LocalMqttBambuClient(BambuClient):
         self._lock = threading.Lock()
         self._latest_state: dict[str, Any] = {}
         self._connected = False
+        self._auth_rejected = False
         self._last_message_ts = 0.0
 
         # paho v2 callback API (typed loosely for compatibility across stub versions)
@@ -52,6 +53,11 @@ class LocalMqttBambuClient(BambuClient):
         )
         self._client.connect(self._settings.bambulab_host, self._settings.bambulab_port, keepalive=20)
         self._client.loop_start()
+
+    @property
+    def auth_rejected(self) -> bool:
+        with self._lock:
+            return self._auth_rejected
 
     def disconnect(self) -> None:
         self._client.loop_stop()
@@ -109,6 +115,8 @@ class LocalMqttBambuClient(BambuClient):
         _properties: object | None,
     ) -> None:
         if reason_code != 0:
+            with self._lock:
+                self._auth_rejected = _is_auth_rejection(reason_code)
             logger.error(
                 "MQTT connect failed: reason=%s host=%s port=%s user=%s topic=%s",
                 str(reason_code),
@@ -120,6 +128,7 @@ class LocalMqttBambuClient(BambuClient):
             return
         with self._lock:
             self._connected = True
+            self._auth_rejected = False
         logger.info("MQTT connected")
         _client.subscribe(self._topic_report, qos=1)
         if self._settings.bambulab_request_pushall:
@@ -149,6 +158,18 @@ class LocalMqttBambuClient(BambuClient):
         with self._lock:
             _deep_merge_in_place(self._latest_state, payload)
             self._last_message_ts = time.time()
+
+
+# CONNACK codes for refused credentials: MQTT 3.1.1 (4, 5) and the MQTT 5 values paho v2
+# reports for them (134 bad user name or password, 135 not authorized).
+_AUTH_REJECTION_CODES = {4, 5, 134, 135}
+
+
+def _is_auth_rejection(reason_code: object) -> bool:
+    value = getattr(reason_code, "value", reason_code)
+    if isinstance(value, int) and value in _AUTH_REJECTION_CODES:
+        return True
+    return str(reason_code).strip().lower() in {"not authorized", "bad user name or password"}
 
 
 def _deep_merge_in_place(target: dict[str, Any], source: dict[str, Any]) -> None:

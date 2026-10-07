@@ -9,7 +9,7 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/TheBlackBush/bambulab_metrics_exporter</Support>
   <Project>https://github.com/TheBlackBush/bambulab_metrics_exporter</Project>
-  <Overview>Prometheus exporter for Bambu Lab printers on Unraid. Exposes /metrics, /health, and /ready.&#10;&#10;Quick setup:&#10;1) Set required values: BAMBULAB_TRANSPORT, BAMBULAB_SERIAL, BAMBULAB_SECRET_KEY (example: openssl rand -base64 48).&#10;2) cloud_mqtt: set BAMBULAB_CLOUD_EMAIL (code/token fields can be left empty for first run and may auto-populate).&#10;3) local_mqtt: set BAMBULAB_HOST and BAMBULAB_ACCESS_CODE.&#10;&#10;Then start the container and open WebUI for status. Scrape /metrics from Prometheus.</Overview>
+  <Overview>Prometheus exporter for Bambu Lab printers on Unraid. Exposes /metrics, /health, /ready, a status page at / and the printer connection page at /auth (local or Bambu Cloud login, no restart needed). The /auth page has no login; keep the port on a trusted network.&#10;&#10;Quick setup:&#10;1) Set required values: BAMBULAB_TRANSPORT, BAMBULAB_SERIAL, BAMBULAB_SECRET_KEY (example: openssl rand -base64 48).&#10;2) cloud_mqtt: set BAMBULAB_CLOUD_EMAIL (code/token fields can be left empty for first run and may auto-populate).&#10;3) local_mqtt: set BAMBULAB_HOST and BAMBULAB_ACCESS_CODE.&#10;&#10;Then start the container and open WebUI for status. Scrape /metrics from Prometheus.</Overview>
   <Category>Network:Management Tools: Monitoring</Category>
   <WebUI>http://[IP]:[PORT:9109]/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/TheBlackBush/bambulab_metrics_exporter/main/unraid-bambulab-metrics-exporter.xml</TemplateURL>
@@ -27,7 +27,7 @@
   <Config Name="Secret Key" Target="BAMBULAB_SECRET_KEY" Default="" Mode="" Description="Strong key for encrypted credentials. Generate example: openssl rand -base64 48" Type="Variable" Display="always" Required="true" Mask="true"></Config>
 
   <Config Name="Cloud Email" Target="BAMBULAB_CLOUD_EMAIL" Default="" Mode="" Description="Used only when Transport=cloud_mqtt. Recommended/required for automatic cloud auth flow." Type="Variable" Display="always" Required="false" Mask="false"></Config>
-  <Config Name="Cloud One-Time Code" Target="BAMBULAB_CLOUD_CODE" Default="" Mode="" Description="Used only when Transport=cloud_mqtt. Optional verification code from email; if empty, startup can trigger code flow and ask for restart." Type="Variable" Display="always" Required="false" Mask="true"></Config>
+  <Config Name="Cloud One-Time Code" Target="BAMBULAB_CLOUD_CODE" Default="" Mode="" Description="Used only when Transport=cloud_mqtt. Legacy option: verification code from email. Prefer logging in on the /auth page (or bambulab-reauth in the Console); the exporter waits for the login instead of exiting." Type="Variable" Display="always" Required="false" Mask="true"></Config>
   <Config Name="Cloud User ID" Target="BAMBULAB_CLOUD_USER_ID" Default="" Mode="" Description="Used only when Transport=cloud_mqtt. Usually auto-filled by startup auth process; can stay empty on first run." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
   <Config Name="Cloud Access Token" Target="BAMBULAB_CLOUD_ACCESS_TOKEN" Default="" Mode="" Description="Used only when Transport=cloud_mqtt. Usually auto-filled by startup auth process; leave empty unless setting manually." Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
   <Config Name="Cloud Refresh Token" Target="BAMBULAB_CLOUD_REFRESH_TOKEN" Default="" Mode="" Description="Used only when Transport=cloud_mqtt. Auto-filled when available by startup auth process; optional for manual setup." Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
@@ -48,6 +48,7 @@
 
   <Config Name="Polling Interval" Target="POLLING_INTERVAL_SECONDS" Default="10" Mode="" Description="Polling interval in seconds" Type="Variable" Display="advanced" Required="false" Mask="false">10</Config>
   <Config Name="Request Timeout" Target="REQUEST_TIMEOUT_SECONDS" Default="8" Mode="" Description="Request timeout in seconds" Type="Variable" Display="advanced" Required="false" Mask="false">8</Config>
+  <Config Name="Auth Allowed Hosts" Target="AUTH_ALLOWED_HOSTS" Default="" Mode="" Description="Extra host names allowed for the /auth page, comma separated (e.g. a reverse-proxy name). IP addresses and local names are always allowed." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
   <Config Name="Log Level" Target="LOG_LEVEL" Default="INFO" Mode="" Description="DEBUG/INFO/WARNING/ERROR" Type="Variable" Display="advanced" Required="false" Mask="false">INFO</Config>
   <Config Name="Printer Name Label" Target="PRINTER_NAME" Default="" Mode="" Description="Prometheus label value; leave empty to auto-fill from printer serial" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
 </Container>

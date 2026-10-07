@@ -41,3 +41,9 @@ RELEASE_RULES.md
 ruvector.db
 agentdb.rvf
 agentdb.rvf.lock
+
+# third-party app binaries used for local analysis only
+apk_app/
+*.apk
+*.apkm
+*.xapk
