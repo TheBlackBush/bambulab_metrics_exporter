@@ -4,6 +4,27 @@ All metrics include stable labels: `printer_name` and `serial`.
 
 ---
 
+## Supported models
+
+Detection is not hardware validation: only the X1C is validated on real hardware. Metrics
+for hardware a model does not have report NaN.
+
+| Model | Serial prefix | Chamber temp | Chamber heater | Door sensor | Lid | Aux / chamber fan | Extruders | Hotend rack | Laser / cutter |
+|-------|---------------|--------------|----------------|-------------|-----|-------------------|-----------|-------------|----------------|
+| X1 / X1 Carbon | `00W` / `00M` | yes | no | home_flag | no | yes | 1 | no | no |
+| X1E | `03W` | yes | yes | home_flag | no | yes | 1 | no | no |
+| X2D | `20P` | yes | yes | stat | no | yes | 2 | no | no |
+| P1P / P1S | `01S` / `01P` | no | no | no | no | yes | 1 | no | no |
+| P2S | `22E` | yes | no | stat | no | yes | 1 | no | no |
+| A1 / A1 mini | `039` / `030` | no | no | no | no | no | 1 | no | no |
+| A2L | `26A` | no | no | no | no | no | 1 | no | no |
+| H2D / H2D Pro | `094` / `239` | yes | yes | stat | yes | yes | 2 | no | yes |
+| H2S | `093` | yes | yes | stat | yes | yes | 1 | no | yes |
+| H2C | `31B` (early units `094`) | yes | yes | stat | yes | yes | 2 | yes | yes |
+| R1 (laser) | `35F` | no | no | auto | no | no | none | no | yes |
+
+Unknown models export whatever the payload carries.
+
 ## Exporter Health
 
 | Metric | Type | Description |
@@ -60,8 +81,8 @@ Fan values: raw levels 0–15 → nearest-10 percent normalization.
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `bambulab_fan_big_1_speed_percent` | Gauge | Big fan 1 speed percent |
-| `bambulab_fan_big_2_speed_percent` | Gauge | Big fan 2 speed percent |
+| `bambulab_fan_big_1_speed_percent` | Gauge | Big fan 1 (aux) speed percent. NaN on models without an aux fan (A1, A1 mini, A2L) |
+| `bambulab_fan_big_2_speed_percent` | Gauge | Big fan 2 (chamber) speed percent. NaN on models without a chamber fan (A1, A1 mini, A2L) |
 | `bambulab_fan_cooling_speed_percent` | Gauge | Cooling fan speed percent |
 | `bambulab_fan_heatbreak_speed_percent` | Gauge | Heatbreak fan speed percent |
 | `bambulab_fan_secondary_aux_speed_percent` | Gauge | Secondary auxiliary fan speed percent (airduct fan 10, part id 160; X2D). NaN when the printer has no such fan |

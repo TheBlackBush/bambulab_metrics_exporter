@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added
+- Per-model capability table (`capabilities.py`, documented in the wiki Metrics Reference as
+  "Supported models"), replacing scattered model checks.
+- Model codes: `O2D` and the cloud short name `H2DP` (H2D Pro), `A1M`, `A04`, `A12`, `N2`
+  (A1 mini), `A11` (A1), and `-V2` hardware revisions (`N6-V2`, `O1D-V2`, `O1C2-V2`, ...).
+- R1 laser engraver (serial prefix `35F`, Bambu Studio code `N8`) is recognized as model `R1`;
+  no FDM metrics are reported for it.
 - `bambulab_filament_tangle_detection_enabled`: the tangle-detection setting, NaN when the
   printer does not support it.
 - `bambulab_hotend_rack_hotend_print_time_seconds` (`p_t`) and
@@ -72,6 +78,10 @@ All notable changes to this project are documented in this file.
 - The `BAMBULAB_CLOUD_EMAIL` + `BAMBULAB_CLOUD_CODE` env flow is unchanged and still supported.
 
 ### Fixed
+- `bambulab_fan_big_1_speed_percent` / `bambulab_fan_big_2_speed_percent` are NaN on A1,
+  A1 mini and A2L, which have no aux or chamber fan but report 0.
+- X1-family door state no longer falls back to `stat` bit 23 when `home_flag` is missing;
+  that bit is always set on the X1C and reported the door as open.
 - **Chamber temperature on heated printers** (H2C, H2D, H2D Pro, H2S, X2D, P2S): the packed
   `device.ctc` value (target << 16 | current) is unpacked; an H2S heating to 60 °C reported
   3,932,220 °C. Models without a chamber sensor (A1, A1 mini, A2L, P1P, P1S) report NaN
