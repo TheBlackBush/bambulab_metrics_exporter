@@ -5,6 +5,9 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added
+- Grafana dashboard (`examples/grafana/dashboard.sample.json`): new rows for health and
+  firmware (HMS errors, firmware update, module versions), chamber/airduct/accessories,
+  extruders and nozzles, and AMS drying, plus HMS and airduct fan trends.
 - Firmware: `bambulab_firmware_update_available` and
   `bambulab_module_firmware_info{module,version}` (from `get_version`).
 - Accessories: `bambulab_tool_head_info{tool}` (laser, cutter, cooling fan) and
@@ -101,6 +104,12 @@ All notable changes to this project are documented in this file.
 - The `BAMBULAB_CLOUD_EMAIL` + `BAMBULAB_CLOUD_CODE` env flow is unchanged and still supported.
 
 ### Fixed
+- Grafana dashboard: target temperature, total layer, stage and error queries now filter on
+  `$printer` (they mixed printers sharing a job); remaining-time trend uses seconds (was
+  minutes, 60x too large); AMS temperature and humidity show one value per unit instead of
+  the maximum; removed an empty query that made "Print Errors" fail; "Print Percentage
+  Remaining" renamed to "Print Progress"; AMS "Printer Model" renamed to "AMS Model"; the
+  tangle panel shows Enabled/Disabled for the detection setting.
 - `bambulab_fan_big_1_speed_percent` / `bambulab_fan_big_2_speed_percent` are NaN on A1,
   A1 mini and A2L, which have no aux or chamber fan but report 0.
 - X1-family door state no longer falls back to `stat` bit 23 when `home_flag` is missing;
