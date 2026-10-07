@@ -341,6 +341,8 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 | `bambulab_bed_temperature_celsius` | Gauge | Current bed temperature. |
 | `bambulab_bed_target_temperature_celsius` | Gauge | Target bed temperature. |
 | `bambulab_chamber_temperature_celsius` | Gauge | Chamber temperature. |
+| `bambulab_chamber_target_temperature_celsius` | Gauge | Chamber heater target (models with a chamber heater). |
+| `bambulab_chamber_heater_state` | Gauge | Chamber heater state (0 idle, 1 heating, 2 holding, 3 cooling). |
 | `bambulab_fan_big_1_speed_percent` | Gauge | Big fan 1 (aux) speed percent. NaN on A1, A1 mini, A2L (no aux fan). |
 | `bambulab_fan_big_2_speed_percent` | Gauge | Big fan 2 (chamber) speed percent. NaN on A1, A1 mini, A2L (no chamber fan). |
 | `bambulab_fan_cooling_speed_percent` | Gauge | Cooling fan speed percent. |
@@ -349,6 +351,8 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 | `bambulab_printer_error` | Gauge | 1 when printer error code is non-zero. |
 | `bambulab_printer_error_code` | Gauge | Raw printer error code (`mc_print_error_code`). |
 | `bambulab_print_error_code` | Gauge | Raw `print_error` value from MQTT (legacy alias). |
+| `bambulab_hms_active_errors{severity}` | Gauge | Active HMS errors by severity (`fatal`, `serious`, `common`, `info`, `unknown`). |
+| `bambulab_hms_active_errors_by_module{module}` | Gauge | Active HMS errors by module (`mc`, `mainboard`, `ams`, `toolhead`, `xcam`, `other`). |
 | `bambulab_print_error` | Gauge | Raw `print_error` value from MQTT. |
 | `bambulab_ap_error_code` | Gauge | Raw `ap_err` value from MQTT. |
 | `bambulab_printer_gcode_state{state}` | One-hot Gauge | Current gcode state as one-hot labels. |
@@ -379,6 +383,7 @@ bambulab_sdcard_status_info{printer_name="$printer", status="abnormal"} == 1
 | `bambulab_external_spool_active` | Gauge | 1 when external spool is active. |
 | `bambulab_external_spool_info{external_id,tray_type,tray_info_idx,tray_color}` | Info Gauge | External spool metadata. |
 | `bambulab_active_extruder_index` | Gauge | Active extruder index (dual-extruder models). |
+| `bambulab_extruder_loaded_slot_info{extruder_id,ams_id,slot_id}` | Info Gauge | Filament loaded in each extruder (AMS slot or `external`). |
 | `bambulab_extruder_temperature_celsius{extruder_id}` | Gauge | Per-extruder current temperature. |
 | `bambulab_extruder_target_temperature_celsius{extruder_id}` | Gauge | Per-extruder target temperature. |
 | `bambulab_extruder_nozzle_info{extruder_id,nozzle_type,nozzle_diameter}` | Info Gauge | Per-extruder nozzle metadata. |

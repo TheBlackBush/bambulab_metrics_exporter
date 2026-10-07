@@ -7,6 +7,7 @@ from bambulab_metrics_exporter.capabilities import (
     ModelCapabilities,
     capabilities_for,
 )
+from bambulab_metrics_exporter.capabilities import UNKNOWN as UNKNOWN_CAPABILITIES
 from bambulab_metrics_exporter.flags import (
     HOME_FLAG_MASKS,
     STAT_FLAG_MASKS,
@@ -111,6 +112,18 @@ AMS_SERIAL_PREFIX_TO_MODEL: dict[str, str] = {
     "19C": "ams_2_pro",
     "19F": "ams_ht",
 }
+
+# HMS (health management) error decoding, fixed label sets.
+_HMS_SEVERITY_NAMES: dict[int, str] = {1: "fatal", 2: "serious", 3: "common", 4: "info"}
+HMS_SEVERITIES: tuple[str, ...] = ("fatal", "serious", "common", "info", "unknown")
+_HMS_MODULE_NAMES: dict[int, str] = {
+    0x03: "mc",
+    0x05: "mainboard",
+    0x07: "ams",
+    0x08: "toolhead",
+    0x0C: "xcam",
+}
+HMS_MODULES: tuple[str, ...] = ("mc", "mainboard", "ams", "toolhead", "xcam", "other")
 
 # get_version module name prefix ("n3f/0") → AMS model, for units without info/sn.
 AMS_MODEL_BY_MODULE_PREFIX: dict[str, str] = {
@@ -630,6 +643,37 @@ class PrinterSnapshot:
             return float(int(value) & 0xFFFF)
         return value
 
+    def _ctc(self) -> dict[str, Any]:
+        device = self.print_block.get("device")
+        ctc = device.get("ctc") if isinstance(device, dict) else None
+        return ctc if isinstance(ctc, dict) else {}
+
+    def _may_have_chamber_heater(self) -> bool:
+        # Unknown models stay permissive: report whatever the payload carries.
+        caps = self.capabilities
+        return caps.chamber_heater or caps is UNKNOWN_CAPABILITIES
+
+    @property
+    def chamber_target_temp(self) -> float | None:
+        """Chamber heater target in °C (high 16 bits of `device.ctc.info.temp`, 0 while the
+        heater is off; legacy `ctt` otherwise). None on models without a chamber heater."""
+        if not self._may_have_chamber_heater():
+            return None
+        info = self._ctc().get("info")
+        raw = to_int(info.get("temp")) if isinstance(info, dict) else None
+        if raw is not None and raw >= 0:
+            return float((raw >> 16) & 0xFFFF)
+        return _to_float(self.print_block.get("ctt"))
+
+    @property
+    def chamber_heater_state(self) -> float | None:
+        """Raw `device.ctc.state` low nibble: 0 idle, 1 heating, 2 holding, 3 cooling (names
+        per the Bambu Handy temperature-state enum). None on models without a heater."""
+        if not self._may_have_chamber_heater():
+            return None
+        state = to_int(self._ctc().get("state"))
+        return None if state is None else float(state & 0xF)
+
     @property
     def layer_current(self) -> float | None:
         return _to_float(self.print_block.get("layer_num"))
@@ -859,6 +903,59 @@ class PrinterSnapshot:
         if 0x80 <= tray_now <= 0x87:
             return ("ams", tray_now, 0)
         return ("ams", tray_now >> 2, tray_now & 0x3)
+
+    @property
+    def extruder_loaded_slots(self) -> list[dict[str, str]]:
+        """Filament loaded per extruder from `device.extruder.info[].snow`.
+
+        ams_id/slot_id are the AMS unit (0-3, 16 on A2L, 128+ for AMS HT) and slot, or
+        "external" for the external spool. Extruders with nothing loaded are omitted.
+        """
+        loaded: list[dict[str, str]] = []
+        for entry in self.extruder_entries:
+            snow = to_int(entry.get("snow"))
+            if snow is None:
+                continue
+            ams_id, slot = (snow >> 8) & 0xFF, snow & 0xFF
+            if (ams_id == 0xFF and slot == 0xFF) or (ams_id, slot) == (0xFE, 0xFF):
+                continue
+            external = ams_id == 0xFF
+            loaded.append(
+                {
+                    "extruder_id": str(entry["id"]),
+                    "ams_id": "external" if external else str(ams_id),
+                    "slot_id": "external" if external else str(slot),
+                }
+            )
+        return loaded
+
+    @property
+    def hms_counts(self) -> tuple[dict[str, int], dict[str, int]] | None:
+        """Active HMS errors counted by severity and by module; None without an `hms` list.
+
+        severity = code >> 16 (1 fatal, 2 serious, 3 common, 4 info); module = attr >> 24
+        (0x03 mc, 0x05 mainboard, 0x07 ams, 0x08 toolhead, 0x0C xcam), per Bambu Studio.
+        Full error codes are never used as labels (unbounded).
+        """
+        hms = self.print_block.get("hms")
+        if not isinstance(hms, list):
+            return None
+        by_severity = dict.fromkeys(HMS_SEVERITIES, 0)
+        by_module = dict.fromkeys(HMS_MODULES, 0)
+        for item in hms:
+            if not isinstance(item, dict):
+                continue
+            code = to_int(item.get("code"))
+            attr = to_int(item.get("attr"))
+            severity = "unknown"
+            if code is not None:
+                severity = _HMS_SEVERITY_NAMES.get((code >> 16) & 0xFFFF, "unknown")
+            module = "other"
+            if attr is not None:
+                module = _HMS_MODULE_NAMES.get((attr >> 24) & 0xFF, "other")
+            by_severity[severity] += 1
+            by_module[module] += 1
+        return by_severity, by_module
 
     @property
     def external_spool_active(self) -> float | None:
