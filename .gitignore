@@ -33,3 +33,10 @@ external-upstream-analysis.md
 uv.lock
 
 RELEASE_RULES.md
+
+# local tooling state
+.claude-flow/
+.swarm/
+ruvector.db
+.claude/proven-config.json
+.claude/.proven-config-version
