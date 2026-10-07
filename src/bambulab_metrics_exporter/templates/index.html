@@ -116,7 +116,10 @@
 
   /* ─── Metrics link ────────────────────────────────────── */
   .metrics-link-row {
-    text-align: center;
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
   }
 
   .metrics-link {
@@ -371,6 +374,9 @@
   <div class="metrics-link-row">
     <a class="metrics-link" href="/metrics">
       View Metrics →
+    </a>
+    <a class="metrics-link" href="/auth">
+      Printer Connection →
     </a>
   </div>
 

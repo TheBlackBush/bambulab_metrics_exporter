@@ -14,9 +14,11 @@ from urllib import error, request
 from bambulab_metrics_exporter.credentials_store import save_encrypted_credentials
 from bambulab_metrics_exporter.env_sync import sync_env_file
 
+# api.bambulab.com serves every non-China region (Bambu Studio and ha-bambulab use only it,
+# plus api.bambulab.cn for China accounts). There is no api-eu host; it never resolved and
+# turned definitive 401s into "transient" DNS failures.
 DEFAULT_API_BASES = [
     "https://api.bambulab.com",
-    "https://api-eu.bambulab.com",
 ]
 DEFAULT_TIMEOUT_SECONDS = 20
 DEFAULT_RETRIES = 3
@@ -108,7 +110,7 @@ def _post_json(
                         f"Cloud auth blocked on {api_base} (HTTP 403 code 1010). "
                         "Likely network/region/fingerprint restriction."
                     ) from exc
-                raise CloudAuthError(f"{api_base} -> HTTP {exc.code}: {body}") from exc
+                raise CloudAuthError(f"{api_base} -> HTTP {exc.code}") from exc
         except error.URLError as exc:
             if attempt >= retries:
                 raise CloudAuthError(f"{api_base} -> Network error: {exc}") from exc
@@ -155,10 +157,9 @@ def _get_json(
                 body = res.read().decode("utf-8")
                 return json.loads(body) if body else {}
         except error.HTTPError as exc:
-            body = exc.read().decode("utf-8", errors="ignore")
             should_retry = exc.code in {408, 409, 425, 429, 500, 502, 503, 504}
             if attempt >= retries or not should_retry:
-                raise CloudAuthError(f"{api_base} -> HTTP {exc.code}: {body}") from exc
+                raise CloudAuthError(f"{api_base} -> HTTP {exc.code}") from exc
         except error.URLError as exc:
             if attempt >= retries:
                 raise CloudAuthError(f"{api_base} -> Network error: {exc}") from exc
@@ -246,13 +247,12 @@ def refresh_access_token(
 
                 if "error" in data:
                     # Server returned 200 but with an error body; treat as invalid
-                    raise CloudAuthInvalidError(
-                        f"Refresh token rejected by {api_base}: {data['error']}"
-                    )
+                    raise CloudAuthInvalidError(f"Refresh token rejected by {api_base}")
 
                 try:
                     access_token = str(data["accessToken"])
-                    new_refresh = str(data.get("refreshToken", refresh_token))
+                    # The refresh token is optional in the response; keep the old one.
+                    new_refresh = str(data.get("refreshToken") or refresh_token)
                     expires_in = _as_int(data.get("expiresIn", 0))
                     # user_id is not always returned in refresh response; extract best-effort
                     user_id = _extract_user_id(
@@ -278,12 +278,11 @@ def refresh_access_token(
                 raise  # propagate immediately; no point trying other bases
 
             except error.HTTPError as exc:
-                body = exc.read().decode("utf-8", errors="ignore")
                 if exc.code in _INVALID_AUTH_HTTP_CODES:
-                    invalid_errors.append(f"{api_base} -> HTTP {exc.code}: {body}")
+                    invalid_errors.append(f"{api_base} -> HTTP {exc.code}")
                     break  # try next base
                 if attempt >= retries or exc.code not in _TRANSIENT_HTTP_CODES:
-                    transient_errors.append(f"{api_base} -> HTTP {exc.code}: {body}")
+                    transient_errors.append(f"{api_base} -> HTTP {exc.code}")
                     break  # try next base
 
             except error.URLError as exc:
@@ -295,16 +294,18 @@ def refresh_access_token(
             backoff = min(2**attempt, 8) + random.uniform(0, 0.5)
             time.sleep(backoff)
 
-    if invalid_errors and not transient_errors:
+    # A definitive 401/403 from any endpoint means the token is rejected, even if another
+    # endpoint was unreachable: no endpoint accepted it, and retrying will not help.
+    if invalid_errors:
         raise CloudAuthInvalidError(
             "Refresh token is invalid or expired. Tried: "
             + ", ".join(bases)
             + " | errors: "
-            + " || ".join(invalid_errors)
+            + " || ".join(invalid_errors + transient_errors)
         )
 
-    # Mix of transient + invalid, or purely transient; don't force 2FA
-    all_errors = transient_errors + invalid_errors
+    # Only network/server failures: the token may still be valid, so do not force re-auth.
+    all_errors = transient_errors
     raise CloudAuthTransientError(
         "Token refresh failed due to transient issues. Tried: "
         + ", ".join(bases)

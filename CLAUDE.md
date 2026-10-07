@@ -78,9 +78,17 @@ Important boundaries:
 ## Runtime source
 
 - `src/bambulab_metrics_exporter/main.py`: `bambulab-exporter` entry point and composition
-  root. It loads `.env`, bootstraps cloud credentials, validates live connectivity,
-  discovers cloud metadata, starts the collector, creates FastAPI, and handles shutdown.
-  Changes affect every deployment and require broad tests.
+  root. It loads `.env`, applies `/auth` page overrides, bootstraps cloud credentials,
+  starts `ExporterRuntime`, creates FastAPI, and runs Uvicorn immediately. Changes affect
+  every deployment and require broad tests.
+- `src/bambulab_metrics_exporter/runtime.py`: `ExporterRuntime`, the background connection
+  lifecycle (states `starting`, `connecting`, `running`, `setup_required`, `auth_required`,
+  `error`). It validates, starts the collector, retries every 60 s, waits for credentials,
+  and rebuilds settings/metrics/client on `reconfigure()`. The process never exits on
+  connection problems.
+- `auth_actions.py` and `overrides.py`: backend for the `/auth` page. Overrides are stored
+  encrypted (`connection-overrides.enc.json`) and take precedence over env vars;
+  `overrides.set_env` records original values so reset can restore them.
 - `src/bambulab_metrics_exporter/config.py`: Pydantic settings, defaults, and basic
   validation. Coordinate changes with `.env.example`, Compose, Unraid, wiki docs,
   startup validation, and config tests.
@@ -102,8 +110,11 @@ Important boundaries:
   readiness, and scrape self-metrics. Lifecycle changes require failure/recovery and
   shutdown tests.
 - `src/bambulab_metrics_exporter/api.py`: FastAPI landing page and `/metrics`, `/health`,
-  and `/ready`. `/health` is currently process liveness; `/ready` becomes ready after a
-  nonempty payload. Preserve endpoint contracts unless a change is intentional.
+  `/ready`, plus `/auth` (HTML), `/auth/status` (JSON) and form posts `/auth/local`,
+  `/auth/cloud/send-code`, `/auth/cloud/login`, `/auth/reset` when built with a runtime.
+  `/health` is process liveness; `/ready` becomes ready after a nonempty payload. `/auth` is
+  unauthenticated by maintainer decision: escape all output, never render stored secrets,
+  keep the same-origin check and the send-code rate limit. Preserve endpoint contracts.
 - `src/bambulab_metrics_exporter/cloud_auth.py`: Bambu Cloud HTTP/OTP CLI, token refresh,
   device discovery, bounded HTTP retry/backoff, and credential output. Never expose
   response bodies, emails, tokens, codes, or device IDs carelessly.
@@ -172,17 +183,22 @@ Important boundaries:
 ## Startup
 
 1. The `bambulab-exporter` console script calls `main.run()`.
-2. `.env` is loaded best-effort without overriding existing process variables.
+2. `.env` is loaded best-effort without overriding existing process variables, then saved
+   `/auth` page overrides are applied over the environment.
 3. Cloud mode may load an encrypted credential file when an explicit user/token pair is
    absent and `BAMBULAB_SECRET_KEY` is available.
-4. `Settings` parses environment values and validates the transport and positive polling
-   and request timeouts.
-5. Cloud mode may discover the configured printer name/model from the cloud device list.
-6. Startup performs a live MQTT connection probe. Local failure aborts startup. Cloud mode
-   probes current credentials, attempts refresh when possible, then uses email/OTP recovery
-   only when needed. A missing OTP sends a code and exits with restart instructions.
-7. Allowed runtime values are synchronized to `.env` (best-effort mode `0600`). Metrics,
-   client, collector, and FastAPI are created; Uvicorn listens on the configured address.
+4. `ExporterRuntime` starts its background thread and Uvicorn starts serving immediately.
+5. The runtime reads `Settings`; missing required settings give `setup_required` (no exit).
+   Cloud mode may discover the printer name/model from the cloud device list.
+6. `startup.startup_validate` performs a live MQTT connection probe. Local failure raises and
+   the runtime retries every 60 s. Cloud mode (`startup._validate_cloud`, updates `settings`
+   in place) tries env credentials, then the encrypted store if it differs, then the refresh
+   token, then the legacy `BAMBULAB_CLOUD_EMAIL`/`BAMBULAB_CLOUD_CODE` login. If all fail it
+   raises `ReauthRequiredError`; the runtime logs a banner and waits for a `/auth` login or a
+   change of the encrypted store (written by `bambulab-reauth`). A pure network/API outage
+   is retried and never sends an OTP.
+7. Allowed runtime values are synchronized to `.env` (best-effort mode `0600`), and the
+   collector starts with a client built from the validated settings.
 
 Running the application locally is therefore not an offline smoke test: it requires valid
 configuration and reachable printer/cloud services and may update `.env`.
@@ -224,8 +240,10 @@ configuration and reachable printer/cloud services and may update `.env`.
   connectivity.
 - `ExporterMetrics` uses a private `CollectorRegistry`, preventing unrelated default-process
   metrics and isolating instances. FastAPI serializes this registry at `/metrics`.
-- On application shutdown, the collector stop event is set, the thread is joined for up to
-  five seconds, and MQTT disconnects.
+- On application shutdown, `runtime.stop()` wakes the runtime thread, the collector stop
+  event is set, the thread is joined for up to five seconds, and MQTT disconnects.
+- Tests: `tests/conftest.py` restores `os.environ` after every test, because startup,
+  runtime and `/auth` code write the environment directly by design.
 
 # Development Environment
 
@@ -745,8 +763,9 @@ Open implementation plans live in `.claude/plans/`. Read the relevant plan befor
 its area:
 
 - `.claude/plans/cloud-auth-reliability-plan.md`: startup recovery from expired cloud
-  credentials (refresh-error classification, encrypted-store fallback, Unraid docs) and a
-  follow-up for runtime MQTT token refresh. Not yet implemented.
+  credentials. Startup phases are implemented (classification, store fallback, reauth wait,
+  `/auth` page, `bambulab-reauth`); runtime MQTT token refresh while running is still open
+  (Bambu Handy refreshes on MQTT CONNACK 4/5 and reconnects with the new token).
 
 Recommended next tasks, each as a separately scoped change:
 

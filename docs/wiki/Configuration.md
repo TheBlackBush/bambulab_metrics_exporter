@@ -122,9 +122,16 @@ BAMBULAB_CLOUD_MQTT_HOST=us.mqtt.bambulab.com
 
 ## Startup Preflight
 
-**LAN mode:** Missing vars → clear error. Connection failure → troubleshooting message.
+The web server starts first and stays up; connecting happens in the background. `/auth/status`
+reports the state. Settings saved on the `/auth` page override env vars until reset there.
 
-**Cloud mode:** Missing/invalid credentials → automatic re-auth triggered.
-- Requires `BAMBULAB_CLOUD_EMAIL`
-- If `BAMBULAB_CLOUD_CODE` missing → exporter sends code email and exits with restart instructions
+**LAN mode:** Missing settings → `setup_required` (fill in on `/auth`). Connection failure →
+error logged, retried every 60 seconds.
+
+**Cloud mode:** credentials are tried in order: env tokens, encrypted credential file (if it
+holds different, newer tokens), refresh token, then `BAMBULAB_CLOUD_EMAIL` + `BAMBULAB_CLOUD_CODE`.
+- If all fail, the exporter logs a re-authentication banner and **waits**; log in on the
+  `/auth` page (or run `docker exec -it <container> bambulab-reauth`) and it resumes
+- If only `BAMBULAB_CLOUD_EMAIL` is set, one verification code is sent per container start
+- A network or API outage during refresh is retried every 60 seconds and never sends a code
 - On success → credentials saved encrypted, synced to `.env`

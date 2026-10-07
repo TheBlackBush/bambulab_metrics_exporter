@@ -9,6 +9,52 @@ All notable changes to this project are documented in this file.
   `ghcr.io/theblackbush/bambulab_metrics_exporter:develop` and `:develop-<short-sha>`
   (amd64/arm64) after the full test suite passes. Stable `latest` and version tags are
   unchanged.
+- **`/auth` connection page:** choose local (IP, serial, access code) or Bambu Cloud (email
+  verification code) in the browser; the exporter reconnects without a restart. Linked from
+  the landing page. `GET /auth/status` returns the connection state as JSON. The page has no
+  login of its own: anyone who can reach port 9109 can change the connection, so keep the port
+  on a trusted network. Saved secrets are never displayed, verification emails are limited to
+  one per minute, and cross-site form posts are rejected.
+- Settings saved on `/auth` are stored encrypted (`connection-overrides.enc.json` in
+  `BAMBULAB_CONFIG_DIR`, requires `BAMBULAB_SECRET_KEY`) and override env vars, including
+  container template values, after restarts. **Reset to env vars** on the page removes them.
+- `bambulab-reauth` command for cloud re-authentication inside the running container:
+  `docker exec -it <container> bambulab-reauth`. It sends (or accepts) the email
+  verification code and saves encrypted credentials; a waiting exporter resumes without a
+  restart. Files are handed back to `PUID`/`PGID` when run as root.
+
+### Changed
+- **The web server starts immediately** and the printer connection runs in the background.
+  The process no longer exits on connection problems:
+  - Rejected cloud credentials: logs a `BAMBU CLOUD RE-AUTHENTICATION REQUIRED` banner and
+    waits for a login on `/auth` or `bambulab-reauth`. This ends restart loops and repeated
+    verification emails; only one code is sent per container start when
+    `BAMBULAB_CLOUD_EMAIL` is set without a code.
+  - Local connection failures and cloud API outages: retried every 60 seconds (previously the
+    process exited and relied on the container restart policy).
+  - Missing settings: reported as `setup_required` on `/auth` instead of exiting.
+  `/health` stays `ok` (process liveness) and `/ready` stays 503 until data arrives, as before.
+- Startup tries the encrypted credential file when env tokens are rejected, so stale tokens in
+  a container template (for example Unraid) no longer hide newer rotated credentials.
+- The `BAMBULAB_CLOUD_EMAIL` + `BAMBULAB_CLOUD_CODE` env flow is unchanged and still supported.
+
+### Fixed
+- **Expired cloud tokens caused an endless restart loop.** A refresh rejected with HTTP 401
+  by one API endpoint and a DNS failure on another was classified as a transient outage, so
+  re-authentication never started. Any 401/403 with no successful endpoint now counts as
+  rejected credentials.
+- Removed the `api-eu.bambulab.com` API endpoint: the host does not exist (it never resolved)
+  and caused the DNS failure above. Bambu Studio and ha-bambulab use only `api.bambulab.com`
+  outside China.
+- After a successful token refresh at startup, the MQTT client was still built with the old
+  token and failed with `Not authorized`. Refreshed credentials now apply to the running
+  configuration.
+- A token refresh response without a `refreshToken` (or with `null`) no longer replaces the
+  stored refresh token with the text `None`; the previous refresh token is kept.
+
+### Security
+- Cloud API error messages and logs no longer include HTTP response bodies.
+- The printer name on the landing page is HTML-escaped.
 
 ## [0.1.40] - 2026-03-22
 

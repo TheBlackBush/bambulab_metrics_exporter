@@ -8,10 +8,24 @@
 - LAN: `BAMBULAB_HOST`, `BAMBULAB_SERIAL`, `BAMBULAB_ACCESS_CODE`
 - Cloud: `BAMBULAB_SERIAL`, `BAMBULAB_SECRET_KEY`, `BAMBULAB_CLOUD_EMAIL`, plus credentials or encrypted file
 
-**Cloud re-auth loop**
-1. Check email for the verification code
-2. Add `BAMBULAB_CLOUD_CODE=<code>` to `.env` and restart
-3. On success, credentials are saved encrypted; the code is no longer needed
+**`BAMBU CLOUD RE-AUTHENTICATION REQUIRED` in the logs**
+1. Open `http://<docker-host>:9109/auth`, choose **Bambu Cloud**, send a code and log in
+   (shell alternative: `docker exec -it <container> bambulab-reauth`)
+2. The exporter resumes within a few seconds; no restart needed
+3. `GET /auth/status` shows the current state (`auth_required` until you log in)
+4. If newer credentials were saved but the container template still sets old
+   `BAMBULAB_CLOUD_ACCESS_TOKEN` / `BAMBULAB_CLOUD_REFRESH_TOKEN` values, the exporter now
+   falls back to the stored ones. Leave those template fields empty after the first login.
+
+**`Cloud token refresh failed due to a network or API outage`**
+- The credentials were not rejected; the cloud API was unreachable. The exporter retries every
+  60 seconds without sending verification emails. Check DNS and outbound HTTPS.
+
+**`Missing settings` / status `setup_required`**
+- Required settings are missing. Fill them in on the `/auth` page or set the env vars.
+
+**The exporter ignores my changed env vars**
+- Settings saved on the `/auth` page override env vars. Use **Reset to env vars** on the page.
 
 **LAN connection preflight fails**
 - Verify printer IP and LAN access code (Settings → Network on printer)
@@ -32,7 +46,7 @@
 ## Stale Metrics
 
 - Check `bambulab_printer_connected`; if 0, MQTT session dropped
-- Cloud: access token may have expired; restart to trigger re-auth
+- Cloud: access token may have expired; restart, and if the log shows the re-authentication banner log in on the `/auth` page
 - Check `bambulab_exporter_last_success_unixtime` for staleness
 
 ---

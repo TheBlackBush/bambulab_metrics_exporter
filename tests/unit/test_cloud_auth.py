@@ -571,3 +571,84 @@ def test_login_with_code_missing_key_raises(monkeypatch: pytest.MonkeyPatch) -> 
     )
     with pytest.raises(CloudAuthError, match="Missing expected response key"):
         cloud_auth.login_with_code(email="a@b.com", code="123456")
+
+
+# ---------------------------------------------------------------------------
+# Refresh classification with mixed endpoint failures (regression)
+# ---------------------------------------------------------------------------
+
+def _by_base(monkeypatch: pytest.MonkeyPatch, outcomes: dict) -> None:
+    """Route urlopen by API base: each value is an exception to raise or a response."""
+    def fake_urlopen(req, *args, **kwargs):
+        for base, outcome in outcomes.items():
+            if req.full_url.startswith(base):
+                if isinstance(outcome, Exception):
+                    raise outcome
+                return outcome
+        raise AssertionError(f"unexpected url {req.full_url}")
+
+    monkeypatch.setattr("bambulab_metrics_exporter.cloud_auth.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("bambulab_metrics_exporter.cloud_auth.time.sleep", lambda *_: None)
+
+
+def _http(code: int, body: bytes = b'{"error": "account detail"}') -> error.HTTPError:
+    return error.HTTPError("u", code, "x", hdrs=None, fp=io.BytesIO(body))
+
+
+def test_refresh_401_plus_dns_failure_is_invalid(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Reported failure: one endpoint rejects the token, the other cannot be resolved.
+    This must request re-auth instead of looping as a transient error."""
+    _by_base(
+        monkeypatch,
+        {
+            "https://a": _http(401),
+            "https://b": error.URLError("[Errno -5] No address associated with hostname"),
+        },
+    )
+    with pytest.raises(CloudAuthInvalidError) as exc_info:
+        refresh_access_token("r", timeout_seconds=1, retries=0, api_bases=["https://a", "https://b"])
+    assert "account detail" not in str(exc_info.value)
+
+
+def test_refresh_401_plus_503_is_invalid(monkeypatch: pytest.MonkeyPatch) -> None:
+    _by_base(monkeypatch, {"https://a": _http(401), "https://b": _http(503)})
+    with pytest.raises(CloudAuthInvalidError):
+        refresh_access_token("r", timeout_seconds=1, retries=0, api_bases=["https://a", "https://b"])
+
+
+def test_refresh_all_network_failures_stay_transient(monkeypatch: pytest.MonkeyPatch) -> None:
+    _by_base(
+        monkeypatch,
+        {"https://a": error.URLError("down"), "https://b": error.URLError("down")},
+    )
+    with pytest.raises(CloudAuthTransientError):
+        refresh_access_token("r", timeout_seconds=1, retries=0, api_bases=["https://a", "https://b"])
+
+
+def test_refresh_success_on_fallback_endpoint_wins(monkeypatch: pytest.MonkeyPatch) -> None:
+    _by_base(
+        monkeypatch,
+        {
+            "https://a": error.URLError("down"),
+            "https://b": _Resp({"accessToken": "new", "refreshToken": "r2", "uid": 7}),
+        },
+    )
+    result = refresh_access_token("r", timeout_seconds=1, retries=0, api_bases=["https://a", "https://b"])
+    assert result.access_token == "new"
+
+
+def test_refresh_error_messages_omit_response_bodies(monkeypatch: pytest.MonkeyPatch) -> None:
+    _by_base(monkeypatch, {"https://a": _http(403, b'{"email": "operator@example.invalid"}')})
+    with pytest.raises(CloudAuthInvalidError) as exc_info:
+        refresh_access_token("r", timeout_seconds=1, retries=0, api_bases=["https://a"])
+    assert "example.invalid" not in str(exc_info.value)
+    assert "HTTP 403" in str(exc_info.value)
+
+
+@pytest.mark.parametrize("payload_extra", [{}, {"refreshToken": None}, {"refreshToken": ""}])
+def test_refresh_keeps_old_refresh_token_when_response_omits_it(
+    monkeypatch: pytest.MonkeyPatch, payload_extra: dict
+) -> None:
+    _by_base(monkeypatch, {"https://a": _Resp({"accessToken": "new", "uid": 7, **payload_extra})})
+    result = refresh_access_token("old_refresh", timeout_seconds=1, retries=0, api_bases=["https://a"])
+    assert result.refresh_token == "old_refresh"
