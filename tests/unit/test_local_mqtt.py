@@ -28,6 +28,7 @@ class _FakeMQTTClient:
 
     def username_pw_set(self, *args, **kwargs): pass
     def tls_set(self, *args, **kwargs): pass
+    def tls_set_context(self, context): self.tls_context = context
     def tls_insecure_set(self, *args, **kwargs): pass
     def enable_logger(self, *args, **kwargs): pass
     def connect(self, *args, **kwargs): self.connected = True
@@ -296,3 +297,18 @@ def test_auth_rejected_set_on_refusal_and_cleared_on_success(monkeypatch) -> Non
 
     client._on_connect(fake, None, None, "Server unavailable", None)
     assert client.auth_rejected is False
+
+
+
+def test_tls_context_caps_version_and_keeps_compat_verification(monkeypatch) -> None:
+    """P2S firmware 01.02.00.00 hangs on TLS 1.3; verification stays as documented."""
+    import ssl
+
+    fake = _FakeMQTTClient()
+    monkeypatch.setattr("bambulab_metrics_exporter.client.local_mqtt.mqtt.Client", lambda *a, **k: fake)
+    LocalMqttBambuClient(_settings(serial="SERIALX"))
+
+    context = fake.tls_context
+    assert context.maximum_version == ssl.TLSVersion.TLSv1_2
+    assert context.verify_mode == ssl.CERT_NONE
+    assert context.check_hostname is False

@@ -68,6 +68,34 @@ All notable changes to this project are documented in this file.
 - The `BAMBULAB_CLOUD_EMAIL` + `BAMBULAB_CLOUD_CODE` env flow is unchanged and still supported.
 
 ### Fixed
+- **Chamber temperature on heated printers** (H2C, H2D, H2D Pro, H2S, X2D, P2S): the packed
+  `device.ctc` value (target << 16 | current) is unpacked; an H2S heating to 60 °C reported
+  3,932,220 °C. Models without a chamber sensor (A1, A1 mini, A2L, P1P, P1S) report NaN
+  instead of a firmware placeholder (5 °C).
+- **Secondary aux fan** (X2D) read a field that does not exist and was always NaN; it now
+  reads the airduct part `state` percentage.
+- **Active AMS slot and external spool on dual-extruder printers** (H2D, H2D Pro, H2C, X2D):
+  read from the active extruder's loaded slot instead of `ams.tray_now`, which only holds the
+  local slot (an H2D printing from AMS 1 slot 3 showed AMS 0 slot 3). AMS HT units
+  (`tray_now` 128 and up) now show as active.
+- **AMS 2 Pro / AMS HT drying state**: `info` strings are always hexadecimal; digit-only
+  values such as `2003` were read as decimal and produced impossible states.
+- **Unknown remaining filament** (`remain` -1) is exported as NaN instead of -1 %, so the
+  documented `< 15` alert no longer fires for spools without an estimate.
+- AMS Lite no longer exports placeholder temperature and humidity (it has no sensors), and
+  drying metrics are only exported for AMS 2 Pro and AMS HT.
+- `bambulab_door_open` is NaN on models without a door sensor (A1, A1 mini, A2L, P1P, P1S).
+- `bambulab_camera_recording` follows the camera setting (`ipcam.ipcam_record`); newer
+  firmware no longer sets home_flag bit 5 (verified on an X1C with firmware 01.12.00.00).
+- AMS model is taken from `get_version` module names when units carry no `info` or serial
+  (A1 AMS Lite, AMS HT on older firmware).
+- Early H2C units with the H2D serial prefix `094` are detected as H2C (hotend rack present).
+- Empty external-spool virtual slots are no longer exported with `unknown` labels.
+- Nozzle type and diameter are exported on A1, P1 and older X1 firmware (top-level
+  `nozzle_type`).
+- **MQTT TLS is capped at version 1.2**: P2S firmware 01.02.00.00 never answers a TLS 1.3
+  handshake, so the connection hung. All Bambu brokers support TLS 1.2; certificate checking
+  is unchanged.
 - **Expired cloud tokens caused an endless restart loop.** A refresh rejected with HTTP 401
   by one API endpoint and a DNS failure on another was classified as a transient outage, so
   re-authentication never started. Any 401/403 with no successful endpoint now counts as

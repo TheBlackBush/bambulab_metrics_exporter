@@ -4,7 +4,7 @@ import math
 
 from prometheus_client import CollectorRegistry, Gauge
 
-from bambulab_metrics_exporter.models import PrinterSnapshot, _extract_ams_info, parse_ams_info
+from bambulab_metrics_exporter.models import AMS_MODELS_WITH_DRYER, AMS_MODELS_WITHOUT_SENSORS, PrinterSnapshot, _extract_ams_info, parse_ams_info
 
 
 class ExporterMetrics:
@@ -471,7 +471,7 @@ class ExporterMetrics:
                 if isinstance(runtime, (int, float)):
                     self.hotend_rack_hotend_runtime_minutes.labels(**labels, slot_id=slot_id).set(float(runtime))
 
-        self._set_optional(self.camera_recording, self._flag_to_float(snapshot.home_flags.get("camera_recording")))
+        self._set_optional(self.camera_recording, snapshot.camera_recording)
         self._set_optional(self.ams_auto_switch, self._flag_to_float(snapshot.home_flags.get("ams_auto_switch")))
         self._set_optional(self.filament_tangle_detected, self._flag_to_float(snapshot.home_flags.get("filament_tangle_detected")))
         self._set_optional(self.filament_tangle_detect_supported, self._flag_to_float(snapshot.home_flags.get("filament_tangle_detect_supported")))
@@ -488,18 +488,13 @@ class ExporterMetrics:
 
         self._clear_ams(labels)
 
-        # Decode active slot from top-level tray_now (outside the per-unit loop)
-        raw_tray_now = snapshot.ams_tray_now  # int | None, from print_block["ams"]["tray_now"]
-        tray_now_int = raw_tray_now if raw_tray_now is not None else 255
-
-        if tray_now_int in (254, 255):
-            # 255 = nothing active, 254 = external spool active
-            _active_ams_id = -1
-            _active_slot_id = -1
+        # Active slot: per-extruder `snow` on new firmware, `tray_now` on older payloads
+        # (decoded in PrinterSnapshot.active_filament_source).
+        source = snapshot.active_filament_source
+        if source is not None and source[0] == "ams":
+            _active_ams_id, _active_slot_id = source[1], source[2]
         else:
-            # Encoding: upper bits = AMS index, lower 2 bits = slot index
-            _active_ams_id = tray_now_int >> 2
-            _active_slot_id = tray_now_int & 0x3
+            _active_ams_id = _active_slot_id = -1
 
         for ams in snapshot.ams_units_with_model:
             ams_id = str(ams.get("id", "0"))
@@ -511,10 +506,13 @@ class ExporterMetrics:
                 **labels, ams_id=ams_id, ams_model=ams_model, ams_series=ams_series
             ).set(1.0)
 
+            # AMS Lite has no sensors; its temperature/humidity fields are placeholders.
+            has_sensors = ams_model not in AMS_MODELS_WITHOUT_SENSORS
+
             # Strict MQTT mapping:
             # - humidity_index metric follows MQTT "humidity" (index 1..5)
             # - humidity metric follows MQTT "humidity_raw" (raw % 1..100)
-            humidity_raw = ams.get("humidity_raw")
+            humidity_raw = ams.get("humidity_raw") if has_sensors else None
             if isinstance(humidity_raw, (int, float, str)):
                 try:
                     humidity_raw_value = float(humidity_raw)
@@ -523,20 +521,24 @@ class ExporterMetrics:
                 except (TypeError, ValueError):
                     pass
 
-            humidity_index = self._extract_ams_humidity_index(ams)
+            humidity_index = self._extract_ams_humidity_index(ams) if has_sensors else None
             if humidity_index is not None and 1.0 <= humidity_index <= 5.0:
                 self.ams_unit_humidity_index.labels(**labels, ams_id=ams_id).set(humidity_index)
 
-            temp = ams.get("temp")
+            temp = ams.get("temp") if has_sensors else None
             if isinstance(temp, (int, float, str)):
                 try:
                     self.ams_unit_temperature_celsius.labels(**labels, ams_id=ams_id).set(float(temp))
                 except (TypeError, ValueError):
                     pass
 
-            # Gen2 drying telemetry from ams_info/info bits
+            # Drying telemetry from ams_info/info bits, only for units with a dryer.
             ams_info_raw = _extract_ams_info(ams)
-            if isinstance(ams_info_raw, int) and ams_info_raw > 0:
+            if (
+                ams_model in AMS_MODELS_WITH_DRYER
+                and isinstance(ams_info_raw, int)
+                and ams_info_raw > 0
+            ):
                 parsed = parse_ams_info(ams_info_raw)
                 dry_heater_state = parsed["dry_heater_state"]
                 self.ams_heater_state_info.labels(
@@ -566,11 +568,14 @@ class ExporterMetrics:
                 remain = tray.get("remain")
                 if isinstance(remain, (int, float, str)):
                     try:
+                        remain_value = float(remain)
+                    except (TypeError, ValueError):
+                        remain_value = None
+                    if remain_value is not None:
+                        # -1 means unknown (no RFID estimate), not -1 %.
                         self.ams_slot_remaining_percent.labels(
                             **labels, ams_id=ams_id, slot_id=tray_id
-                        ).set(float(remain))
-                    except (TypeError, ValueError):
-                        pass
+                        ).set(remain_value if remain_value >= 0 else float("nan"))
 
                 tray_type_raw = tray.get("tray_type", tray.get("ctype", ""))
                 tray_type = str(tray_type_raw).strip() or "unknown"

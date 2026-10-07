@@ -141,6 +141,10 @@ Important boundaries:
   these as potentially device-derived and sensitive. Inspect before reuse; sanitize all new
   fixtures.
 - `examples/sample_metrics.prom`: sample exposition that should track metric behavior.
+- `tests/fixtures/printers/`: one sanitized real payload per model (12 from ha-bambulab,
+  MIT, attribution in its README; one from the maintainer's X1C), checked by
+  `tests/unit/test_printer_fixtures.py`. Add new captures only through
+  `sanitize_fixture.py` and review the output; never commit a raw capture.
 
 ## Packaging, deployment, and automation
 
@@ -219,7 +223,8 @@ configuration and reachable printer/cloud services and may update `.env`.
   `u_<cloud-user-id>`, and access token as password.
 - Both transports use TLS but currently set `CERT_NONE` and insecure verification. This is
   documented compatibility behavior and a security limitation, not proof that the channel
-  authenticates the broker.
+  authenticates the broker. TLS is capped at 1.2 (`client/local_mqtt._tls_context`): P2S
+  firmware 01.02.00.00 never answers a TLS 1.3 ClientHello.
 - The client subscribes at QoS 1 to `device/<serial>/report` after a successful connection.
   Paho's network loop owns callbacks and may handle underlying reconnects, but this code
   configures no explicit retry/backoff policy. `RECONNECT_INTERVAL_SECONDS` is currently

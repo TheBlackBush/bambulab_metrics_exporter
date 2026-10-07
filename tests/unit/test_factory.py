@@ -17,6 +17,7 @@ from bambulab_metrics_exporter.logging_utils import configure_logging
 class _FakeMQTTClient:
     def username_pw_set(self, *args, **kwargs): pass
     def tls_set(self, *args, **kwargs): pass
+    def tls_set_context(self, context): pass
     def tls_insecure_set(self, *args, **kwargs): pass
     def enable_logger(self, *args, **kwargs): pass
     def connect(self, *args, **kwargs): pass
