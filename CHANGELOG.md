@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added
+- Model detection for **X2D** (`20P`), **A2L** (`26A`), **H2D Pro** (`239`) and **H2C**
+  (`31B`) by serial prefix, plus `Bambu Lab X2D` and `Bambu Lab A2L` product names.
+  Detection only: these models are not hardware-validated.
+- Model detection from the configured `BAMBULAB_SERIAL`. Regular `pushall` reports omit
+  `print.sn`, so the configured serial is now the main identity source.
+- `BAMBULAB_PRINTER_MODEL` (set manually or by cloud discovery) is used as a model hint
+  when the serial prefix is unknown. Accepts marketing names (`X1 Carbon`), internal codes
+  (`BL-P001`, `N6`) and normalized names (`H2DPRO`); unrecognized values are ignored.
+- AMS info type 5 (AMS Lite on the A2L) maps to `ams_lite`.
+- On each successful MQTT connect the exporter sends one read-only `get_version` request.
+  The reply's module list supplies the printer product name for model detection. Disabled
+  together with `pushall` by `BAMBULAB_REQUEST_PUSHALL=false`.
 - Development images: every push to the `develop` branch publishes
   `ghcr.io/theblackbush/bambulab_metrics_exporter:develop` and `:develop-<short-sha>`
   (amd64/arm64) after the full test suite passes. Stable `latest` and version tags are
@@ -70,10 +82,32 @@ All notable changes to this project are documented in this file.
   stored refresh token with the text `None`; the previous refresh token is kept.
 - A refresh rejected with HTTP 400 counts as an invalid refresh token (re-authentication)
   instead of a transient error retried forever.
+- **Most LAN-connected printers were reported as `X1C`.** Without identity fields in the
+  payload, detection fell through to `print.device.type`, a mode bitmask (FDM=0x1,
+  laser=0x10, cut=0x100) that reads 1 on every FDM printer and was mapped to `X1C`.
+  Affected H2D, H2D Pro, H2S, H2C, P2S, X2D and A2L. These printers also read the door from
+  `home_flag` (X1 logic) instead of `stat`, and H2 printers reported `lid_open` as NaN.
+- The `Bambu Lab X1-Carbon` product name (with hyphen, as sent by firmware) now matches.
+- X1E reads the door sensor from `home_flag` like the X1 and X1C.
+
+### Removed
+- `print.device.type` and `print.model_id` are no longer used for model detection
+  (`model_id` is an opaque per-job id and could leak into the `model` label). The ambiguous
+  `AP05` hardware-version fallback to `X1C` is removed; `AP05` is shared by X1C, H2D, H2S,
+  H2C and A1.
 
 ### Security
 - Cloud API error messages and logs no longer include HTTP response bodies.
 - The printer name on the landing page is HTML-escaped.
+
+### Migration notes
+- The `model` label of `bambulab_printer_model_info` changes for printers that were
+  mislabelled `X1C` (see Fixed), which starts a new series. Update Grafana panels and alerts
+  that select on `model`.
+- `bambulab_door_open` changes source for those printers (from `home_flag` to `stat`), and
+  `bambulab_lid_open` starts reporting for H2 printers.
+- A printer whose serial prefix, product name and `BAMBULAB_PRINTER_MODEL` are all
+  unrecognized now has no `bambulab_printer_model_info` series instead of a guessed model.
 
 ## [0.1.40] - 2026-03-22
 

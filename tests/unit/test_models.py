@@ -6,6 +6,7 @@ import pytest
 from bambulab_metrics_exporter import models
 from bambulab_metrics_exporter.models import (
     PrinterSnapshot,
+    normalize_model_hint,
     resolve_ams_model,
     resolve_ams_series,
     parse_ams_info,
@@ -146,15 +147,162 @@ def test_model_fail_reason_string() -> None:
 # Model name discovery
 # ---------------------------------------------------------------------------
 
-def test_model_name_discovery_paths() -> None:
-    snap_p1s = PrinterSnapshot(connected=True, raw={"print": {"device": {"type": 3}}})
-    assert snap_p1s.model_name == "P1S"
+def test_model_name_ignores_device_type_and_model_id() -> None:
+    """device.type is a mode bitmask (1 = FDM on every printer) and model_id is an
+    opaque per-job id; neither may produce a model label."""
+    fdm_mode_only = PrinterSnapshot(connected=True, raw={"print": {"device": {"type": 1}}})
+    assert fdm_mode_only.model_name is None
 
-    snap_fallback = PrinterSnapshot(connected=True, raw={"print": {"model_id": "X1C"}})
-    assert snap_fallback.model_name == "X1C"
+    opaque_id = PrinterSnapshot(connected=True, raw={"print": {"model_id": "AB12CD34EF56GH78"}})
+    assert opaque_id.model_name is None
 
-    snap_unknown = PrinterSnapshot(connected=True, raw={"print": {"device": {"type": 99}}})
-    assert snap_unknown.model_name is None
+    # A real identity source still wins when the misleading fields are present.
+    h2d = PrinterSnapshot(
+        connected=True,
+        raw={"print": {"device": {"type": 1}, "model_id": "AB12CD34EF56GH78"}},
+        configured_serial="094FAKE0TEST001",
+    )
+    assert h2d.model_name == "H2D"
+
+
+@pytest.mark.parametrize(
+    ("serial", "expected"),
+    [
+        ("00WFAKE0TEST001", "X1"),
+        ("00MFAKE0TEST001", "X1C"),
+        ("03WFAKE0TEST001", "X1E"),
+        ("01SFAKE0TEST001", "P1P"),
+        ("01PFAKE0TEST001", "P1S"),
+        ("030FAKE0TEST001", "A1MINI"),
+        ("039FAKE0TEST001", "A1"),
+        ("22EFAKE0TEST001", "P2S"),
+        ("20PFAKE0TEST001", "X2D"),
+        ("26AFAKE0TEST001", "A2L"),
+        ("093FAKE0TEST001", "H2S"),
+        ("094FAKE0TEST001", "H2D"),
+        ("239FAKE0TEST001", "H2DPRO"),
+        ("31BFAKE0TEST001", "H2C"),
+        ("31bfake0test001", "H2C"),
+    ],
+)
+def test_printer_type_from_configured_serial(serial: str, expected: str) -> None:
+    """Regular pushall reports carry no identity fields; the configured serial does."""
+    snap = PrinterSnapshot(
+        connected=True,
+        raw={"print": {"device": {"type": 1}}},
+        configured_serial=serial,
+    )
+    assert snap.printer_type == expected
+
+
+def test_printer_type_source_priority() -> None:
+    # product_name beats every serial.
+    by_product = PrinterSnapshot(
+        connected=True,
+        raw={
+            "info": {"module": [{"name": "ota", "product_name": "Bambu Lab H2S"}]},
+            "print": {"sn": "094FAKE0TEST001"},
+        },
+        configured_serial="20PFAKE0TEST001",
+    )
+    assert by_product.printer_type == "H2S"
+
+    # Payload serial beats the configured serial.
+    by_payload_sn = PrinterSnapshot(
+        connected=True,
+        raw={"print": {"sn": "094FAKE0TEST001"}},
+        configured_serial="20PFAKE0TEST001",
+        configured_model="P1S",
+    )
+    assert by_payload_sn.printer_type == "H2D"
+
+    # Configured serial beats the configured model.
+    by_serial = PrinterSnapshot(
+        connected=True, raw={}, configured_serial="20PFAKE0TEST001", configured_model="P1S"
+    )
+    assert by_serial.printer_type == "X2D"
+
+    # Configured model is used when the serial prefix is unknown.
+    by_model = PrinterSnapshot(
+        connected=True, raw={}, configured_serial="ZZZFAKE0TEST001", configured_model="P1S"
+    )
+    assert by_model.printer_type == "P1S"
+
+
+def test_printer_type_unknown_without_identity() -> None:
+    snap = PrinterSnapshot(
+        connected=True,
+        raw={"print": {"device": {"type": 1}}},
+        configured_serial="ZZZFAKE0TEST001",
+        configured_model="Some Future Printer",
+    )
+    assert snap.printer_type is None
+
+
+@pytest.mark.parametrize(
+    ("hint", "expected"),
+    [
+        ("X1 Carbon", "X1C"),
+        ("Bambu Lab X1 Carbon", "X1C"),
+        ("Bambu Lab X1-Carbon", "X1C"),
+        ("Bambu Lab H2D Pro", "H2DPRO"),
+        ("H2DPRO", "H2DPRO"),
+        ("p2s", "P2S"),
+        ("A1 mini", "A1MINI"),
+        ("BL-P001", "X1C"),
+        ("bl-p002", "X1"),
+        ("C13", "X1E"),
+        ("N6", "X2D"),
+        ("N9", "A2L"),
+        ("O1C2", "H2C"),
+        ("O1E", "H2DPRO"),
+        ("", None),
+        (None, None),
+        (42, None),
+        ("Bambu Lab N8", None),
+        ("AB12CD34EF56GH78", None),
+    ],
+)
+def test_normalize_model_hint(hint: object, expected: str | None) -> None:
+    assert normalize_model_hint(hint) == expected
+
+
+@pytest.mark.parametrize(
+    ("product_name", "expected"),
+    [
+        ("Bambu Lab X1-Carbon", "X1C"),
+        ("Bambu Lab X2D", "X2D"),
+        ("Bambu Lab A2L", "A2L"),
+        ("Bambu Lab H2C", "H2C"),
+        ("Bambu Lab H2D Pro", "H2DPRO"),
+        ("Bambu Lab P2S", "P2S"),
+    ],
+)
+def test_printer_type_from_get_version_product_name(product_name: str, expected: str) -> None:
+    """get_version replies land under info.module; accessories are skipped."""
+    snap = PrinterSnapshot(
+        connected=True,
+        raw={
+            "info": {
+                "command": "get_version",
+                "module": [
+                    {"name": "ams/0", "product_name": "AMS 2 Pro (1)"},
+                    {"name": "eef", "product_name": "Bambu Lab External Exhaust Fan"},
+                    {"name": "ota", "product_name": product_name},
+                ],
+            }
+        },
+    )
+    assert snap.printer_type == expected
+
+
+def test_ambiguous_hw_ver_does_not_resolve_to_x1c() -> None:
+    """AP05 with no project_name is shared by X1C, H2D, H2S and H2C."""
+    snap = PrinterSnapshot(
+        connected=True,
+        raw={"info": {"module": [{"name": "ap", "hw_ver": "AP05", "project_name": ""}]}},
+    )
+    assert snap.printer_type is None
 
 
 def test_printer_type_detection_from_module_metadata() -> None:
@@ -172,20 +320,20 @@ def test_printer_type_detection_from_module_metadata() -> None:
 
 
 def test_lid_open_prefers_direct_field() -> None:
-    snap = PrinterSnapshot(connected=True, raw={"print": {"model_id": "H2D", "stat": "46258008", "lid_open": True}})
+    snap = PrinterSnapshot(connected=True, raw={"print": {"sn": "094FAKE0TEST001", "stat": "46258008", "lid_open": True}})
     assert snap.lid_open == 1.0
 
 
 def test_lid_open_from_stat_for_h2_family() -> None:
-    snap_open = PrinterSnapshot(connected=True, raw={"print": {"model_id": "H2D", "stat": "01000000"}})
+    snap_open = PrinterSnapshot(connected=True, raw={"print": {"sn": "094FAKE0TEST001", "stat": "01000000"}})
     assert snap_open.lid_open == 1.0
 
-    snap_closed = PrinterSnapshot(connected=True, raw={"print": {"model_id": "H2D", "stat": "00000000"}})
+    snap_closed = PrinterSnapshot(connected=True, raw={"print": {"sn": "094FAKE0TEST001", "stat": "00000000"}})
     assert snap_closed.lid_open == 0.0
 
 
 def test_lid_open_non_h2_without_direct_field_is_none() -> None:
-    snap = PrinterSnapshot(connected=True, raw={"print": {"model_id": "P1S", "stat": "01000000"}})
+    snap = PrinterSnapshot(connected=True, raw={"print": {"sn": "01PFAKE0TEST001", "stat": "01000000"}})
     assert snap.lid_open is None
 
 
@@ -629,9 +777,30 @@ def test_printer_type_hw_project_a1mini() -> None:
     assert snap.printer_type == "A1MINI"
 
 
-def test_printer_type_device_type_p1p() -> None:
-    snap = PrinterSnapshot(connected=True, raw={"print": {"device": {"type": 2}}})
-    assert snap.printer_type == "P1P"
+def test_door_open_x1e_uses_home_flag() -> None:
+    snap = PrinterSnapshot(
+        connected=True,
+        raw={"print": {"home_flag": 0x00800000, "stat": "46258008"}},
+        configured_serial="03WFAKE0TEST001",
+    )
+    assert snap.door_open == 1.0
+
+
+def test_door_open_mislabelled_h2_now_uses_stat() -> None:
+    """Regression: H2D on LAN used to resolve to X1C via device.type and read the door
+    from home_flag. With the configured serial it resolves to H2D and reads stat."""
+    snap = PrinterSnapshot(
+        connected=True,
+        raw={"print": {"device": {"type": 1}, "home_flag": 0x00800000, "stat": "46258008"}},
+        configured_serial="094FAKE0TEST001",
+    )
+    assert snap.printer_type == "H2D"
+    assert snap.door_open == 0.0
+    assert snap.lid_open == 0.0
+
+
+def test_ams_type_5_is_ams_lite() -> None:
+    assert resolve_ams_model({"info": "30001005"}) == "ams_lite"
 
 
 # ---------------------------------------------------------------------------
@@ -1387,7 +1556,7 @@ def test_door_open_x1_family_stat_fallback(monkeypatch: pytest.MonkeyPatch) -> N
     """door_open for X1 family falls back to stat_flag when home_flag absent."""
     raw = {
         "print": {
-            "model_id": "X1C",
+            "sn": "00MFAKE0TEST001",
             "stat": "0x00000040",  # door_open bit in STAT_FLAG_MASKS
         }
     }
