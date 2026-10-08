@@ -312,3 +312,34 @@ def test_tls_context_caps_version_and_keeps_compat_verification(monkeypatch) -> 
     assert context.maximum_version == ssl.TLSVersion.TLSv1_2
     assert context.verify_mode == ssl.CERT_NONE
     assert context.check_hostname is False
+
+
+def test_disconnect_closes_connection_before_stopping_loop(monkeypatch) -> None:
+    """Regression: loop_stop() before disconnect() hung forever when a QoS 1 request was
+    never acknowledged (paho's network thread only exits once the connection is closed)."""
+    import threading
+
+    class _UnackedClient(_FakeMQTTClient):
+        def __init__(self) -> None:
+            super().__init__()
+            self.closed = threading.Event()
+            self.calls: list[str] = []
+
+        def disconnect(self):
+            self.calls.append("disconnect")
+            self.closed.set()
+
+        def loop_stop(self):
+            self.calls.append("loop_stop")
+            # Like paho: block until the network thread can exit (connection closed).
+            assert self.closed.wait(2), "loop_stop would block forever"
+
+    fake = _UnackedClient()
+    monkeypatch.setattr("bambulab_metrics_exporter.client.local_mqtt.mqtt.Client", lambda *a, **k: fake)
+    client = LocalMqttBambuClient(_settings())
+
+    done = threading.Event()
+    worker = threading.Thread(target=lambda: (client.disconnect(), done.set()), daemon=True)
+    worker.start()
+    assert done.wait(3), "disconnect() hung"
+    assert fake.calls == ["disconnect", "loop_stop"]

@@ -60,8 +60,11 @@ class LocalMqttBambuClient(BambuClient):
             return self._auth_rejected
 
     def disconnect(self) -> None:
-        self._client.loop_stop()
+        # Disconnect before loop_stop(): loop_stop() joins paho's network thread, which
+        # keeps running while a QoS 1 publish (pushall, get_version) waits for a PUBACK.
+        # A printer that never acknowledges would otherwise block this call forever.
         self._client.disconnect()
+        self._client.loop_stop()
 
     def fetch_snapshot(self, timeout_seconds: float) -> PrinterSnapshot:
         if self._settings.bambulab_request_pushall:
