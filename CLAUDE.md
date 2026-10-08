@@ -751,7 +751,7 @@ Agents must not:
 
 Evidence at the time this manual was created:
 
-- Version `0.2.0`; Python 3.11+ package with FastAPI, Paho MQTT, Prometheus client,
+- Version `0.2.1`; Python 3.11+ package with FastAPI, Paho MQTT, Prometheus client,
   Pydantic settings, Uvicorn, cryptography/Fernet, and dotenv.
 - Local and cloud MQTT modes work through the same client architecture. Cloud supports OTP
   authentication, encrypted credential persistence, and refresh-token recovery. Model

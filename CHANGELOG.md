@@ -2,13 +2,16 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased]
+## [0.2.1] - 2026-10-08
 
 ### Fixed
 - Local/cloud MQTT disconnect no longer hangs: the client now closes the connection before
   stopping paho's network loop. With the old order, a printer that never acknowledged a
   QoS 1 `pushall`/`get_version` request blocked the startup probe, reconnects and shutdown
   forever (reported and fixed by @dmitrylambert in a fork, seen on a P1S).
+
+### Changed
+- README: GHCR pulls and Grafana dashboard downloads badges.
 
 ## [0.2.0] - 2026-10-08
 
