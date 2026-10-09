@@ -1,11 +1,16 @@
 # bambulab_metrics_exporter
 
-Production-oriented Prometheus exporter for Bambu Lab printers, homelab and self-hosted friendly.
+See your Bambu Lab 3D printer in Grafana: print progress, temperatures, fans, AMS filament and
+humidity, errors and more. The exporter runs as a small Docker container, talks to your printer
+over your home network (or through Bambu Cloud), and publishes the data for Prometheus and
+Grafana.
 
-Connects to your printer via LAN MQTT or Cloud MQTT, requests periodic full-state snapshots, and exposes stable Prometheus metrics for print state, temperatures, AMS, fans, and more.
+**New here?** Start with the [Quick Start](Quick-Start): start the container with a secret key,
+then connect the printer in your browser.
 
-> **Note:** Development and real-world validation are currently done on an X1C.  
-> If you want to help improve support for additional printer models, please open an issue on GitHub.
+> **Supported printers:** X1, X1C, X1E, X2D, P1P, P1S, P2S, A1, A1 mini, A2L, H2D, H2D Pro, H2S
+> and H2C are recognized. Real-world testing so far is on an X1C; if you own another model and
+> want to help, please open an issue on GitHub.
 
 ---
 
@@ -13,8 +18,8 @@ Connects to your printer via LAN MQTT or Cloud MQTT, requests periodic full-stat
 
 | Page | Description |
 |------|-------------|
-| [Quick Start](Quick-Start) | Get up and running in minutes |
-| [Installation](Installation) | Prerequisites and install options (local, Docker, Unraid) |
+| [Quick Start](Quick-Start) | Get up and running in minutes; the `/auth` connection page |
+| [Installation](Installation) | Docker, Docker Compose, Unraid, and env-variable setup |
 | [Configuration](Configuration) | All environment variables and options |
 | [Prometheus Setup](Prometheus-Setup) | Scrape config, alert rules, and recording rules |
 | [Grafana Dashboard](Grafana-Dashboard) | Dashboard import steps and sample panels |

@@ -7,48 +7,53 @@
   <MyIP/>
   <Shell>sh</Shell>
   <Privileged>false</Privileged>
-  <Support>https://github.com/TheBlackBush/bambulab_metrics_exporter</Support>
+  <Support>https://github.com/TheBlackBush/bambulab_metrics_exporter/issues</Support>
   <Project>https://github.com/TheBlackBush/bambulab_metrics_exporter</Project>
-  <Overview>Prometheus exporter for Bambu Lab printers on Unraid. Exposes /metrics, /health, /ready, a status page at / and the printer connection page at /auth (local or Bambu Cloud login, no restart needed). The /auth page has no login; keep the port on a trusted network.&#10;&#10;Quick setup:&#10;1) Set required values: BAMBULAB_TRANSPORT, BAMBULAB_SERIAL, BAMBULAB_SECRET_KEY (example: openssl rand -base64 48).&#10;2) cloud_mqtt: set BAMBULAB_CLOUD_EMAIL (code/token fields can be left empty for first run and may auto-populate).&#10;3) local_mqtt: set BAMBULAB_HOST and BAMBULAB_ACCESS_CODE.&#10;&#10;Then start the container and open WebUI for status. Scrape /metrics from Prometheus.</Overview>
+  <ReadMe>https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki</ReadMe>
+  <Overview>Prometheus exporter for Bambu Lab 3D printers (local LAN or Bambu Cloud). Exposes /metrics for Prometheus, /health, /ready, a status page at / and a printer connection page at /auth.&#10;&#10;Quick setup:&#10;1) Set Secret Key (generate once, for example: openssl rand -hex 32) and keep it.&#10;2) Start the container and open WebUI, then Printer connection (/auth).&#10;3) Choose Local (printer IP, serial, LAN access code) or Bambu Cloud (email and verification code). The exporter connects right away and keeps the settings across restarts.&#10;&#10;All printer and login fields below are optional; use them only if you prefer configuring with variables. Settings saved on the /auth page take precedence over them.&#10;&#10;The /auth page has no login of its own; keep the port on a trusted network.</Overview>
   <Category>Network:Management Tools: Monitoring</Category>
   <WebUI>http://[IP]:[PORT:9109]/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/TheBlackBush/bambulab_metrics_exporter/main/unraid-bambulab-metrics-exporter.xml</TemplateURL>
   <Icon>https://raw.githubusercontent.com/TheBlackBush/bambulab_metrics_exporter/main/docs/logo.png</Icon>
+  <Screenshot>https://raw.githubusercontent.com/TheBlackBush/bambulab_metrics_exporter/main/examples/grafana/dashboard-sample.jpg</Screenshot>
+  <Requires>Prometheus to collect the metrics, and Grafana to chart them (ready-made dashboard: grafana.com ID 25033).</Requires>
+  <License>GPL-3.0</License>
+  <Changes>Release notes: https://github.com/TheBlackBush/bambulab_metrics_exporter/blob/main/CHANGELOG.md</Changes>
+  <DonateText>Support the project on Ko-fi</DonateText>
+  <DonateLink>https://ko-fi.com/M4M11W3R7J</DonateLink>
 
-  <Config Name="Web UI Port" Target="9109" Default="9109" Mode="tcp" Description="Exporter HTTP port" Type="Port" Display="always" Required="true" Mask="false">9109</Config>
+  <Config Name="Web UI Port" Target="9109" Default="9109" Mode="tcp" Description="Host port for the web UI and /metrics." Type="Port" Display="always" Required="true" Mask="false">9109</Config>
+  <Config Name="Config Dir" Target="/config/bambulab-metrics-exporter" Default="/mnt/user/appdata/bambulab-metrics-exporter" Mode="rw" Description="Stores the encrypted /auth page settings and cloud credentials." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/bambulab-metrics-exporter</Config>
+  <Config Name="Secret Key" Target="BAMBULAB_SECRET_KEY" Default="" Mode="" Description="Encrypts the settings and cloud login saved by the /auth page so they survive restarts. Generate once (openssl rand -hex 32) and keep it; changing it means connecting again." Type="Variable" Display="always" Required="true" Mask="true"></Config>
 
-  <Config Name="Config Dir" Target="/config/bambulab-metrics-exporter" Default="/mnt/user/appdata/bambulab-metrics-exporter" Mode="rw" Description="Persistent config and encrypted credentials" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/bambulab-metrics-exporter</Config>
+  <Config Name="Transport" Target="BAMBULAB_TRANSPORT" Default="local_mqtt|cloud_mqtt" Mode="" Description="Optional. local_mqtt (LAN) or cloud_mqtt (Bambu Cloud). Ignored once a connection is saved on the /auth page." Type="Variable" Display="advanced" Required="false" Mask="false">local_mqtt</Config>
+  <Config Name="Printer Serial" Target="BAMBULAB_SERIAL" Default="" Mode="" Description="Optional. Printer serial number; leave empty to set it on the /auth page." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
 
-  <Config Name="Listen Host" Target="LISTEN_HOST" Default="0.0.0.0" Mode="" Description="HTTP bind host" Type="Variable" Display="always" Required="false" Mask="false">0.0.0.0</Config>
-  <Config Name="Listen Port" Target="LISTEN_PORT" Default="9109" Mode="" Description="HTTP bind port" Type="Variable" Display="always" Required="false" Mask="false">9109</Config>
+  <Config Name="Local Host/IP" Target="BAMBULAB_HOST" Default="" Mode="" Description="Optional, local_mqtt only. Printer IP or hostname; leave empty to set it on the /auth page." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="Local Access Code" Target="BAMBULAB_ACCESS_CODE" Default="" Mode="" Description="Optional, local_mqtt only. LAN access code from the printer (Settings, Network); leave empty to set it on the /auth page." Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
+  <Config Name="Local MQTT Port" Target="BAMBULAB_PORT" Default="8883" Mode="" Description="local_mqtt only. Keep 8883." Type="Variable" Display="advanced" Required="false" Mask="false">8883</Config>
+  <Config Name="Local MQTT Username" Target="BAMBULAB_USERNAME" Default="bblp" Mode="" Description="local_mqtt only. Keep bblp." Type="Variable" Display="advanced" Required="false" Mask="false">bblp</Config>
 
-  <Config Name="Transport" Target="BAMBULAB_TRANSPORT" Default="cloud_mqtt|local_mqtt" Mode="" Description="Select transport mode" Type="Variable" Display="always" Required="true" Mask="false">cloud_mqtt</Config>
-  <Config Name="Printer Serial" Target="BAMBULAB_SERIAL" Default="" Mode="" Description="Printer device serial (required)" Type="Variable" Display="always" Required="true" Mask="false"></Config>
-  <Config Name="Secret Key" Target="BAMBULAB_SECRET_KEY" Default="" Mode="" Description="Strong key for encrypted credentials. Generate example: openssl rand -base64 48" Type="Variable" Display="always" Required="true" Mask="true"></Config>
+  <Config Name="Cloud Email" Target="BAMBULAB_CLOUD_EMAIL" Default="" Mode="" Description="Optional, cloud_mqtt only. For the env-variable login flow: the container emails a verification code to this address. Not needed when you log in on the /auth page." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="Cloud One-Time Code" Target="BAMBULAB_CLOUD_CODE" Default="" Mode="" Description="Optional, cloud_mqtt only. Legacy: the emailed verification code for the env-variable flow; remove it after login. Logging in on the /auth page is easier." Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
+  <Config Name="Cloud User ID" Target="BAMBULAB_CLOUD_USER_ID" Default="" Mode="" Description="Optional, cloud_mqtt only. Only for manually obtained tokens; leave empty." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="Cloud Access Token" Target="BAMBULAB_CLOUD_ACCESS_TOKEN" Default="" Mode="" Description="Optional, cloud_mqtt only. Only for manually obtained tokens; leave empty." Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
+  <Config Name="Cloud Refresh Token" Target="BAMBULAB_CLOUD_REFRESH_TOKEN" Default="" Mode="" Description="Optional, cloud_mqtt only. Only for manually obtained tokens; leave empty." Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
+  <Config Name="Cloud MQTT Host" Target="BAMBULAB_CLOUD_MQTT_HOST" Default="us.mqtt.bambulab.com" Mode="" Description="cloud_mqtt only. Bambu Cloud MQTT broker; keep the default unless your account uses another region." Type="Variable" Display="advanced" Required="false" Mask="false">us.mqtt.bambulab.com</Config>
+  <Config Name="Cloud MQTT Port" Target="BAMBULAB_CLOUD_MQTT_PORT" Default="8883" Mode="" Description="cloud_mqtt only. Keep 8883." Type="Variable" Display="advanced" Required="false" Mask="false">8883</Config>
 
-  <Config Name="Cloud Email" Target="BAMBULAB_CLOUD_EMAIL" Default="" Mode="" Description="Used only when Transport=cloud_mqtt. Recommended/required for automatic cloud auth flow." Type="Variable" Display="always" Required="false" Mask="false"></Config>
-  <Config Name="Cloud One-Time Code" Target="BAMBULAB_CLOUD_CODE" Default="" Mode="" Description="Used only when Transport=cloud_mqtt. Legacy option: verification code from email. Prefer logging in on the /auth page (or bambulab-reauth in the Console); the exporter waits for the login instead of exiting." Type="Variable" Display="always" Required="false" Mask="true"></Config>
-  <Config Name="Cloud User ID" Target="BAMBULAB_CLOUD_USER_ID" Default="" Mode="" Description="Used only when Transport=cloud_mqtt. Usually auto-filled by startup auth process; can stay empty on first run." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
-  <Config Name="Cloud Access Token" Target="BAMBULAB_CLOUD_ACCESS_TOKEN" Default="" Mode="" Description="Used only when Transport=cloud_mqtt. Usually auto-filled by startup auth process; leave empty unless setting manually." Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
-  <Config Name="Cloud Refresh Token" Target="BAMBULAB_CLOUD_REFRESH_TOKEN" Default="" Mode="" Description="Used only when Transport=cloud_mqtt. Auto-filled when available by startup auth process; optional for manual setup." Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
-  <Config Name="Cloud MQTT Host" Target="BAMBULAB_CLOUD_MQTT_HOST" Default="us.mqtt.bambulab.com" Mode="" Description="Cloud MQTT host" Type="Variable" Display="advanced" Required="false" Mask="false">us.mqtt.bambulab.com</Config>
-  <Config Name="Cloud MQTT Port" Target="BAMBULAB_CLOUD_MQTT_PORT" Default="8883" Mode="" Description="Cloud MQTT port" Type="Variable" Display="advanced" Required="false" Mask="false">8883</Config>
+  <Config Name="Printer Name Label" Target="PRINTER_NAME_LABEL" Default="" Mode="" Description="Optional. printer_name label on all metrics; leave empty to use the printer name from the printer or Bambu Cloud." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="Request Snapshots" Target="BAMBULAB_REQUEST_PUSHALL" Default="true|false" Mode="" Description="true: ask the printer for a full status report every poll (read-only). false: only listen to updates the printer sends on its own." Type="Variable" Display="advanced" Required="false" Mask="false">true</Config>
+  <Config Name="Polling Interval" Target="POLLING_INTERVAL_SECONDS" Default="10" Mode="" Description="Seconds between polls." Type="Variable" Display="advanced" Required="false" Mask="false">10</Config>
+  <Config Name="Request Timeout" Target="REQUEST_TIMEOUT_SECONDS" Default="8" Mode="" Description="Seconds to wait for a printer report each poll." Type="Variable" Display="advanced" Required="false" Mask="false">8</Config>
+  <Config Name="Auth Allowed Hosts" Target="AUTH_ALLOWED_HOSTS" Default="" Mode="" Description="Extra host names allowed for the /auth page, comma separated (for example a reverse-proxy name). IP addresses and local names are always allowed." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="Log Level" Target="LOG_LEVEL" Default="INFO|DEBUG|WARNING|ERROR" Mode="" Description="Log verbosity." Type="Variable" Display="advanced" Required="false" Mask="false">INFO</Config>
 
-  <Config Name="Local Host/IP" Target="BAMBULAB_HOST" Default="" Mode="" Description="Used only when Transport=local_mqtt. Required printer IP/hostname." Type="Variable" Display="always" Required="false" Mask="false"></Config>
-  <Config Name="Local Access Code" Target="BAMBULAB_ACCESS_CODE" Default="" Mode="" Description="Used only when Transport=local_mqtt. Required LAN access code from printer settings." Type="Variable" Display="always" Required="false" Mask="true"></Config>
-  <Config Name="Local MQTT Port" Target="BAMBULAB_PORT" Default="8883" Mode="" Description="Used only when Transport=local_mqtt. Usually keep default 8883." Type="Variable" Display="advanced" Required="false" Mask="false">8883</Config>
-  <Config Name="Local MQTT Username" Target="BAMBULAB_USERNAME" Default="bblp" Mode="" Description="Used only when Transport=local_mqtt. Usually keep default bblp." Type="Variable" Display="advanced" Required="false" Mask="false">bblp</Config>
-
-  <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="User ID to run container as (Unraid: usually 99)" Type="Variable" Display="advanced" Required="true" Mask="false">99</Config>
-  <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Group ID to run container as (Unraid: usually 100)" Type="Variable" Display="advanced" Required="true" Mask="false">100</Config>
-  <Config Name="UMASK" Target="UMASK" Default="002" Mode="" Description="File creation mask" Type="Variable" Display="advanced" Required="false" Mask="false">002</Config>
-
-  <Config Name="Config Dir Env" Target="BAMBULAB_CONFIG_DIR" Default="/config/bambulab-metrics-exporter" Mode="" Description="Internal config path" Type="Variable" Display="advanced" Required="false" Mask="false">/config/bambulab-metrics-exporter</Config>
-  <Config Name="Credentials File" Target="BAMBULAB_CREDENTIALS_FILE" Default="credentials.enc.json" Mode="" Description="Encrypted credentials filename" Type="Variable" Display="advanced" Required="false" Mask="false">credentials.enc.json</Config>
-
-  <Config Name="Polling Interval" Target="POLLING_INTERVAL_SECONDS" Default="10" Mode="" Description="Polling interval in seconds" Type="Variable" Display="advanced" Required="false" Mask="false">10</Config>
-  <Config Name="Request Timeout" Target="REQUEST_TIMEOUT_SECONDS" Default="8" Mode="" Description="Request timeout in seconds" Type="Variable" Display="advanced" Required="false" Mask="false">8</Config>
-  <Config Name="Auth Allowed Hosts" Target="AUTH_ALLOWED_HOSTS" Default="" Mode="" Description="Extra host names allowed for the /auth page, comma separated (e.g. a reverse-proxy name). IP addresses and local names are always allowed." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
-  <Config Name="Log Level" Target="LOG_LEVEL" Default="INFO" Mode="" Description="DEBUG/INFO/WARNING/ERROR" Type="Variable" Display="advanced" Required="false" Mask="false">INFO</Config>
-  <Config Name="Printer Name Label" Target="PRINTER_NAME" Default="" Mode="" Description="Prometheus label value; leave empty to auto-fill from printer serial" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="User ID the exporter runs as (Unraid: 99)." Type="Variable" Display="advanced" Required="true" Mask="false">99</Config>
+  <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Group ID the exporter runs as (Unraid: 100)." Type="Variable" Display="advanced" Required="true" Mask="false">100</Config>
+  <Config Name="UMASK" Target="UMASK" Default="002" Mode="" Description="File creation mask." Type="Variable" Display="advanced" Required="false" Mask="false">002</Config>
+  <Config Name="Listen Host" Target="LISTEN_HOST" Default="0.0.0.0" Mode="" Description="HTTP bind address inside the container. Keep 0.0.0.0." Type="Variable" Display="advanced" Required="false" Mask="false">0.0.0.0</Config>
+  <Config Name="Listen Port" Target="LISTEN_PORT" Default="9109" Mode="" Description="HTTP port inside the container. Keep 9109; to use another port on the server, change Web UI Port instead." Type="Variable" Display="advanced" Required="false" Mask="false">9109</Config>
+  <Config Name="Config Dir Env" Target="BAMBULAB_CONFIG_DIR" Default="/config/bambulab-metrics-exporter" Mode="" Description="Config path inside the container; must match the Config Dir container path." Type="Variable" Display="advanced" Required="false" Mask="false">/config/bambulab-metrics-exporter</Config>
+  <Config Name="Credentials File" Target="BAMBULAB_CREDENTIALS_FILE" Default="credentials.enc.json" Mode="" Description="Encrypted credentials file name in the config directory." Type="Variable" Display="advanced" Required="false" Mask="false">credentials.enc.json</Config>
 </Container>

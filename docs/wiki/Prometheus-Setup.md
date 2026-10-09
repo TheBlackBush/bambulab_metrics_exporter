@@ -7,6 +7,8 @@ Configure Prometheus to scrape the exporter and optionally load alert and record
 ## Prerequisites
 
 - Prometheus 2.x running and accessible
+- Keep `bambulab` in the job name: the [Grafana dashboard](Grafana-Dashboard) **Job** dropdown
+  lists jobs whose name contains it
 - bambulab_metrics_exporter running and reachable on port `9109`
 
 ---
@@ -21,7 +23,7 @@ scrape_configs:
     scrape_interval: 15s
     metrics_path: /metrics
     static_configs:
-      - targets: ["bambulab-metrics-exporter:9109"]
+      - targets: ["bambulab-metrics-exporter:9109"]   # or <docker-host-ip>:9109
         labels:
           instance: my-printer   # optional, for multi-printer setups
 ```
@@ -42,48 +44,21 @@ After reloading Prometheus:
 
 ## Alert Rules
 
-> **Canonical thresholds:** The production-ready alert definitions with tuned thresholds are in `examples/prometheus/prometheus.alerts.yml`. If the inline examples below differ, prefer the file in the repository.
+Load `examples/prometheus/prometheus.alerts.yml` (add it to `rule_files` in `prometheus.yml`).
+It contains:
 
-Import `examples/prometheus/prometheus.alerts.yml` or add inline:
+| Alert | Fires when |
+|-------|------------|
+| `BambuPrinterOffline` | The exporter is not connected to the printer |
+| `BambuExporterScrapeFailing` | Polling the printer fails |
+| `BambuExporterStale` | No successful poll for 3 minutes |
+| `BambuPrinterErrorActive` | The printer reports an error |
+| `BambuHmsSeriousError` | A serious or fatal HMS error is active |
+| `BambuNozzleTooHot` | The nozzle is above 320 °C |
+| `BambuDoorOpenWhilePrinting` | The door is open during a print (models with a door sensor) |
+| `BambuSdCardAbnormal` | The SD card reports a problem |
 
-```yaml
-groups:
-  - name: bambulab
-    rules:
-      - alert: BambuPrinterDisconnected
-        expr: bambulab_printer_connected == 0
-        for: 2m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Printer {{ $labels.printer_name }} is disconnected"
-
-      - alert: BambuExporterStale
-        expr: time() - bambulab_exporter_last_success_unixtime > 300
-        for: 2m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Exporter has not scraped successfully in 5 minutes"
-
-      - alert: BambuDoorOpenWhilePrinting
-        expr: |
-          bambulab_door_open == 1
-          and on(printer_name, serial)
-          bambulab_printer_gcode_state{state="RUNNING"} == 1
-        for: 2m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Printer door open during active print"
-
-      - alert: BambuSdCardAbnormal
-        expr: bambulab_sdcard_status_info{status="abnormal"} == 1
-        labels:
-          severity: warning
-        annotations:
-          summary: "SD card issue detected on {{ $labels.printer_name }}"
-```
+The file is the reference for exact expressions and thresholds; adjust them there.
 
 ---
 
@@ -95,7 +70,8 @@ Pre-computed aggregations are available in `examples/prometheus/prometheus.recor
 
 ## Multiple Printers
 
-Run one exporter instance per printer, each on a distinct port. Use the `PRINTER_NAME_LABEL` env var to set a stable label, and add each target to your scrape config:
+Run one exporter container per printer, each on its own host port (and its own config volume).
+Use `PRINTER_NAME_LABEL` to set a stable label, and add each target to your scrape config:
 
 ```yaml
 static_configs:

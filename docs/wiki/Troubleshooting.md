@@ -2,11 +2,20 @@
 
 ---
 
-## Exporter Won't Start
+## Connection Problems
 
-**Missing required env vars**
-- LAN: `BAMBULAB_HOST`, `BAMBULAB_SERIAL`, `BAMBULAB_ACCESS_CODE`
-- Cloud: `BAMBULAB_SERIAL`, `BAMBULAB_SECRET_KEY`, `BAMBULAB_CLOUD_EMAIL`, plus credentials or encrypted file
+The exporter never exits on connection problems: the web server stays up and the status page
+(`/`) and `/auth/status` show what is wrong.
+
+**Status page shows "Printer not configured"** (`/auth/status`: `setup_required`)
+- No printer is configured yet, or a required value is missing or invalid. Connect the printer
+  on the `/auth` page, or set the env vars (LAN: `BAMBULAB_HOST`, `BAMBULAB_SERIAL`,
+  `BAMBULAB_ACCESS_CODE`; see [Installation](Installation#environment-variable-setup-optional)).
+
+**Printer settings are lost after a restart**
+- Set `BAMBULAB_SECRET_KEY` and mount the config volume
+  (`/config/bambulab-metrics-exporter`). Without the key, `/auth` page settings and cloud logins
+  last only until the next restart.
 
 **`BAMBU CLOUD RE-AUTHENTICATION REQUIRED` in the logs**
 1. Open `http://<docker-host>:9109/auth`, choose **Bambu Cloud**, click **Send code**, enter the code and log in
@@ -20,9 +29,6 @@
 **`Cloud token refresh failed due to a network or API outage`**
 - The credentials were not rejected; the cloud API was unreachable. The exporter retries every
   60 seconds without sending verification emails. Check DNS and outbound HTTPS.
-
-**`Missing settings` / status `setup_required`**
-- Required settings are missing. Fill them in on the `/auth` page or set the env vars.
 
 **The exporter ignores my changed env vars**
 - Settings saved on the `/auth` page override env vars. Use **Reset to env vars** on the page.
@@ -55,8 +61,11 @@
 
 ## Stale Metrics
 
-- Check `bambulab_printer_connected`; if 0, MQTT session dropped
-- Cloud: access token may have expired; restart, and if the log shows the re-authentication banner log in on the `/auth` page
+- Check `bambulab_printer_connected`; if 0, the MQTT session dropped
+- Cloud: an expired or revoked token is detected automatically; the exporter refreshes it, or
+  shows **Login required** on the `/auth` page if you need to log in again
+- Values can stay at their last reading while disconnected; check `bambulab_printer_connected`
+  before trusting them
 - Check `bambulab_exporter_last_success_unixtime` for staleness
 
 ---
@@ -86,6 +95,14 @@
 
 ---
 
+## Grafana AMS Panel Shows Plain Text
+
+- Install the **Business Text** plugin (`marcusolsson-dynamictext-panel`) and set
+  `GF_PANELS_DISABLE_SANITIZE_HTML=true` (or `disable_sanitize_html = true` under `[panels]` in
+  `grafana.ini`), then restart Grafana. See [Grafana Dashboard](Grafana-Dashboard).
+
+---
+
 ## Fan Metrics Look Wrong
 
 Fan values use step-aware normalization (raw 0–15 → nearest-10 %); this is intentional.
@@ -94,13 +111,15 @@ Fan values use step-aware normalization (raw 0–15 → nearest-10 %); this is i
 
 ## Debugging
 
+Set `LOG_LEVEL=DEBUG` on the container (Unraid: **Log Level** in the template), restart it,
+then read the logs:
+
 ```bash
-# Verbose logging
-LOG_LEVEL=DEBUG bambulab-exporter
+docker logs -f bambulab-exporter
 
 # Quick checks
+curl http://localhost:9109/auth/status
 curl http://localhost:9109/metrics | grep bambulab_printer
-curl http://localhost:9109/health
 curl http://localhost:9109/ready
 ```
 
@@ -110,4 +129,4 @@ curl http://localhost:9109/ready
 
 Open an issue: https://github.com/TheBlackBush/bambulab_metrics_exporter/issues
 
-Include: printer model + firmware, transport mode, logs with `LOG_LEVEL=DEBUG`, sanitized `.env`.
+Include: printer model + firmware, transport mode (local or cloud), and logs with `LOG_LEVEL=DEBUG`. Remove your serial number, IP addresses, access code, email and tokens first.

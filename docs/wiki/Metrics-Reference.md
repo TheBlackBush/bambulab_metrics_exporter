@@ -109,7 +109,7 @@ Fan values: raw levels 0–15 → nearest-10 percent normalization.
 | `bambulab_print_error_code` | Gauge | Legacy alias of `bambulab_print_error` (same value), kept for existing dashboards |
 | `bambulab_ap_error_code` | Gauge | Raw ap_err value from MQTT |
 | `bambulab_hms_active_errors{severity}` | Gauge | Active HMS (health management) errors by severity: `fatal`, `serious`, `common`, `info`, `unknown`. All values present (0 when none); omitted when the printer sends no `hms` list |
-| `bambulab_hms_active_errors_by_module{module}` | Gauge | Active HMS errors by module: `mc`, `mainboard`, `ams`, `toolhead`, `xcam`, `other` |
+| `bambulab_hms_active_errors_by_module{module}` | Gauge | Active HMS errors by module: `mc`, `mainboard`, `ams`, `toolhead`, `xcam`, `other`. `module` is the part of the printer that raised the error, not its topic (an MQTT error raised by the mainboard counts as `mainboard`) |
 
 ---
 

@@ -2,28 +2,30 @@
 
 ## Prerequisites
 
-- Docker + Docker Compose
-- Bambu Lab printer accessible via LAN or cloud MQTT
-- Printer serial number and LAN access code (or cloud credentials)
+- Docker (Docker Compose optional), or Unraid
+- A Bambu Lab printer on your LAN (IP, serial number, LAN access code) or linked to your Bambu
+  Cloud account
+- A secret key, generated once with `openssl rand -hex 32` (see
+  [Configuration](Configuration#generating-bambulab_secret_key))
+
+The easiest setup starts the container with only the secret key and a config volume, then
+connects the printer on the `/auth` page: see [Quick Start](Quick-Start).
 
 ---
 
-## Option 1 (Recommended): Pre-built Container (GHCR)
+## Option 1 (Recommended): Pre-built image (GHCR)
 
 ```bash
-docker pull ghcr.io/theblackbush/bambulab_metrics_exporter:latest
 docker run -d \
   --name bambulab-exporter \
+  --restart unless-stopped \
   -p 9109:9109 \
-  --env-file .env \
+  -v /path/to/config:/config/bambulab-metrics-exporter \
+  -e BAMBULAB_SECRET_KEY=<your-generated-key> \
   ghcr.io/theblackbush/bambulab_metrics_exporter:latest
 ```
 
-Or with Docker Compose:
-
-```bash
-docker compose up -d
-```
+Then connect the printer at `http://<docker-host>:9109/auth`.
 
 ### Development builds
 
@@ -45,163 +47,116 @@ pin a `develop-<short-sha>` tag if you need a reproducible deployment.
 
 ---
 
-## Option 2: Build Locally
+## Option 2: Docker Compose
+
+The included `docker-compose.yml` needs only `BAMBULAB_SECRET_KEY`; every other setting is
+optional and commented. Put the key in a `.env` file next to it (see `.env.example`), then:
+
+```bash
+docker compose up -d          # or: docker compose up -d --build   (build from source)
+```
+
+and connect the printer on the `/auth` page. Compose mounts `./config` as the config volume and
+includes a `/health` health check.
+
+---
+
+## Option 3: Build locally
 
 ```bash
 docker build -t bambulab-metrics-exporter:latest .
 docker run -d \
   --name bambulab-exporter \
   -p 9109:9109 \
-  --env-file .env \
+  -v /path/to/config:/config/bambulab-metrics-exporter \
+  -e BAMBULAB_SECRET_KEY=<your-generated-key> \
   bambulab-metrics-exporter:latest
 ```
 
-Or with Docker Compose:
-
-```bash
-docker compose up -d --build
-```
-
-The included `docker-compose.yml` is cloud-first and minimal. Required cloud fields are active; optional fields are commented.
-
 ---
 
-## Option 3: Unraid
+## Option 4: Unraid
 
 A ready-to-import Unraid template is included: `unraid-bambulab-metrics-exporter.xml`
 
-1. Go to **Docker → Add Container → Template**
-2. Paste the XML content or use Template URL
-3. Fill in `BAMBULAB_SECRET_KEY` and required transport fields
-4. Start the container and verify `/metrics`
+1. On the **Docker** tab, scroll to **Template repositories**, add
+   `https://github.com/TheBlackBush/bambulab_metrics_exporter` on a new line and click **Save**.
+2. Click **Add Container** and pick **bambulab-metrics-exporter** from the **Template** list.
+3. Fill in **Secret Key** (generate once with `openssl rand -hex 32`) and click **Apply**. All
+   other fields are optional.
+4. Open the container's **WebUI**, click **Printer Connection** and connect the printer on the
+   `/auth` page.
 
 ---
 
-## Choosing a Mode
+## Environment-variable setup (optional)
 
-The exporter supports two transport modes. **`local_mqtt` is the default**: it is used when `BAMBULAB_TRANSPORT` is not set or is set to `local_mqtt`.
+Instead of the `/auth` page, the printer can be configured with env vars. Settings saved on the
+page take precedence; **Reset to env vars** on the page switches back.
 
-| Mode | When to use |
-|------|-------------|
-| **Local** (`local_mqtt`) | Printer is on your LAN with LAN Mode enabled |
-| **Cloud** (`cloud_mqtt`) | Printer is remote or not directly reachable |
+| Mode | `BAMBULAB_TRANSPORT` | When to use |
+|------|----------------------|-------------|
+| **Local** (default) | `local_mqtt` (or omit) | Printer is on your LAN with LAN Mode enabled |
+| **Cloud** | `cloud_mqtt` | Printer is remote or not directly reachable |
 
-If `BAMBULAB_TRANSPORT=cloud_mqtt` is not explicitly set, the exporter always falls back to Local mode.
-
----
-
-### Local Mode: minimum required env vars
+### Local mode
 
 ```dotenv
-BAMBULAB_TRANSPORT=local_mqtt   # optional: this is the default
-BAMBULAB_HOST=192.168.1.100     # printer IP/hostname
+BAMBULAB_HOST=192.0.2.100       # printer IP/hostname
 BAMBULAB_SERIAL=01P00A000000000 # printer serial number
 BAMBULAB_ACCESS_CODE=12345678   # LAN access code
 ```
 
-The container will refuse to start if any of these three values are missing while in Local mode.
+If one of them is missing, the exporter keeps running and waits (the status page shows
+**Printer not configured**) until it is set or the printer is connected on the `/auth` page.
 
----
-
-### Cloud Mode: minimum required env vars
+### Cloud mode: email-code flow
 
 ```dotenv
 BAMBULAB_TRANSPORT=cloud_mqtt
-BAMBULAB_SERIAL=01P00A000000000   # printer serial number
-BAMBULAB_SECRET_KEY=<32-byte hex> # generated with: openssl rand -hex 32
+BAMBULAB_SERIAL=01P00A000000000
+BAMBULAB_SECRET_KEY=<your-generated-key>
 BAMBULAB_CLOUD_EMAIL=you@example.com
 ```
 
-After the first successful authentication, credentials are stored encrypted in the config volume. On subsequent starts the stored credentials are loaded automatically; no OTP needed unless re-authentication is required (see below).
+1. Start the container **without** `BAMBULAB_CLOUD_CODE`. It finds no valid credentials, sends
+   one verification code to your Bambu account email, and waits.
+2. Add `BAMBULAB_CLOUD_CODE=<code from email>` and recreate the container.
+3. The container logs in and saves the credentials encrypted in the config volume.
+4. **Remove `BAMBULAB_CLOUD_CODE`**: codes are single-use and it is not needed afterwards.
 
-> **Important:** keep `BAMBULAB_SECRET_KEY` stable. Changing it invalidates the stored credential file and forces a full re-authentication.
+The saved credentials are used on every restart, and the refresh token renews them
+automatically. A new code is only needed if the saved credentials are lost (fresh config volume,
+changed `BAMBULAB_SECRET_KEY`) or rejected (expired session, changed password). In every case,
+logging in on the `/auth` page is the simplest fix.
 
----
+### Cloud mode: command-line tool
 
-## Cloud Mode: Getting Credentials (OTP Flow)
-
-Cloud authentication uses the `bambulab-cloud-auth` tool included in the container image. No local Python installation is required.
-
-**Step 1: Send a verification code to your Bambu account email:**
+`bambulab-cloud-auth` in the image can obtain and save credentials without starting the
+exporter (no local Python needed):
 
 ```bash
+# 1. send a verification code to your Bambu account email
 docker run --rm -it \
   ghcr.io/theblackbush/bambulab_metrics_exporter:latest \
   bambulab-cloud-auth --email you@example.com --send-code
-```
 
-**Step 2: Exchange the code and save encrypted credentials:**
-
-```bash
+# 2. exchange the code and save encrypted credentials into the config volume
 docker run --rm -it \
-  -v /path/to/config:/config \
-  -e BAMBULAB_SECRET_KEY="your-strong-secret-key" \
+  -v /path/to/config:/config/bambulab-metrics-exporter \
+  -e BAMBULAB_SECRET_KEY=<your-generated-key> \
   ghcr.io/theblackbush/bambulab_metrics_exporter:latest \
   bambulab-cloud-auth --email you@example.com --code 123456 \
-    --serial <printer_serial> --save --secret-key "$BAMBULAB_SECRET_KEY"
+    --serial <printer_serial> --save
 ```
 
-Mount `/path/to/config` to the same location used by the running exporter so the saved credentials are accessible.
-
-### Connecting from the browser: the `/auth` page (recommended)
-
-Open `http://<docker-host>:9109/auth` (also linked from the landing page). Choose:
-
-- **Local (LAN):** enter the printer IP, serial number and LAN access code.
-- **Bambu Cloud:** enter your account email, click **Send code**, then enter the emailed code in the same form and click **Log in**.
-  The serial is optional when the account has a single printer.
-
-The exporter reconnects immediately; no restart needed. When the cloud login fails later
-(expired session, changed password, new config volume) the exporter does **not** exit: it logs
-a `BAMBU CLOUD RE-AUTHENTICATION REQUIRED` banner and waits until you log in again on the page.
-
-Settings saved on the page are stored encrypted in the config volume and **override** the
-container's env vars (including Unraid template values) after restarts. **Reset to env vars**
-on the page removes them. Persisting requires `BAMBULAB_SECRET_KEY`; without it, page settings
-apply until the next restart.
-
-> **Security:** the page has no login. Anyone who can reach port 9109 can change which printer
-> or account the exporter uses. Do not expose the port outside a trusted network. Saved
-> secrets are never shown on the page.
-
-Shell alternative (same result, no browser):
-
-```bash
-docker exec -it <container> bambulab-reauth
-```
-
-Replace `<container>` with your container name (`bambulab-exporter` in the `docker run`
-examples, `bambulab-metrics-exporter` with the Compose file). On Unraid, open the container's
-**Console** and run `bambulab-reauth`.
-
-### BAMBULAB_CLOUD_CODE lifecycle
-
-`BAMBULAB_CLOUD_CODE` is a **one-time bootstrap variable**. It is only needed during initial authentication and must be removed from steady-state config afterward.
-
-**First-time setup (container-native OTP flow):**
-
-1. Set `BAMBULAB_CLOUD_EMAIL` in your `.env`. **Do not set `BAMBULAB_CLOUD_CODE`.**
-2. Start the container. It detects no valid credentials, sends one verification code to your Bambu account email, and waits.
-3. Check your email for the code.
-4. Add `BAMBULAB_CLOUD_CODE=<code from email>` to your `.env` and recreate the container (or use the `/auth` page instead).
-5. The container authenticates, persists encrypted credentials to the config volume, and continues running normally.
-6. **Remove `BAMBULAB_CLOUD_CODE` from `.env`**: it is not needed again for normal operation.
-
-After this, the exporter reuses stored credentials automatically on every restart.
-
-**When BAMBULAB_CLOUD_CODE is needed again:**
-
-Repeat the flow above if any of the following occur:
-
-- Stored credentials are missing or cleared (fresh config volume, accidental deletion).
-- The Bambu Cloud session has expired or the account password was changed.
-- `BAMBULAB_SECRET_KEY` was changed: the encrypted credential file can no longer be decrypted.
-
-In all cases, the simplest fix is the `/auth` page (above). The env-variable flow still works: start the container without `BAMBULAB_CLOUD_CODE` to trigger a new code delivery, then follow steps 3–6.
+Use the same config volume and key as the running exporter so it picks the credentials up. For
+a running container, `docker exec -it <container> bambulab-reauth` is simpler.
 
 ---
 
 ## Next Steps
 
-Once the exporter is running, configure Prometheus to scrape it; see [Prometheus Setup](Prometheus-Setup).
-For a full env var reference see [Configuration](Configuration).
+- Configure Prometheus to scrape the exporter: [Prometheus Setup](Prometheus-Setup)
+- All settings: [Configuration](Configuration)
+- Import the dashboard: [Grafana Dashboard](Grafana-Dashboard)
