@@ -12,6 +12,12 @@ All notable changes to this project are documented in this file.
   Serial are no longer required; printer and login fields are optional advanced settings with
   clearer descriptions; `PRINTER_NAME` (ignored by the exporter) is replaced by
   `PRINTER_NAME_LABEL`; new `BAMBULAB_REQUEST_PUSHALL` option and a link to the wiki.
+- README rewritten for non-technical users: plain-language intro with the dashboard
+  screenshot, one place per topic (setup, connecting the printer, env vars, Prometheus and
+  Grafana), a short metrics highlight table linking to the full Metrics Reference, and updated
+  limitations. Duplicated PromQL examples and the full metrics table now live only in the wiki.
+- Unraid install steps (README and wiki) use **Template repositories**; the previous "paste the
+  template URL" step does not exist in Unraid.
 - `docker-compose.yml` and `.env.example` follow the same `/auth`-first setup and drop the
   obsolete `PRINTER_NAME`, `SITE`, `LOCATION` and unused `RECONNECT_INTERVAL_SECONDS`.
 

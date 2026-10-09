@@ -70,10 +70,13 @@ The included `docker-compose.yml` is cloud-first and minimal. Required cloud fie
 
 A ready-to-import Unraid template is included: `unraid-bambulab-metrics-exporter.xml`
 
-1. Go to **Docker → Add Container → Template**
-2. Paste the XML content or use Template URL
-3. Fill in `BAMBULAB_SECRET_KEY` and required transport fields
-4. Start the container and verify `/metrics`
+1. On the **Docker** tab, scroll to **Template repositories**, add
+   `https://github.com/TheBlackBush/bambulab_metrics_exporter` on a new line and click **Save**.
+2. Click **Add Container** and pick **bambulab-metrics-exporter** from the **Template** list.
+3. Fill in **Secret Key** (generate once with `openssl rand -hex 32`) and click **Apply**. All
+   other fields are optional.
+4. Open the container's **WebUI**, click **Printer Connection** and connect the printer on the
+   `/auth` page.
 
 ---
 
