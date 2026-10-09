@@ -2,6 +2,36 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Changed
+- Setup docs lead with the `/auth` page: the README and wiki Quick Start start the container
+  with only `BAMBULAB_SECRET_KEY` and a config volume, then connect the printer in the browser.
+  Printer connection and login env vars are documented as optional.
+- Unraid template: only Port, Config Dir and Secret Key are shown by default; Transport and
+  Serial are no longer required; printer and login fields are optional advanced settings with
+  clearer descriptions; `PRINTER_NAME` (ignored by the exporter) is replaced by
+  `PRINTER_NAME_LABEL`; new `BAMBULAB_REQUEST_PUSHALL` option and a link to the wiki.
+- README rewritten for non-technical users: plain-language intro with the dashboard
+  screenshot, one place per topic (setup, connecting the printer, env vars, Prometheus and
+  Grafana), a short metrics highlight table linking to the full Metrics Reference, and updated
+  limitations. Duplicated PromQL examples and the full metrics table now live only in the wiki.
+- Wiki: one home per topic. Quick Start covers the browser setup and the `/auth` page;
+  Installation covers install methods (GHCR, Compose, local build, Unraid) and the env-variable
+  and command-line cloud login; duplicated `/auth` and cloud-code sections removed. Grafana
+  Dashboard documents dashboard ID 25033, the Business Text plugin and HTML setting, and the
+  real dashboard rows; Prometheus Setup lists the shipped alert rules instead of an outdated
+  copy. Troubleshooting matches current behavior (no exit on missing settings, automatic
+  detection of expired cloud tokens). The `bambulab-cloud-auth` example now mounts the config
+  volume at the path the exporter reads.
+- Unraid install steps (README and wiki) use **Template repositories**; the previous "paste the
+  template URL" step does not exist in Unraid.
+- Unraid Community Applications: new `ca_profile.xml` (repository profile, required by the CA
+  submission flow), and the template adds a dashboard screenshot, requirements, license,
+  changelog link and Ko-fi donation link.
+- `docker-compose.yml` and `.env.example` follow the same `/auth`-first setup and drop the
+  obsolete `PRINTER_NAME`, `SITE`, `LOCATION` and unused `RECONNECT_INTERVAL_SECONDS`.
+
 ## [0.2.1] - 2026-10-08
 
 ### Fixed

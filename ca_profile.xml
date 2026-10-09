@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<CommunityApplications>
+  <Profile>Prometheus exporter for Bambu Lab 3D printers. It connects to the printer on your LAN or through Bambu Cloud and publishes print progress, temperatures, fans, AMS filament and humidity, HMS errors and firmware status for Prometheus and Grafana. Setup takes a secret key and a browser: connect the printer on the built-in /auth page. A ready-made Grafana dashboard is available (grafana.com ID 25033). For help, open an issue on GitHub.</Profile>
+  <Icon>https://raw.githubusercontent.com/TheBlackBush/bambulab_metrics_exporter/main/docs/logo.png</Icon>
+  <WebPage>https://github.com/TheBlackBush/bambulab_metrics_exporter</WebPage>
+  <Forum>https://github.com/TheBlackBush/bambulab_metrics_exporter/issues</Forum>
+  <DonateText>Support the project on Ko-fi</DonateText>
+  <DonateLink>https://ko-fi.com/M4M11W3R7J</DonateLink>
+</CommunityApplications>
