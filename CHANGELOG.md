@@ -16,6 +16,14 @@ All notable changes to this project are documented in this file.
   screenshot, one place per topic (setup, connecting the printer, env vars, Prometheus and
   Grafana), a short metrics highlight table linking to the full Metrics Reference, and updated
   limitations. Duplicated PromQL examples and the full metrics table now live only in the wiki.
+- Wiki: one home per topic. Quick Start covers the browser setup and the `/auth` page;
+  Installation covers install methods (GHCR, Compose, local build, Unraid) and the env-variable
+  and command-line cloud login; duplicated `/auth` and cloud-code sections removed. Grafana
+  Dashboard documents dashboard ID 25033, the Business Text plugin and HTML setting, and the
+  real dashboard rows; Prometheus Setup lists the shipped alert rules instead of an outdated
+  copy. Troubleshooting matches current behavior (no exit on missing settings, automatic
+  detection of expired cloud tokens). The `bambulab-cloud-auth` example now mounts the config
+  volume at the path the exporter reads.
 - Unraid install steps (README and wiki) use **Template repositories**; the previous "paste the
   template URL" step does not exist in Unraid.
 - `docker-compose.yml` and `.env.example` follow the same `/auth`-first setup and drop the

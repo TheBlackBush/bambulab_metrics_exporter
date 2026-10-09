@@ -51,7 +51,7 @@ Files in the config directory (all encrypted with `BAMBULAB_SECRET_KEY`, mode `0
 
 ### Generating `BAMBULAB_SECRET_KEY`
 
-`BAMBULAB_SECRET_KEY` is used to encrypt your Bambu Cloud credentials (token, user ID) before they are saved to the config volume. Without it, cloud mode cannot persist credentials locally.
+`BAMBULAB_SECRET_KEY` encrypts everything the exporter saves in the config volume: settings entered on the `/auth` page and Bambu Cloud credentials (user ID, tokens). Without it, page settings and cloud logins last only until the next restart.
 
 Generate a strong key with:
 
@@ -123,7 +123,7 @@ Mount the config volume, start the container and connect the printer at `/auth`.
 
 ```dotenv
 BAMBULAB_TRANSPORT=local_mqtt
-BAMBULAB_HOST=192.168.1.100
+BAMBULAB_HOST=192.0.2.100
 BAMBULAB_SERIAL=01P00A000000000
 BAMBULAB_ACCESS_CODE=12345678
 ```
@@ -133,12 +133,12 @@ BAMBULAB_ACCESS_CODE=12345678
 ```dotenv
 BAMBULAB_TRANSPORT=cloud_mqtt
 BAMBULAB_SERIAL=01P00A000000000
-BAMBULAB_SECRET_KEY=your-strong-key
+BAMBULAB_SECRET_KEY=<openssl rand -hex 32>
 BAMBULAB_CLOUD_EMAIL=you@example.com
-BAMBULAB_CLOUD_USER_ID=<uid>
-BAMBULAB_CLOUD_ACCESS_TOKEN=<access_token>
-BAMBULAB_CLOUD_MQTT_HOST=us.mqtt.bambulab.com
 ```
+
+The container emails a verification code on first start; see
+[Installation](Installation#cloud-mode-email-code-flow).
 
 ---
 
@@ -155,6 +155,8 @@ holds different, newer tokens), refresh token, then `BAMBULAB_CLOUD_EMAIL` + `BA
 - Only a refusal by the Bambu broker counts as rejected credentials. An unreachable broker, a
   network or API outage, or a printer that does not answer (powered off) is retried every
   60 seconds and never sends a code.
+- If the broker rejects the credentials while the exporter is running (expired or revoked
+  token), it re-validates the same way: refresh token first, then the re-authentication state.
 - If the credentials are rejected, the exporter logs a re-authentication banner and **waits**;
   log in on the `/auth` page (or run `docker exec -it <container> bambulab-reauth`) and it
   resumes. While waiting it still re-checks every 5 minutes.
