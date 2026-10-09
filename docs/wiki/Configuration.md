@@ -6,13 +6,17 @@ All configuration is via environment variables. Copy `.env.example` to `.env` an
 
 ## Core Variables
 
+Printer connection and login variables are **optional** when you connect the printer on the
+`/auth` page ([Quick Start](Quick-Start)); settings saved there take precedence over env vars.
+The "Required" column below applies to env-variable setups.
+
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `BAMBULAB_TRANSPORT` | no | `local_mqtt` | Transport: `local_mqtt` or `cloud_mqtt` |
-| `BAMBULAB_HOST` | yes (LAN) | - | Printer IP or hostname |
+| `BAMBULAB_HOST` | env setup, LAN | - | Printer IP or hostname |
 | `BAMBULAB_PORT` | no | `8883` | Printer MQTT TLS port |
-| `BAMBULAB_SERIAL` | yes | - | Printer serial / device ID |
-| `BAMBULAB_ACCESS_CODE` | yes (LAN) | - | Printer LAN access code |
+| `BAMBULAB_SERIAL` | env setup | - | Printer serial / device ID |
+| `BAMBULAB_ACCESS_CODE` | env setup, LAN | - | Printer LAN access code |
 | `BAMBULAB_USERNAME` | no | `bblp` | MQTT username |
 
 ---
@@ -21,11 +25,11 @@ All configuration is via environment variables. Copy `.env.example` to `.env` an
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `BAMBULAB_CLOUD_USER_ID` | yes (cloud) | - | Cloud user ID |
-| `BAMBULAB_CLOUD_ACCESS_TOKEN` | yes (cloud) | - | Cloud access token |
+| `BAMBULAB_CLOUD_USER_ID` | no | - | Cloud user ID (only for manually obtained tokens) |
+| `BAMBULAB_CLOUD_ACCESS_TOKEN` | no | - | Cloud access token (only for manually obtained tokens) |
 | `BAMBULAB_CLOUD_MQTT_HOST` | no | `us.mqtt.bambulab.com` | Cloud MQTT broker |
 | `BAMBULAB_CLOUD_MQTT_PORT` | no | `8883` | Cloud MQTT TLS port |
-| `BAMBULAB_CLOUD_EMAIL` | conditional | - | Required only when cloud credentials are missing or expired (triggers re-auth flow) |
+| `BAMBULAB_CLOUD_EMAIL` | env OTP flow | - | For the env-variable login flow: the container emails a verification code to it. Not needed with the `/auth` page |
 | `BAMBULAB_CLOUD_CODE` | no | - | Verification code for re-auth |
 
 ---
@@ -34,7 +38,7 @@ All configuration is via environment variables. Copy `.env.example` to `.env` an
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `BAMBULAB_SECRET_KEY` | yes (cloud) | - | Encryption key for local credentials |
+| `BAMBULAB_SECRET_KEY` | recommended | - | Encrypts `/auth` page settings and cloud credentials so they survive restarts; keep stable |
 | `BAMBULAB_CONFIG_DIR` | no | `/config/bambulab-metrics-exporter` | Config directory |
 
 Files in the config directory (all encrypted with `BAMBULAB_SECRET_KEY`, mode `0600`):
@@ -106,6 +110,14 @@ All metrics include `printer_name` and `serial` labels.
 | `UMASK` | `002` | File creation mask |
 
 ---
+
+## Minimal setup (`/auth` page)
+
+```dotenv
+BAMBULAB_SECRET_KEY=<openssl rand -hex 32>
+```
+
+Mount the config volume, start the container and connect the printer at `/auth`.
 
 ## Minimal LAN `.env`
 

@@ -6,16 +6,69 @@ Get the exporter running in under 5 minutes.
 
 ## Prerequisites
 
-- Docker installed
-- Bambu Lab printer on your LAN (or cloud credentials)
-- Printer **serial number** and **LAN access code**
-  - Find these in: Bambu Studio → Device → LAN Mode, or on the printer at **Settings → Network**
+- Docker installed (or Unraid: install the **bambulab-metrics-exporter** template)
+- For a LAN connection: the printer's IP, **serial number** and **LAN access code**
+  - Find these on the printer at **Settings > Network**, or in Bambu Studio **Device > LAN Mode**
+- For a Bambu Cloud connection: your Bambu account email (a verification code is emailed to it)
 
 ---
 
-## Mode Selection
+## Recommended: set up in the browser
 
-The exporter supports two transport modes. **`local_mqtt` is the default**: no extra configuration needed if your printer is on the same LAN.
+The exporter only needs a secret key and a config volume to start. You then connect the
+printer on the `/auth` page; no printer settings in env vars.
+
+### Step 1: Generate a secret key (once)
+
+```bash
+openssl rand -hex 32
+```
+
+It encrypts the settings and cloud login saved by the page, so they survive restarts. Keep it;
+changing it later means connecting again.
+
+### Step 2: Start the container
+
+```bash
+docker run -d \
+  --name bambulab-exporter \
+  --restart unless-stopped \
+  -p 9109:9109 \
+  -v /path/to/config:/config/bambulab-metrics-exporter \
+  -e BAMBULAB_SECRET_KEY=<your-generated-key> \
+  ghcr.io/theblackbush/bambulab_metrics_exporter:latest
+```
+
+The status page at `http://<docker-host>:9109/` shows **Printer not configured** until a
+printer is connected.
+
+### Step 3: Connect the printer
+
+Open `http://<docker-host>:9109/auth` (also linked from the status page) and choose:
+
+- **Local (LAN):** printer IP, serial number and LAN access code.
+- **Bambu Cloud:** account email, **Send code**, then the emailed code and **Log in**. The
+  serial is optional when the account has a single printer.
+
+The exporter connects right away. Details: [the `/auth` page](#connecting-from-the-browser-the-auth-page-recommended).
+
+### Step 4: Verify
+
+```bash
+curl http://localhost:9109/health
+curl http://localhost:9109/metrics | grep bambulab_printer_connected
+```
+
+You should see `bambulab_printer_connected 1`.
+
+---
+
+## Alternative: environment variables
+
+Everything below is optional. Use env vars when you prefer a fully scripted setup; settings
+saved on the `/auth` page take precedence over them.
+
+### Mode selection
 
 | Mode | `BAMBULAB_TRANSPORT` value | When to use |
 |------|---------------------------|-------------|
@@ -26,7 +79,7 @@ Omitting `BAMBULAB_TRANSPORT` is equivalent to setting it to `local_mqtt`.
 
 ---
 
-## Local Mode (default)
+## Local Mode with env vars
 
 ### Step 1: Create your `.env` file
 
@@ -37,7 +90,7 @@ BAMBULAB_SERIAL=01P00A000000000 # your printer serial
 BAMBULAB_ACCESS_CODE=12345678   # LAN access code
 ```
 
-**All three of `BAMBULAB_HOST`, `BAMBULAB_SERIAL`, and `BAMBULAB_ACCESS_CODE` are required** for Local mode. The container will refuse to start if any are missing.
+**All three of `BAMBULAB_HOST`, `BAMBULAB_SERIAL`, and `BAMBULAB_ACCESS_CODE` are needed** for Local mode with env vars. If one is missing, the exporter keeps running and waits (the status page shows **Printer not configured**) until it is set or the printer is connected on the `/auth` page.
 
 ### Step 2: Run the container
 
@@ -60,11 +113,12 @@ You should see `bambulab_printer_connected 1` in the metrics output.
 
 ---
 
-## Cloud Mode
+## Cloud Mode with env vars
 
-Use this mode when the printer is not directly reachable over LAN.
+Use this mode when the printer is not directly reachable over LAN. The `/auth` page is the
+easiest way to log in; the variables below are for env-variable setups.
 
-### Required env vars for Cloud mode
+### Env vars for Cloud mode
 
 | Variable | Required | Description |
 |----------|----------|-------------|

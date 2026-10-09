@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Changed
+- Setup docs lead with the `/auth` page: the README and wiki Quick Start start the container
+  with only `BAMBULAB_SECRET_KEY` and a config volume, then connect the printer in the browser.
+  Printer connection and login env vars are documented as optional.
+- Unraid template: only Port, Config Dir and Secret Key are shown by default; Transport and
+  Serial are no longer required; printer and login fields are optional advanced settings with
+  clearer descriptions; `PRINTER_NAME` (ignored by the exporter) is replaced by
+  `PRINTER_NAME_LABEL`; new `BAMBULAB_REQUEST_PUSHALL` option and a link to the wiki.
+- `docker-compose.yml` and `.env.example` follow the same `/auth`-first setup and drop the
+  obsolete `PRINTER_NAME`, `SITE`, `LOCATION` and unused `RECONNECT_INTERVAL_SECONDS`.
+
 ## [0.2.1] - 2026-10-08
 
 ### Fixed

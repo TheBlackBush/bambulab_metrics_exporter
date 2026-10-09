@@ -71,66 +71,101 @@ Full operator documentation lives in the [GitHub Wiki](https://github.com/TheBla
 
 ## Quick start
 
+The easiest setup: start the container with only a secret key and a config volume, then
+connect the printer in the browser on the `/auth` page. No printer settings in env vars.
+
+**1. Generate a secret key once and keep it** (it encrypts the settings and cloud login saved
+by the page; changing it later means connecting again):
+
 ```bash
-# Pull and run (Local mode: printer must be on same LAN)
+openssl rand -hex 32
+```
+
+**2. Start the container:**
+
+```bash
 docker run -d \
   --name bambulab-exporter \
+  --restart unless-stopped \
   -p 9109:9109 \
-  -e BAMBULAB_HOST=192.168.1.100 \
-  -e BAMBULAB_SERIAL=01P00A000000000 \
-  -e BAMBULAB_ACCESS_CODE=12345678 \
+  -v /path/to/config:/config/bambulab-metrics-exporter \
+  -e BAMBULAB_SECRET_KEY=<your-generated-key> \
   ghcr.io/theblackbush/bambulab_metrics_exporter:latest
 ```
 
-Or with an env file:
+**3. Connect the printer:** open `http://<docker-host>:9109/auth` and choose:
 
-```bash
-cp .env.example .env
-# edit .env with your values
-docker run -d --name bambulab-exporter -p 9109:9109 --env-file .env \
-  ghcr.io/theblackbush/bambulab_metrics_exporter:latest
-```
+- **Local (LAN):** printer IP, serial number and LAN access code (printer screen:
+  **Settings > Network**, or Bambu Studio **Device > LAN Mode**).
+- **Bambu Cloud:** your Bambu account email, **Send code**, then the emailed code and
+  **Log in**. The serial is optional when the account has a single printer.
 
-Then verify:
+The exporter connects right away and keeps the settings across restarts.
+
+**4. Verify:**
 
 ```bash
 curl http://localhost:9109/health
 curl http://localhost:9109/metrics | grep bambulab_printer_connected
 ```
 
+> The `/auth` page has no login of its own: anyone who can reach port 9109 can change the
+> connection. Keep the port on a trusted network.
+>
 > For a step-by-step walkthrough see [Quick Start](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Quick-Start) in the Wiki.
 
-## Local mode vs Cloud mode
+### Alternative: configure with environment variables
 
-The exporter supports two transport modes. **`local_mqtt` is the default**: no extra configuration needed if your printer is on the same LAN.
+Useful for fully scripted setups. Settings saved on the `/auth` page take precedence over
+these; **Reset to env vars** on the page switches back.
+
+**Local mode** (default transport):
+
+```bash
+docker run -d \
+  --name bambulab-exporter \
+  -p 9109:9109 \
+  -v /path/to/config:/config/bambulab-metrics-exporter \
+  -e BAMBULAB_HOST=192.0.2.100 \
+  -e BAMBULAB_SERIAL=01P00A000000000 \
+  -e BAMBULAB_ACCESS_CODE=12345678 \
+  ghcr.io/theblackbush/bambulab_metrics_exporter:latest
+```
+
+**Cloud mode:**
+
+```dotenv
+BAMBULAB_TRANSPORT=cloud_mqtt
+BAMBULAB_SERIAL=01P00A000000000
+BAMBULAB_SECRET_KEY=<your-generated-key>
+BAMBULAB_CLOUD_EMAIL=you@example.com
+```
+
+The container then emails a verification code; see
+[Env-variable OTP flow](#env-variable-otp-flow) below. Or use an env file:
+
+```bash
+cp .env.example .env
+# edit .env with your values
+docker run -d --name bambulab-exporter -p 9109:9109 --env-file .env \
+  -v /path/to/config:/config/bambulab-metrics-exporter \
+  ghcr.io/theblackbush/bambulab_metrics_exporter:latest
+```
+
+## Local mode vs Cloud mode
 
 | Mode | `BAMBULAB_TRANSPORT` | When to use |
 |------|----------------------|-------------|
 | **Local mode** (default) | `local_mqtt` (or omit) | Printer is on your LAN and LAN Mode is enabled |
 | **Cloud mode** | `cloud_mqtt` | Printer is not directly reachable (remote, CGNAT, etc.) |
 
-**Local mode required vars:**
-
-```dotenv
-BAMBULAB_HOST=192.168.1.100
-BAMBULAB_SERIAL=01P00A000000000
-BAMBULAB_ACCESS_CODE=12345678
-```
-
-**Cloud mode required vars:**
-
-```dotenv
-BAMBULAB_TRANSPORT=cloud_mqtt
-BAMBULAB_SERIAL=01P00A000000000
-BAMBULAB_SECRET_KEY=<openssl rand -hex 32>
-BAMBULAB_CLOUD_EMAIL=you@example.com
-```
+Both modes can be set up on the `/auth` page; the page sets the transport for you.
 
 > See [Configuration](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Configuration) for the full variable reference.
 
 ## Cloud authentication
 
-Cloud credentials are obtained via the `bambulab-cloud-auth` CLI bundled in the container image. No local Python installation is required.
+The easiest way is the `/auth` page. The `bambulab-reauth` and `bambulab-cloud-auth` tools in the container image and the env-variable flow are alternatives; no local Python installation is required.
 
 ### Connecting from the browser: the `/auth` page (recommended)
 
@@ -188,20 +223,23 @@ In any of these cases, use the `/auth` page (above), or start the container with
 
 ## Environment variables
 
+Printer connection and login variables are **optional** when you connect on the `/auth` page; they are only needed for env-variable setups.
+
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `BAMBULAB_TRANSPORT` | no | `local_mqtt` | Transport backend (`local_mqtt` or `cloud_mqtt`) |
-| `BAMBULAB_HOST` | yes (local) | - | Printer IP/hostname |
+| `BAMBULAB_HOST` | env setup, local | - | Printer IP/hostname |
 | `BAMBULAB_PORT` | no | `8883` | Printer MQTT TLS port |
-| `BAMBULAB_SERIAL` | yes | - | Printer serial/device id |
-| `BAMBULAB_ACCESS_CODE` | yes (local) | - | Printer LAN access code |
+| `BAMBULAB_SERIAL` | env setup | - | Printer serial/device id |
+| `BAMBULAB_ACCESS_CODE` | env setup, local | - | Printer LAN access code |
 | `BAMBULAB_USERNAME` | no | `bblp` | MQTT username |
 | `BAMBULAB_REQUEST_PUSHALL` | no | `true` | Request full snapshot every poll, and the module list (`get_version`) on each connect |
-| `BAMBULAB_SECRET_KEY` | yes (cloud) | - | Encrypts stored cloud credentials; keep stable |
-| `BAMBULAB_CLOUD_EMAIL` | yes (cloud) | - | Bambu account email for OTP flow |
+| `BAMBULAB_SECRET_KEY` | recommended | - | Encrypts `/auth` page settings and cloud credentials in the config volume so they survive restarts; keep stable |
+| `BAMBULAB_CLOUD_EMAIL` | env OTP flow | - | Bambu account email for the env-variable OTP flow |
 | `BAMBULAB_CLOUD_CODE` | bootstrap only | - | One-time OTP code; remove after first auth |
 | `BAMBULAB_CLOUD_USER_ID` | no | - | Cloud user id (if already obtained) |
 | `BAMBULAB_CLOUD_ACCESS_TOKEN` | no | - | Cloud access token (if already obtained) |
+| `BAMBULAB_CLOUD_REFRESH_TOKEN` | no | - | Cloud refresh token; renews the access token without a new email code |
 | `BAMBULAB_CLOUD_MQTT_HOST` | no | `us.mqtt.bambulab.com` | Cloud MQTT broker |
 | `BAMBULAB_CLOUD_MQTT_PORT` | no | `8883` | Cloud MQTT port |
 | `PRINTER_NAME_LABEL` | no | empty | Custom printer name label (falls back to `BAMBULAB_PRINTER_NAME`) |
@@ -210,6 +248,7 @@ In any of these cases, use the `/auth` page (above), or start the container with
 | `REQUEST_TIMEOUT_SECONDS` | no | `8` | Per-cycle snapshot timeout |
 | `LISTEN_HOST` | no | `0.0.0.0` | HTTP bind host |
 | `LISTEN_PORT` | no | `9109` | HTTP port |
+| `AUTH_ALLOWED_HOSTS` | no | empty | Extra host names accepted by the `/auth` page (e.g. a reverse-proxy name), comma separated; IP addresses and local names are always allowed |
 | `LOG_LEVEL` | no | `INFO` | Python log level |
 
 > Full reference including PUID/PGID/UMASK and advanced options: [Configuration](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Configuration).
