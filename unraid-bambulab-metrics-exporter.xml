@@ -15,6 +15,12 @@
   <WebUI>http://[IP]:[PORT:9109]/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/TheBlackBush/bambulab_metrics_exporter/main/unraid-bambulab-metrics-exporter.xml</TemplateURL>
   <Icon>https://raw.githubusercontent.com/TheBlackBush/bambulab_metrics_exporter/main/docs/logo.png</Icon>
+  <Screenshot>https://raw.githubusercontent.com/TheBlackBush/bambulab_metrics_exporter/main/examples/grafana/dashboard-sample.jpg</Screenshot>
+  <Requires>Prometheus to collect the metrics, and Grafana to chart them (ready-made dashboard: grafana.com ID 25033).</Requires>
+  <License>GPL-3.0</License>
+  <Changes>Release notes: https://github.com/TheBlackBush/bambulab_metrics_exporter/blob/main/CHANGELOG.md</Changes>
+  <DonateText>Support the project on Ko-fi</DonateText>
+  <DonateLink>https://ko-fi.com/M4M11W3R7J</DonateLink>
 
   <Config Name="Web UI Port" Target="9109" Default="9109" Mode="tcp" Description="Host port for the web UI and /metrics." Type="Port" Display="always" Required="true" Mask="false">9109</Config>
   <Config Name="Config Dir" Target="/config/bambulab-metrics-exporter" Default="/mnt/user/appdata/bambulab-metrics-exporter" Mode="rw" Description="Stores the encrypted /auth page settings and cloud credentials." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/bambulab-metrics-exporter</Config>

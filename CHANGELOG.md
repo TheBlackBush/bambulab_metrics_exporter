@@ -26,6 +26,9 @@ All notable changes to this project are documented in this file.
   volume at the path the exporter reads.
 - Unraid install steps (README and wiki) use **Template repositories**; the previous "paste the
   template URL" step does not exist in Unraid.
+- Unraid Community Applications: new `ca_profile.xml` (repository profile, required by the CA
+  submission flow), and the template adds a dashboard screenshot, requirements, license,
+  changelog link and Ko-fi donation link.
 - `docker-compose.yml` and `.env.example` follow the same `/auth`-first setup and drop the
   obsolete `PRINTER_NAME`, `SITE`, `LOCATION` and unused `RECONNECT_INTERVAL_SECONDS`.
 
