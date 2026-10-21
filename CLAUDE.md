@@ -168,9 +168,14 @@ Important boundaries:
 - `.github/workflows/ci.yml`: compile, Ruff, and full pytest checks on pull requests to
   `main` and `develop`.
 - `.github/workflows/docker-publish.yml`: release-only full checks (including mypy), then
-  amd64/arm64 GHCR build and publish (`<version>` and `latest` tags).
+  amd64/arm64 build and publish (`<version>` and `latest` tags) to GHCR and, when
+  `DOCKERHUB_USERNAME` (repository variable or secret) and the `DOCKERHUB_TOKEN` secret are set,
+  Docker Hub (`<username>/bambulab_metrics_exporter`); it also syncs the README to the Docker
+  Hub description. Manual runs (`workflow_dispatch`) re-publish an existing release tag, with an
+  input to skip moving `latest`.
 - `.github/workflows/docker-develop.yml`: on every push to the `develop` branch, the same
-  full checks, then amd64/arm64 GHCR images tagged `develop` and `develop-<short-sha>`.
+  full checks, then amd64/arm64 images tagged `develop` and `develop-<short-sha>` (GHCR, plus
+  Docker Hub when configured).
   Never publishes `latest` or version tags. Feature branches target `develop`; `develop`
   merges into `main` for releases.
 - `.github/workflows/wiki-sync.yml`: syncs `docs/wiki/*.md` to the GitHub Wiki on `main`.

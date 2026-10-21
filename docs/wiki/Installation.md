@@ -27,10 +27,15 @@ docker run -d \
 
 Then connect the printer at `http://<docker-host>:9109/auth`.
 
+The same images are published to Docker Hub as
+[`blackbush/bambulab_metrics_exporter`](https://hub.docker.com/r/blackbush/bambulab_metrics_exporter), with the same tags. Use
+whichever registry you prefer; GHCR has no pull rate limit for public images, Docker Hub limits
+anonymous pulls.
+
 ### Development builds
 
-Every push to the `develop` branch publishes a pre-release image after the full test suite
-passes:
+Every push to the `develop` branch publishes a pre-release image (to GHCR and Docker Hub) after
+the full test suite passes:
 
 | Tag | Meaning |
 |-----|---------|
