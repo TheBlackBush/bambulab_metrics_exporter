@@ -185,6 +185,11 @@ AMS_MODEL_BY_MODULE_PREFIX: dict[str, str] = {
     "n3s": "ams_ht",
 }
 
+# print_type values (job source); anything else is reported as "unknown" (ha-bambulab).
+PRINT_TYPES: tuple[str, ...] = ("cloud", "local", "idle", "system", "unknown")
+# `fun` bit set when the printer requires signed MQTT commands (Developer Mode off).
+_FUN_MQTT_SIGNATURE_REQUIRED = 0x20000000
+
 # Printers whose only AMS is the AMS Lite (it reports no info or serial).
 _AMS_LITE_ONLY_MODELS: frozenset[str] = frozenset({"A1", "A1MINI", "A2L"})
 
@@ -1244,6 +1249,63 @@ class PrinterSnapshot:
         return out
 
     @property
+    def print_prepare_percent(self) -> float | None:
+        """Download progress of the job file before a print starts (0-100)."""
+        value = _to_float(self.print_block.get("gcode_file_prepare_percent"))
+        if value is None or not 0 <= value <= 100:
+            return None
+        return value
+
+    @property
+    def print_type_name(self) -> str | None:
+        """Job source: cloud, local, idle, system or unknown; None when not reported."""
+        value = self.print_block.get("print_type")
+        if not isinstance(value, str):
+            return None
+        value = value.strip().lower()
+        return value if value in PRINT_TYPES else "unknown"
+
+    @property
+    def skipped_objects(self) -> float | None:
+        """Number of objects skipped in the current print (`s_obj` list length)."""
+        value = self.print_block.get("s_obj")
+        return float(len(value)) if isinstance(value, list) else None
+
+    @property
+    def timelapse_enabled(self) -> float | None:
+        ipcam = self.print_block.get("ipcam")
+        value = ipcam.get("timelapse") if isinstance(ipcam, dict) else None
+        if not isinstance(value, str):
+            return None
+        value = value.strip().lower()
+        if value == "enable":
+            return 1.0
+        if value == "disable":
+            return 0.0
+        return None
+
+    @property
+    def mqtt_signature_required(self) -> float | None:
+        """1 when the printer only accepts signed MQTT commands (Developer Mode off), from
+        `fun` bit 0x20000000 (ha-bambulab)."""
+        value = self.print_block.get("fun")
+        if not isinstance(value, str) or not value.strip():
+            return None
+        try:
+            fun = int(value.strip(), 16)
+        except ValueError:
+            return None
+        return 1.0 if fun & _FUN_MQTT_SIGNATURE_REQUIRED else 0.0
+
+    @property
+    def axes_homed(self) -> dict[str, float]:
+        """x/y/z -> 1 when homed (home_flag bits 0-2); empty without home_flag."""
+        if to_int(self.print_block.get("home_flag")) is None:
+            return {}
+        flags = self.home_flags
+        return {axis: 1.0 if flags.get(f"{axis}_axis") else 0.0 for axis in ("x", "y", "z")}
+
+    @property
     def hms_counts(self) -> tuple[dict[str, int], dict[str, int]] | None:
         """Active HMS errors counted by severity and by module; None without an `hms` list.
 
@@ -1783,6 +1845,10 @@ class PrinterSnapshot:
 
         print_type = self.print_block.get("print_type")
         if isinstance(print_type, str) and print_type.strip().lower() == "idle" and stage_id == 0:
+            return 255
+        if self.gcode_state == "FAILED":
+            # After a cancelled print the printer keeps reporting the stage it was in; nothing
+            # is running (same correction as ha-bambulab).
             return 255
 
         return stage_id
