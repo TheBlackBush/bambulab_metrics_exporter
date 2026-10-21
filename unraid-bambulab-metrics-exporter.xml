@@ -11,7 +11,7 @@
   <Project>https://github.com/TheBlackBush/bambulab_metrics_exporter</Project>
   <ReadMe>https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki</ReadMe>
   <Overview>Prometheus exporter for Bambu Lab 3D printers (local LAN or Bambu Cloud). Exposes /metrics for Prometheus, /health, /ready, a status page at / and a printer connection page at /auth.&#10;&#10;Quick setup:&#10;1) Set Secret Key (generate once, for example: openssl rand -hex 32) and keep it.&#10;2) Start the container and open WebUI, then Printer connection (/auth).&#10;3) Choose Local (printer IP, serial, LAN access code) or Bambu Cloud (email and verification code). The exporter connects right away and keeps the settings across restarts.&#10;&#10;All printer and login fields below are optional; use them only if you prefer configuring with variables. Settings saved on the /auth page take precedence over them.&#10;&#10;The /auth page has no login of its own; keep the port on a trusted network.</Overview>
-  <Category>Network:Management Tools: Monitoring</Category>
+  <Category>Tools:Utilities Network:Management</Category>
   <WebUI>http://[IP]:[PORT:9109]/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/TheBlackBush/bambulab_metrics_exporter/main/unraid-bambulab-metrics-exporter.xml</TemplateURL>
   <Icon>https://raw.githubusercontent.com/TheBlackBush/bambulab_metrics_exporter/main/docs/logo.png</Icon>
