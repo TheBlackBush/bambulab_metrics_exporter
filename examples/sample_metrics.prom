@@ -72,6 +72,26 @@ bambulab_hms_active_errors_by_module{module="other",printer_name="my-x1c",serial
 bambulab_nozzle_wear_ratio{extruder_id="0",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
 # HELP bambulab_nozzle_print_time_seconds Total print time of the nozzle mounted on each extruder
 # TYPE bambulab_nozzle_print_time_seconds gauge
+# HELP bambulab_print_prepare_percent Download progress of the job file before a print starts
+# TYPE bambulab_print_prepare_percent gauge
+bambulab_print_prepare_percent{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_print_type_info Job source (cloud, local, idle, system, unknown)
+# TYPE bambulab_print_type_info gauge
+bambulab_print_type_info{printer_name="my-x1c",serial="00MFAKE0TEST0001",type="unknown"} 1.0
+# HELP bambulab_print_skipped_objects Number of objects skipped in the current print
+# TYPE bambulab_print_skipped_objects gauge
+bambulab_print_skipped_objects{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_timelapse_enabled 1 if timelapse recording is enabled
+# TYPE bambulab_timelapse_enabled gauge
+bambulab_timelapse_enabled{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_mqtt_signature_required 1 if the printer only accepts signed MQTT commands (Developer Mode off)
+# TYPE bambulab_mqtt_signature_required gauge
+bambulab_mqtt_signature_required{printer_name="my-x1c",serial="00MFAKE0TEST0001"} NaN
+# HELP bambulab_axis_homed 1 if the axis is homed
+# TYPE bambulab_axis_homed gauge
+bambulab_axis_homed{axis="x",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+bambulab_axis_homed{axis="y",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+bambulab_axis_homed{axis="z",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
 # HELP bambulab_firmware_update_available 1 when a firmware update is available, 0 when up to date
 # TYPE bambulab_firmware_update_available gauge
 bambulab_firmware_update_available{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
@@ -97,7 +117,6 @@ bambulab_accessory_present{accessory="air_pump",printer_name="my-x1c",serial="00
 # HELP bambulab_light_mode_info Light mode per light (on, off, flashing, unknown)
 # TYPE bambulab_light_mode_info gauge
 bambulab_light_mode_info{light="chamber_light",mode="off",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 1.0
-bambulab_light_mode_info{light="work_light",mode="flashing",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 1.0
 # HELP bambulab_timelapse_storage_free_bytes Free timelapse storage space
 # TYPE bambulab_timelapse_storage_free_bytes gauge
 # HELP bambulab_timelapse_storage_total_bytes Total timelapse storage space
@@ -194,7 +213,7 @@ bambulab_printer_error_code{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
 bambulab_chamber_light_on{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
 # HELP bambulab_work_light_on Work light on/off
 # TYPE bambulab_work_light_on gauge
-bambulab_work_light_on{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 1.0
+bambulab_work_light_on{printer_name="my-x1c",serial="00MFAKE0TEST0001"} NaN
 # HELP bambulab_xcam_feature_enabled XCam feature enabled flags
 # TYPE bambulab_xcam_feature_enabled gauge
 bambulab_xcam_feature_enabled{feature="allow_skip_parts",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
@@ -208,23 +227,23 @@ bambulab_xcam_feature_enabled{feature="spaghetti_detector",printer_name="my-x1c"
 bambulab_xcam_halt_print_sensitivity_info{level="medium",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 1.0
 # HELP bambulab_printer_gcode_state Current gcode state encoded as one-hot labels
 # TYPE bambulab_printer_gcode_state gauge
-bambulab_printer_gcode_state{printer_name="my-x1c",serial="00MFAKE0TEST0001",state="INIT"} 0.0
-bambulab_printer_gcode_state{printer_name="my-x1c",serial="00MFAKE0TEST0001",state="PREPARE"} 0.0
-bambulab_printer_gcode_state{printer_name="my-x1c",serial="00MFAKE0TEST0001",state="SLICING"} 0.0
+bambulab_printer_gcode_state{printer_name="my-x1c",serial="00MFAKE0TEST0001",state="UNKNOWN"} 0.0
+bambulab_printer_gcode_state{printer_name="my-x1c",serial="00MFAKE0TEST0001",state="IDLE"} 1.0
+bambulab_printer_gcode_state{printer_name="my-x1c",serial="00MFAKE0TEST0001",state="FINISH"} 0.0
 bambulab_printer_gcode_state{printer_name="my-x1c",serial="00MFAKE0TEST0001",state="RUNNING"} 0.0
 bambulab_printer_gcode_state{printer_name="my-x1c",serial="00MFAKE0TEST0001",state="OFFLINE"} 0.0
 bambulab_printer_gcode_state{printer_name="my-x1c",serial="00MFAKE0TEST0001",state="PAUSE"} 0.0
+bambulab_printer_gcode_state{printer_name="my-x1c",serial="00MFAKE0TEST0001",state="PREPARE"} 0.0
+bambulab_printer_gcode_state{printer_name="my-x1c",serial="00MFAKE0TEST0001",state="INIT"} 0.0
 bambulab_printer_gcode_state{printer_name="my-x1c",serial="00MFAKE0TEST0001",state="FAILED"} 0.0
-bambulab_printer_gcode_state{printer_name="my-x1c",serial="00MFAKE0TEST0001",state="IDLE"} 1.0
-bambulab_printer_gcode_state{printer_name="my-x1c",serial="00MFAKE0TEST0001",state="UNKNOWN"} 0.0
-bambulab_printer_gcode_state{printer_name="my-x1c",serial="00MFAKE0TEST0001",state="FINISH"} 0.0
+bambulab_printer_gcode_state{printer_name="my-x1c",serial="00MFAKE0TEST0001",state="SLICING"} 0.0
 # HELP bambulab_spd_lvl_state Current speed level as one-hot labels
 # TYPE bambulab_spd_lvl_state gauge
-bambulab_spd_lvl_state{mode="LUDICROUS",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+bambulab_spd_lvl_state{mode="SILENT",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+bambulab_spd_lvl_state{mode="UNKNOWN",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
 bambulab_spd_lvl_state{mode="STANDARD",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 1.0
 bambulab_spd_lvl_state{mode="SPORT",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
-bambulab_spd_lvl_state{mode="UNKNOWN",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
-bambulab_spd_lvl_state{mode="SILENT",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+bambulab_spd_lvl_state{mode="LUDICROUS",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
 # HELP bambulab_subtask_name_info Current print subtask name as labeled info metric
 # TYPE bambulab_subtask_name_info gauge
 # HELP bambulab_fail_reason_info Current print fail reason as labeled info metric
