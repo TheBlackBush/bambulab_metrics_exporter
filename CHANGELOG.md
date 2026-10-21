@@ -4,6 +4,13 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Images are also published to Docker Hub as `blackbush/bambulab_metrics_exporter`
+  (releases: `<version>` and `latest`; develop: `develop` and `develop-<short-sha>`), alongside
+  GHCR. The release workflow syncs the README to the Docker Hub description and can be run
+  manually to re-publish an existing release tag. Docker Hub publishing is skipped when its
+  credentials are not set. Earlier releases (0.1.0 to 0.2.1) were copied to Docker Hub.
+
 ### Changed
 - Setup docs lead with the `/auth` page: the README and wiki Quick Start start the container
   with only `BAMBULAB_SECRET_KEY` and a config volume, then connect the printer in the browser.
@@ -31,6 +38,10 @@ All notable changes to this project are documented in this file.
   changelog link and Ko-fi donation link.
 - `docker-compose.yml` and `.env.example` follow the same `/auth`-first setup and drop the
   obsolete `PRINTER_NAME`, `SITE`, `LOCATION` and unused `RECONNECT_INTERVAL_SECONDS`.
+
+### Fixed
+- Unraid template category is `Tools:Utilities Network:Management`; the previous value
+  produced Community Applications errors (`Unknown category "Monitoring"`).
 
 ## [0.2.1] - 2026-10-08
 
