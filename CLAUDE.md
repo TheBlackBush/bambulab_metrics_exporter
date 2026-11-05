@@ -120,7 +120,8 @@ Important boundaries:
   `/auth` is unauthenticated by maintainer decision; keep its protections: escaped output, no
   stored secrets rendered, same-origin check, Host allowlist (`_host_allowed`, DNS rebinding,
   `AUTH_ALLOWED_HOSTS`), anti-framing headers (middleware), 8 KB form cap, send-code ladder
-  (`SendCodeLimiter`, persisted) and login rate limit, per-visitor result cookie, and `overrides.lock` around every page change.
+  (`SendCodeLimiter`, persisted) and login rate limit, per-visitor result cookie, and
+  `overrides.lock` around every page change.
   Preserve endpoint contracts.
 - `src/bambulab_metrics_exporter/cloud_auth.py`: Bambu Cloud HTTP/OTP CLI, token refresh,
   device discovery, bounded HTTP retry/backoff, and credential output. Never expose

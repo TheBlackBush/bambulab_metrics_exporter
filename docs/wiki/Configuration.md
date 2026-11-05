@@ -41,7 +41,7 @@ The "Required" column below applies to env-variable setups.
 | `BAMBULAB_SECRET_KEY` | recommended | - | Encrypts `/auth` page settings and cloud credentials so they survive restarts; keep stable |
 | `BAMBULAB_CONFIG_DIR` | no | `/config/bambulab-metrics-exporter` | Config directory |
 
-Files in the config directory (all encrypted with `BAMBULAB_SECRET_KEY`, mode `0600`):
+Files in the config directory (mode `0600`; all are encrypted with `BAMBULAB_SECRET_KEY` except `send-code-limit.json`, which is plain JSON):
 
 | File | Written by | Purpose |
 |------|------------|---------|

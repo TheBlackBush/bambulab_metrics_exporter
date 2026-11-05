@@ -139,14 +139,12 @@ class SendCodeLimiter:
             values = (raw["round"], raw["sends"], raw["last_send"], raw["locked_until"])
             round_, sends = int(values[0]), int(values[1])
             last_send, locked_until = float(values[2]), float(values[3])
-        except (OSError, ValueError, KeyError, TypeError, OverflowError):
+        except (OSError, ValueError, KeyError, TypeError, OverflowError, RecursionError):
             return  # Missing or damaged: start a fresh ladder.
-        now = self._clock()
         self._round = max(round_, 1)
         self._sends = max(sends, 0)
-        # A clock change must not extend the wait past the longest step.
-        self._last_send = min(last_send, now)
-        self._locked_until = min(locked_until, now + SEND_CODE_LATER_LOCK_SECONDS)
+        self._last_send = last_send
+        self._locked_until = locked_until
 
     def _save(self) -> None:
         path = self._state_path()
@@ -171,6 +169,13 @@ class SendCodeLimiter:
         with self._lock:
             self._load()
             now = self._clock()
+            # A clock change must not extend the wait past the longest step; the caps are
+            # applied on every call and written back so a restart cannot renew them.
+            capped_send = min(self._last_send, now)
+            capped_lock = min(self._locked_until, now + SEND_CODE_LATER_LOCK_SECONDS)
+            if (capped_send, capped_lock) != (self._last_send, self._locked_until):
+                self._last_send, self._locked_until = capped_send, capped_lock
+                self._save()
             if self._locked_until > now:
                 minutes = math.ceil((self._locked_until - now) / 60)
                 raise AuthInputError(f"Too many codes requested. Try again in {minutes} minutes.")
@@ -179,7 +184,9 @@ class SendCodeLimiter:
                 self._sends = 0
             wait = SEND_CODE_INTERVAL_SECONDS - (now - self._last_send)
             if self._sends and wait > 0:
-                raise AuthInputError(f"A code was just sent. Try again in {math.ceil(wait)} seconds.")
+                raise AuthInputError(
+                    f"A code was just sent. Try again in {math.ceil(wait)} seconds."
+                )
             self._sends += 1
             self._last_send = now
             if self._sends >= SEND_CODE_MAX_PER_ROUND:
@@ -189,6 +196,10 @@ class SendCodeLimiter:
                     else SEND_CODE_LATER_LOCK_SECONDS
                 )
                 self._locked_until = now + step
+                logger.warning(
+                    "Send-code limit reached; verification emails are paused for %d minutes",
+                    step // 60,
+                )
             self._save()
 
     def reset(self) -> None:

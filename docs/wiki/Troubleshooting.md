@@ -35,6 +35,8 @@ The exporter never exits on connection problems: the web server stays up and the
   then a 1 hour wait after each later round of 5. Rejected sends count too. The limit survives
   restarts and is reset only by a successful login on the page. Wait for the time shown, or
   use `bambulab-reauth` in the container, which is a separate path that this limit does not apply to.
+  To clear the limit by hand, stop the container, delete `send-code-limit.json` from the config
+  directory, and start it again. Deleting it while the container runs has no effect.
 
 **The exporter ignores my changed env vars**
 - Settings saved on the `/auth` page override env vars. Use **Reset to env vars** on the page.

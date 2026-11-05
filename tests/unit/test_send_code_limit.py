@@ -139,12 +139,62 @@ def test_future_timestamps_are_capped(tmp_path: Path) -> None:
         '{"round": "x"}',
         '{"round": 1, "sends": null}',
         '{"round": Infinity, "sends": 1, "last_send": 0, "locked_until": 0}',
+        "[" * 100000 + "]" * 100000,
     ],
 )
 def test_corrupt_state_file_gives_fresh_ladder(tmp_path: Path, content: str) -> None:
     path = tmp_path / "s.json"
     path.write_text(content)
     SendCodeLimiter(path, Clock()).check_and_record()
+
+
+def test_backward_clock_jump_keeps_the_one_hour_cap(tmp_path: Path) -> None:
+    clock = Clock()
+    limiter = SendCodeLimiter(tmp_path / "s.json", clock)
+    _round(limiter, clock)
+    clock.advance(600)
+    _round(limiter, clock)  # second round: one hour lock
+    clock.advance(-30 * 86400)
+    with pytest.raises(AuthInputError, match=r"in (\d+) minutes") as info:
+        limiter.check_and_record()
+    assert int(str(info.value).split(" in ")[1].split()[0]) <= 60
+
+
+def test_backward_clock_jump_after_a_send_caps_spacing(tmp_path: Path) -> None:
+    clock = Clock()
+    limiter = SendCodeLimiter(tmp_path / "s.json", clock)
+    limiter.check_and_record()
+    clock.advance(-86400)
+    with pytest.raises(AuthInputError, match=r"in (\d+) seconds") as info:
+        limiter.check_and_record()
+    assert int(str(info.value).split(" in ")[1].split()[0]) <= 60
+
+
+def test_restarts_do_not_renew_a_capped_lock(tmp_path: Path) -> None:
+    clock = Clock()
+    path = tmp_path / "s.json"
+    path.write_text(json.dumps({
+        "round": 2, "sends": 5, "last_send": clock.now, "locked_until": clock.now + 10**9,
+    }))
+    with pytest.raises(AuthInputError):
+        SendCodeLimiter(path, clock).check_and_record()
+    clock.advance(50 * 60)
+    with pytest.raises(AuthInputError, match=r"in (\d+) minutes") as info:
+        SendCodeLimiter(path, clock).check_and_record()
+    assert int(str(info.value).split(" in ")[1].split()[0]) <= 10
+
+
+def test_lock_start_logs_one_warning_without_email(tmp_path: Path, monkeypatch, caplog) -> None:
+    monkeypatch.setattr(auth_actions, "send_code", lambda email: None)
+    clock = Clock()
+    sender = CodeSender(SendCodeLimiter(tmp_path / "s.json", clock))
+    with caplog.at_level("WARNING", logger=auth_actions.logger.name):
+        for _ in range(5):
+            sender.send(EMAIL)
+            clock.advance(60)
+    records = [r for r in caplog.records if "Send-code limit reached" in r.getMessage()]
+    assert len(records) == 1
+    assert "example" not in caplog.text and "@" not in caplog.text
 
 
 def test_unwritable_state_file_keeps_ladder_in_memory(tmp_path: Path) -> None:
