@@ -139,7 +139,7 @@ class SendCodeLimiter:
             values = (raw["round"], raw["sends"], raw["last_send"], raw["locked_until"])
             round_, sends = int(values[0]), int(values[1])
             last_send, locked_until = float(values[2]), float(values[3])
-        except (OSError, ValueError, KeyError, TypeError):
+        except (OSError, ValueError, KeyError, TypeError, OverflowError):
             return  # Missing or damaged: start a fresh ladder.
         now = self._clock()
         self._round = max(round_, 1)

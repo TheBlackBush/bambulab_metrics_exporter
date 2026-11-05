@@ -132,7 +132,14 @@ def test_future_timestamps_are_capped(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    "content", ["not json", "[]", '{"round": "x"}', '{"round": 1, "sends": null}']
+    "content",
+    [
+        "not json",
+        "[]",
+        '{"round": "x"}',
+        '{"round": 1, "sends": null}',
+        '{"round": Infinity, "sends": 1, "last_send": 0, "locked_until": 0}',
+    ],
 )
 def test_corrupt_state_file_gives_fresh_ladder(tmp_path: Path, content: str) -> None:
     path = tmp_path / "s.json"
