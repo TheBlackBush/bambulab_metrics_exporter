@@ -681,3 +681,38 @@ def test_page_cloud_login_survives_restart_and_reset_restores_env(
     assert os.environ["BAMBULAB_CLOUD_ACCESS_TOKEN"] == "operator_token"
     assert os.environ["BAMBULAB_CLOUD_USER_ID"] == "operator_uid"
     assert not overrides.page_login_active()
+
+
+def test_successful_page_login_resets_send_code_limit(monkeypatch, tmp_path) -> None:
+    sent: list[str] = []
+    monkeypatch.setattr(auth_actions, "send_code", sent.append)
+    monkeypatch.setattr(auth_actions, "login_with_code", lambda email, code: _login())
+    monkeypatch.setattr(
+        auth_actions, "get_bind_devices", lambda token: [{"dev_id": "FAKE00TEST000001"}]
+    )
+    client, _ = _client()
+    email = "operator@example.invalid"
+
+    client.post("/auth/cloud/send-code", data={"email": email})
+    client.post("/auth/cloud/send-code", data={"email": email})
+    assert sent == [email]  # second press is inside the 60 s spacing
+
+    client.post("/auth/cloud/login", data={"email": email, "code": "123456"})
+    client.post("/auth/cloud/send-code", data={"email": email})
+    assert sent == [email, email]
+
+
+def test_failed_page_login_keeps_send_code_limit(monkeypatch) -> None:
+    sent: list[str] = []
+    monkeypatch.setattr(auth_actions, "send_code", sent.append)
+
+    def reject(email: str, code: str) -> LoginResult:
+        raise CloudAuthError("bad code")
+
+    monkeypatch.setattr(auth_actions, "login_with_code", reject)
+    client, _ = _client()
+    email = "operator@example.invalid"
+    client.post("/auth/cloud/send-code", data={"email": email})
+    client.post("/auth/cloud/login", data={"email": email, "code": "123456"})
+    client.post("/auth/cloud/send-code", data={"email": email})
+    assert sent == [email]

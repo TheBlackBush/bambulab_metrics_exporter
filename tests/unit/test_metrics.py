@@ -1732,7 +1732,7 @@ class TestFirmwareAccessoryStageEdgeCases:
         assert [s["stage"] for s in self._series(m, "bambulab_print_stage_info")] == ["unknown_80"]
 
 
-class TestHaBambulabParity:
+class TestPrintJobMetrics:
     labels = {"printer_name": "test", "serial": "SN123"}
 
     def _series(self, m: ExporterMetrics, name: str) -> list[dict[str, str]]:

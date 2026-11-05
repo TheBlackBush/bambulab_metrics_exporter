@@ -47,6 +47,7 @@ Files in the config directory (all encrypted with `BAMBULAB_SECRET_KEY`, mode `0
 |------|------------|---------|
 | `credentials.enc.json` (`BAMBULAB_CREDENTIALS_FILE`) | cloud login, token refresh, `bambulab-reauth` | Cloud user ID and tokens |
 | `connection-overrides.enc.json` | `/auth` page | Connection settings that override env vars; removed by **Reset to env vars** |
+| `send-code-limit.json` | `/auth` page | Send-code limit state (plain JSON, no secrets); survives restarts and is cleared by a successful page login |
 | `credentials.enc.json.before-auth-page` | `/auth` page | The credentials that existed before the first page login; restored by **Reset to env vars** |
 
 ### Generating `BAMBULAB_SECRET_KEY`

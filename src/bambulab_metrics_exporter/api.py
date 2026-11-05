@@ -513,7 +513,10 @@ def _add_auth_routes(app: FastAPI, runtime: ExporterRuntime) -> None:
     async def auth_cloud_login(request: Request) -> Response:
         def login(f: dict[str, str]) -> ActionResult:
             login_limiter.check()
-            return configure_cloud(f.get("email", ""), f.get("code", ""), f.get("serial", ""))
+            result = configure_cloud(f.get("email", ""), f.get("code", ""), f.get("serial", ""))
+            if result.ok:
+                code_sender.reset()
+            return result
 
         return await cloud_action(request, login, reconnect=True)
 
