@@ -1,0 +1,889 @@
+{
+ "bambulab_accessory_present": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "accessory"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_active_extruder_index": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_active_nozzle_info": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "nozzle_type",
+   "nozzle_diameter"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_airduct_fan_speed_percent": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "fan"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_airduct_mode_info": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "mode"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_ams_auto_switch": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_ams_dry_fan_status": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "ams_id",
+   "ams_model",
+   "ams_series",
+   "fan_id"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_ams_dry_sub_status_info": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "ams_id",
+   "ams_model",
+   "ams_series",
+   "state"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_ams_drying_duration_seconds": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "ams_id"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_ams_drying_remaining_seconds": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "ams_id"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_ams_drying_target_temperature_celsius": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "ams_id"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_ams_heater_state_info": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "ams_id",
+   "ams_model",
+   "ams_series",
+   "state"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_ams_rfid_status_id": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_ams_rfid_status_name": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "status"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_ams_slot_active": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "ams_id",
+   "slot_id"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_ams_slot_remaining_percent": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "ams_id",
+   "slot_id"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_ams_slot_tray_info": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "ams_id",
+   "slot_id",
+   "tray_type",
+   "tray_color"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_ams_status_id": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_ams_status_name": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "status"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_ams_unit_humidity": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "ams_id"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_ams_unit_humidity_index": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "ams_id"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_ams_unit_info": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "ams_id",
+   "ams_model",
+   "ams_series"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_ams_unit_temperature_celsius": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "ams_id"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_ap_error_code": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_axis_homed": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "axis"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_bed_target_temperature_celsius": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_bed_temperature_celsius": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_camera_recording": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_chamber_heater_state": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_chamber_light_on": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_chamber_target_temperature_celsius": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_chamber_temperature_celsius": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_door_open": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_exporter_last_success_unixtime": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_exporter_scrape_duration_seconds": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_exporter_scrape_success": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_external_spool_active": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_external_spool_info": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "external_id",
+   "tray_type",
+   "tray_info_idx",
+   "tray_color"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_extruder_loaded_slot_info": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "extruder_id",
+   "ams_id",
+   "slot_id"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_extruder_nozzle_info": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "extruder_id",
+   "nozzle_type",
+   "nozzle_diameter"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_extruder_target_temperature_celsius": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "extruder_id"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_extruder_temperature_celsius": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "extruder_id"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_fail_reason_info": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "fail_reason"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_fan_big_1_speed_percent": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_fan_big_2_speed_percent": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_fan_cooling_speed_percent": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_fan_heatbreak_speed_percent": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_fan_secondary_aux_speed_percent": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_filament_tangle_detect_supported": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_filament_tangle_detected": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_filament_tangle_detection_enabled": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_firmware_update_available": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_hms_active_errors": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "severity"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_hms_active_errors_by_module": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "module"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_hotend_rack_holder_position_info": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "position"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_hotend_rack_holder_state_info": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "state"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_hotend_rack_hotend_info": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "slot_id",
+   "nozzle_type",
+   "nozzle_diameter"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_hotend_rack_hotend_max_temperature_celsius": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "slot_id"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_hotend_rack_hotend_print_time_seconds": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "slot_id"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_hotend_rack_hotend_runtime_minutes": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "slot_id"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_hotend_rack_hotend_wear_ratio": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "slot_id"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_hotend_rack_slot_state_info": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "slot_id",
+   "state"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_lid_open": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_light_mode_info": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "light",
+   "mode"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_mc_print_sub_stage": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_mc_stage": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_module_firmware_info": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "module",
+   "version"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_mqtt_signature_required": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_nozzle_diameter": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_nozzle_print_time_seconds": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "extruder_id"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_nozzle_target_temperature_celsius": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_nozzle_temperature_celsius": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_nozzle_wear_ratio": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "extruder_id"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_online_ahb": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_online_ext": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_print_error": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_print_error_code": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_print_gcode_action": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_print_layer_current": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_print_layer_progress_percent": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_print_layer_total": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_print_prepare_percent": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_print_progress_percent": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_print_real_action": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_print_remaining_seconds": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_print_skipped_objects": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_print_stage_info": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "stage"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_print_type_info": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "type"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_printer_connected": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_printer_error": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_printer_error_code": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_printer_gcode_state": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "state"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_printer_model_info": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "model"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_printer_up": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_queue_estimated_seconds": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_queue_number": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_queue_position": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_queue_status": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_queue_total": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_sdcard_status_info": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "status"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_spd_lvl": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_spd_lvl_state": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "mode"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_spd_mag": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_stg_cur": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_subtask_name_info": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "subtask_name"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_timelapse_enabled": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_timelapse_storage_free_bytes": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "storage"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_timelapse_storage_total_bytes": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "storage"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_tool_head_info": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "tool"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_toolhead_filament_present": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "extruder_id"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_wifi_signal": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_wired_network": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_work_light_on": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_xcam_feature_enabled": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "feature"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_xcam_halt_print_sensitivity_info": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "level"
+  ],
+  "type": "gauge"
+ }
+}
