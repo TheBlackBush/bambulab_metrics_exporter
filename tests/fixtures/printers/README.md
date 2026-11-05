@@ -15,6 +15,7 @@ check model detection and per-model metric behavior. Each file holds:
 | `h2c.json` | H2C | dual extruder, hotend rack |
 | `h2d.json` | H2D | dual extruder, laser module mounted |
 | `h2d_external_spool.json` | H2D | external spool active on extruder 0, AMS HT units |
+| `h2d_real_idle.json` | H2D | real printer, idle, AMS drying, `rtt` and `retrans` present |
 | `h2d_pro.json` | H2D Pro | AMS HT, wired network |
 | `h2s.json` | H2S | chamber heater active (packed chamber temperature) |
 | `p1p_no_ams.json` | P1P | no AMS, external spool |
@@ -42,7 +43,7 @@ Review the output before committing.
 
 ## Attribution
 
-All fixtures except `x1c_fw0112_ams1.json` are sanitized versions of the mock payloads in
+All fixtures except `x1c_fw0112_ams1.json` and `h2d_real_idle.json` are sanitized versions of the mock payloads in
 [ha-bambulab](https://github.com/greghesp/ha-bambulab)
 (`custom_components/bambu_lab/pybambu/mock_data`, commit `0e027ff`), used under the MIT License:
 
@@ -70,4 +71,4 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-`x1c_fw0112_ams1.json` was captured read-only from the maintainer's X1C and sanitized.
+`x1c_fw0112_ams1.json` and `h2d_real_idle.json` were captured read-only from the maintainer's printers (X1C and H2D) and sanitized.

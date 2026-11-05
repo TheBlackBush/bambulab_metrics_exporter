@@ -8,6 +8,9 @@ All notable changes to this project are documented in this file.
 - `bambulab_print_prepare_percent` (job file download progress), `bambulab_print_type_info{type}`
   (job source), `bambulab_print_skipped_objects`, `bambulab_timelapse_enabled`,
   `bambulab_mqtt_signature_required` (Developer Mode off) and `bambulab_axis_homed{axis}`.
+- `bambulab_ams_drying_blocked_reason_info{ams_id,reason}`, `bambulab_firmware_upgrade_status_info{status}`,
+  `bambulab_network_rtt_milliseconds{interface}` and `bambulab_network_retransmissions{interface}`.
+  The last two are reported by the printer; their unit and meaning are not confirmed.
 - Images are also published to Docker Hub as `blackbush/bambulab_metrics_exporter`
   (releases: `<version>` and `latest`; develop: `develop` and `develop-<short-sha>`), alongside
   GHCR. The release workflow syncs the README to the Docker Hub description and can be run

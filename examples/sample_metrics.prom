@@ -293,6 +293,9 @@ bambulab_ams_unit_temperature_celsius{ams_id="0",printer_name="my-x1c",serial="0
 # TYPE bambulab_ams_drying_target_temperature_celsius gauge
 # HELP bambulab_ams_drying_duration_seconds Configured AMS drying duration
 # TYPE bambulab_ams_drying_duration_seconds gauge
+# HELP bambulab_ams_drying_blocked_reason_info Why this AMS cannot start drying now (drying_in_progress while it runs)
+# TYPE bambulab_ams_drying_blocked_reason_info gauge
+bambulab_ams_drying_blocked_reason_info{ams_id="0",printer_name="my-x1c",reason="drying_in_progress",serial="00MFAKE0TEST0001"} 1.0
 # HELP bambulab_sdcard_status_info SD card status as labeled info metric
 # TYPE bambulab_sdcard_status_info gauge
 bambulab_sdcard_status_info{printer_name="my-x1c",serial="00MFAKE0TEST0001",status="present"} 1.0
@@ -305,6 +308,15 @@ bambulab_lid_open{printer_name="my-x1c",serial="00MFAKE0TEST0001"} NaN
 # HELP bambulab_wired_network 1 if wired network flag is set
 # TYPE bambulab_wired_network gauge
 bambulab_wired_network{printer_name="my-x1c",serial="00MFAKE0TEST0001"} NaN
+# HELP bambulab_firmware_upgrade_status_info Firmware upgrade state
+# TYPE bambulab_firmware_upgrade_status_info gauge
+bambulab_firmware_upgrade_status_info{printer_name="my-x1c",serial="00MFAKE0TEST0001",status="upgrade_success"} 1.0
+# HELP bambulab_network_rtt_milliseconds Round-trip time reported per network interface (unit not confirmed)
+# TYPE bambulab_network_rtt_milliseconds gauge
+bambulab_network_rtt_milliseconds{interface="wlan",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 3.0
+# HELP bambulab_network_retransmissions Retransmissions reported per network interface (meaning not confirmed)
+# TYPE bambulab_network_retransmissions gauge
+bambulab_network_retransmissions{interface="wlan",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
 # HELP bambulab_external_spool_active 1 if external spool is currently active
 # TYPE bambulab_external_spool_active gauge
 bambulab_external_spool_active{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0

@@ -556,3 +556,18 @@ def test_job_source_prepare_timelapse_and_signature(
     got = _value(metrics, "bambulab_mqtt_signature_required")
     assert math.isnan(got) if signature is None else got == signature
     assert _value(metrics, "bambulab_print_skipped_objects") == 0.0  # empty s_obj list
+
+
+def test_h2d_real_idle_new_metrics() -> None:
+    _, _snap, metrics = _load("h2d_real_idle")
+    assert _samples(metrics, "bambulab_ams_drying_blocked_reason_info")[0][0]["reason"] == (
+        "drying_in_progress"
+    )
+    assert _samples(metrics, "bambulab_firmware_upgrade_status_info") == [
+        ({"status": "upgrade_success"}, 1.0)
+    ]
+    assert {s[0]["interface"] for s in _samples(metrics, "bambulab_network_retransmissions")} == {
+        "wlan",
+        "wired",
+    }
+    assert _value(metrics, "bambulab_wired_network") == 0.0

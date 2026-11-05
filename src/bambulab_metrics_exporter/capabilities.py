@@ -3,7 +3,8 @@
 One table instead of scattered model checks. Values cover chamber support, extruder
 counts, printer modes, door sensor and fans, cross-checked against sanitized payloads in
 tests/fixtures/printers. Detection is not hardware
-validation: only the X1C is validated on real hardware.
+validation: the X1C is validated on real hardware, and the H2D was checked on real hardware
+while idle.
 """
 
 from __future__ import annotations
