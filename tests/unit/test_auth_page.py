@@ -124,7 +124,7 @@ def test_configure_local_rejects_bad_input(host, serial, code, port, fragment) -
 def test_code_sender_rate_limits(monkeypatch) -> None:
     sent: list[str] = []
     monkeypatch.setattr(auth_actions, "send_code", sent.append)
-    sender = CodeSender(interval_seconds=60)
+    sender = CodeSender()
     assert sender.send("operator@example.invalid").ok
     with pytest.raises(AuthInputError, match="Try again"):
         sender.send("operator@example.invalid")
