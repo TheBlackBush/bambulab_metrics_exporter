@@ -13,6 +13,7 @@ from bambulab_metrics_exporter.models import (
     AMS_SERIAL_PREFIX_TO_MODEL,
     AMS_MODEL_TO_SERIES,
     AMS_TYPE_TO_MODEL,
+    parse_ams_dry_block_reasons,
 )
 
 
@@ -1677,3 +1678,24 @@ def test_xcam_halt_print_sensitivity_non_string_value() -> None:
     """Returns None when halt_print_sensitivity is not a string (e.g. int)."""
     snap = _snap({"print": {"xcam": {"halt_print_sensitivity": 1}}})
     assert snap.xcam_halt_print_sensitivity is None
+
+
+def test_dry_block_reasons_named_and_unknown() -> None:
+    assert parse_ams_dry_block_reasons({"dry_sf_reason": [6, 0, 99]}) == [
+        "drying_in_progress", "task_occupied", "unknown",
+    ]
+
+
+def test_dry_block_reasons_dedupes() -> None:
+    assert parse_ams_dry_block_reasons({"dry_sf_reason": [1, 1, 42, 43]}) == [
+        "insufficient_power", "unknown",
+    ]
+
+
+@pytest.mark.parametrize("value", [None, "6", {}, 6])
+def test_dry_block_reasons_malformed_container(value: object) -> None:
+    assert parse_ams_dry_block_reasons({"dry_sf_reason": value}) == []
+
+
+def test_dry_block_reasons_malformed() -> None:
+    assert parse_ams_dry_block_reasons({"dry_sf_reason": [True, None, "x", {}, 2]}) == ["ams_busy"]

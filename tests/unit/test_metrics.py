@@ -1791,3 +1791,41 @@ class TestPrintJobMetrics:
         assert got == {"x": 1.0, "y": 0.0, "z": 1.0}
         m.update_from_snapshot(_snap({"home_flag": "bad"}))
         assert self._series(m, "bambulab_axis_homed") == []
+
+
+def _dryer_ams(**extra: object) -> dict:
+    return {"ams_info": 3 | (2 << 4), **extra}
+
+
+class TestAmsDryingBlockedReason:
+    labels = {"printer_name": "test", "serial": "SN123"}
+
+    def _reasons(self, m: ExporterMetrics) -> list[tuple[str, str, float]]:
+        return [
+            (s.labels["ams_id"], s.labels["reason"], s.value)
+            for metric in m.registry.collect()
+            for s in metric.samples
+            if s.name == "bambulab_ams_drying_blocked_reason_info"
+        ]
+
+    def test_dry_block_reason_series(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({"ams": {"ams": [_dryer_ams(id="0", dry_sf_reason=[6])]}}))
+        assert self._reasons(m) == [("0", "drying_in_progress", 1.0)]
+
+    def test_dry_block_reason_cleared_when_absent(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({"ams": {"ams": [_dryer_ams(id="0", dry_sf_reason=[6])]}}))
+        m.update_from_snapshot(_snap({"ams": {"ams": [_dryer_ams(id="0", dry_sf_reason=[])]}}))
+        assert self._reasons(m) == []
+        m.update_from_snapshot(_snap({"ams": {"ams": [_dryer_ams(id="0", dry_sf_reason=[6])]}}))
+        m.update_from_snapshot(_snap({"ams": {"ams": []}}))
+        assert self._reasons(m) == []
+
+    def test_metric_type_and_help(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        family = next(
+            f for f in m.registry.collect() if f.name == "bambulab_ams_drying_blocked_reason_info"
+        )
+        assert family.type == "gauge"
+        assert "cannot start" in family.documentation

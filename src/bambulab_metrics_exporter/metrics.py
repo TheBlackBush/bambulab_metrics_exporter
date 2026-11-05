@@ -11,6 +11,7 @@ from bambulab_metrics_exporter.models import (
     _extract_ams_info,
     ams_dry_state_name,
     ams_dry_sub_status_name,
+    parse_ams_dry_block_reasons,
     parse_ams_drying,
     parse_ams_info,
 )
@@ -324,6 +325,12 @@ class ExporterMetrics:
             "bambulab_ams_drying_duration_seconds",
             "Configured AMS drying duration",
             [*label_names, "ams_id"],
+            registry=self.registry,
+        )
+        self.ams_drying_blocked_reason_info = Gauge(
+            "bambulab_ams_drying_blocked_reason_info",
+            "Why this AMS cannot start drying now (drying_in_progress while it runs)",
+            [*label_names, "ams_id", "reason"],
             registry=self.registry,
         )
 
@@ -827,6 +834,10 @@ class ExporterMetrics:
                     value = drying[key]
                     if value is not None:
                         gauge.labels(**labels, ams_id=ams_id).set(value)
+                for reason in parse_ams_dry_block_reasons(ams):
+                    self.ams_drying_blocked_reason_info.labels(
+                        **labels, ams_id=ams_id, reason=reason
+                    ).set(1.0)
 
             raw_trays = ams.get("tray")
             trays = [t for t in raw_trays if isinstance(t, dict)] if isinstance(raw_trays, list) else []
@@ -902,6 +913,7 @@ class ExporterMetrics:
         self.ams_drying_remaining_seconds.clear()
         self.ams_drying_target_temperature.clear()
         self.ams_drying_duration_seconds.clear()
+        self.ams_drying_blocked_reason_info.clear()
 
     def mark_scrape(self, duration_seconds: float, success: bool, now_ts: float | None = None) -> None:
         labels = self._labels()

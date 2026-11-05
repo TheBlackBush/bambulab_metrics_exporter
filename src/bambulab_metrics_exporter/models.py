@@ -393,6 +393,38 @@ def parse_ams_drying(unit: dict[str, Any]) -> dict[str, float | None]:
     }
 
 
+# Why an AMS cannot start drying right now (`dry_sf_reason`, a list of codes). Code 6 only
+# means a drying run is already active.
+AMS_DRY_BLOCK_REASONS: dict[int, str] = {
+    0: "task_occupied",
+    1: "insufficient_power",
+    2: "ams_busy",
+    3: "consumable_at_ams_outlet",
+    4: "initiating_ams_drying",
+    5: "not_supported_in_2d_mode",
+    6: "drying_in_progress",
+    7: "upgrading",
+    8: "insufficient_power_need_plugin_power",
+    9: "closing_ams_drying",
+    10: "filament_at_ams_outlet_manual_unload",
+}
+
+
+def parse_ams_dry_block_reasons(unit: dict[str, Any]) -> list[str]:
+    """Reason names in payload order, without repeats. Non-integer entries are ignored."""
+    raw = unit.get("dry_sf_reason")
+    if not isinstance(raw, list):
+        return []
+    reasons: list[str] = []
+    for code in raw:
+        if not isinstance(code, int) or isinstance(code, bool):
+            continue
+        name = AMS_DRY_BLOCK_REASONS.get(code, "unknown")
+        if name not in reasons:
+            reasons.append(name)
+    return reasons
+
+
 def _ams_status_name(code: int) -> str:
     """Return human-readable AMS status name or 'unknown_<hex>' fallback.
 
