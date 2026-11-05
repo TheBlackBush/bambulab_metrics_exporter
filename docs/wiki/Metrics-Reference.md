@@ -57,7 +57,10 @@ Unknown models export whatever the payload carries.
 | `bambulab_subtask_name_info{subtask_name}` | Info Gauge | Current subtask name |
 | `bambulab_fail_reason_info{fail_reason}` | Info Gauge | Current fail reason |
 | `bambulab_stg_cur` | Gauge | Current stage numeric ID |
-| `bambulab_print_stage_info{stage}` | Info Gauge | Current stage name (stages 0-84 and 88; unlisted codes are `unknown_<n>`) |
+| `bambulab_print_stage_info{stage}` | Info Gauge | Current stage name (stages 0-84 and 88; unlisted codes are `unknown_<n>`). Reports `idle` after a cancelled (`FAILED`) print |
+| `bambulab_print_prepare_percent` | Gauge | Download progress of the job file before a print starts (`gcode_file_prepare_percent`, 0-100) |
+| `bambulab_print_type_info{type}` | Info Gauge | Job source (`print_type`): `cloud`, `local`, `idle`, `system`, `unknown` |
+| `bambulab_print_skipped_objects` | Gauge | Number of objects skipped in the current print (length of `s_obj`; object IDs are never labels) |
 | `bambulab_mc_stage` | Gauge | Raw `mc_stage` code |
 | `bambulab_mc_print_sub_stage` | Gauge | Raw `mc_print_sub_stage` code |
 | `bambulab_print_real_action` | Gauge | Raw `print_real_action` code |
@@ -201,18 +204,21 @@ Fan values: raw levels 0–15 → nearest-10 percent normalization.
 | `bambulab_wired_network` | Gauge | Wired network detected |
 | `bambulab_door_open` | Gauge | Door open flag. NaN on models without a door sensor (A1, A1 mini, A2L, P1P, P1S) |
 | `bambulab_lid_open` | Gauge | Top lid open flag (`stat` bit 24). H2 family only; NaN on other models |
+| `bambulab_mqtt_signature_required` | Gauge | 1 when the printer only accepts signed MQTT commands (Developer Mode off; `fun` bit 0x20000000). Unsigned control commands from other tools are then rejected with HMS `0500_0500_0001_0007` |
+| `bambulab_axis_homed{axis}` | Gauge | 1 when the axis (`x`, `y`, `z`) is homed (`home_flag` bits 0-2) |
 | `bambulab_online_ahb` | Gauge | AMS hub online flag (`online.ahb`) |
 | `bambulab_online_ext` | Gauge | Extension board online flag (`online.ext`) |
 | `bambulab_sdcard_status_info{status}` | Info Gauge | SD card status |
 | `bambulab_chamber_light_on` | Gauge | Chamber light (1/0) |
 | `bambulab_work_light_on` | Gauge | Work light (1/0). NaN when the printer reports `flashing`: printers send that constantly, also while the light is off |
 | `bambulab_light_mode_info{light,mode}` | Info Gauge | Mode per light: `light` is `chamber_light`, `chamber_light2` (H2 family), `work_light` (omitted while reported `flashing`, see above) or `heatbed_light`; `mode` is `on`, `off`, `flashing` or `unknown` |
-| `bambulab_tool_head_info{tool}` | Info Gauge | Mounted tool head (`device.ext_tool`): `none`, `laser_10w`, `laser_40w`, `cutter`, `cooling_fan`, `other`. `laser_40w` (`LB01`) comes from ha-bambulab only |
+| `bambulab_tool_head_info{tool}` | Info Gauge | Mounted tool head (`device.ext_tool`): `none`, `laser_10w`, `laser_40w`, `cutter`, `cooling_fan`, `other`. |
 | `bambulab_accessory_present{accessory}` | Gauge | 1/0 per accessory: `filament_buffer`, `external_exhaust_fan`, `fire_extinguisher`, `rotary_attachment`, `filament_switch`, `air_pump`. Detected from `get_version` product names, plus `fire_ext`/`fourth_axis` `connect_flag` and `aux` bit 29 (filament switch). Omitted when no source is available |
 | `bambulab_toolhead_filament_present{extruder_id}` | Gauge | 1 when the extruder's filament sensor detects filament (`device.extruder.info[].info` bit 1; `hw_switch_state` on older firmware) |
 | `bambulab_timelapse_storage_free_bytes{storage}` | Gauge | Free timelapse storage (`internal` or `external`, from `tl_*_free_kb`, KiB). X2D; omitted when unknown or not present |
 | `bambulab_timelapse_storage_total_bytes{storage}` | Gauge | Total timelapse storage |
 | `bambulab_camera_recording` | Gauge | Camera recording flag (camera setting `ipcam.ipcam_record`; home_flag bit 5 as fallback) |
+| `bambulab_timelapse_enabled` | Gauge | Timelapse recording enabled (`ipcam.timelapse`) |
 | `bambulab_xcam_feature_enabled{feature}` | Gauge | XCam feature flags |
 | `bambulab_xcam_halt_print_sensitivity_info{level}` | Info Gauge | XCam halt-print sensitivity level (`low`/`medium`/`high`) |
 | `bambulab_ams_auto_switch` | Gauge | AMS auto-switch flag |

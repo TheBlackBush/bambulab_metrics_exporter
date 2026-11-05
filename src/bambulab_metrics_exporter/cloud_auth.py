@@ -14,8 +14,7 @@ from urllib import error, request
 from bambulab_metrics_exporter.credentials_store import save_encrypted_credentials
 from bambulab_metrics_exporter.env_sync import sync_env_file
 
-# api.bambulab.com serves every non-China region (Bambu Studio and ha-bambulab use only it,
-# plus api.bambulab.cn for China accounts). There is no api-eu host; it never resolved and
+# api.bambulab.com serves every non-China region (api.bambulab.cn serves China accounts). There is no api-eu host; it never resolved and
 # turned definitive 401s into "transient" DNS failures.
 DEFAULT_API_BASES = [
     "https://api.bambulab.com",

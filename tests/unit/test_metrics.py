@@ -1730,3 +1730,64 @@ class TestFirmwareAccessoryStageEdgeCases:
         assert [s["stage"] for s in self._series(m, "bambulab_print_stage_info")] == ["preparing_ams"]
         m.update_from_snapshot(_snap({"stg_cur": 80}))
         assert [s["stage"] for s in self._series(m, "bambulab_print_stage_info")] == ["unknown_80"]
+
+
+class TestHaBambulabParity:
+    labels = {"printer_name": "test", "serial": "SN123"}
+
+    def _series(self, m: ExporterMetrics, name: str) -> list[dict[str, str]]:
+        return [s.labels for metric in m.registry.collect() if metric.name == name for s in metric.samples]
+
+    def test_failed_print_reports_idle_stage(self) -> None:
+        """Regression: after a cancelled print the printer keeps reporting its last stage."""
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({"gcode_state": "FAILED", "stg_cur": 14, "print_type": "local"}))
+        assert [s["stage"] for s in self._series(m, "bambulab_print_stage_info")] == ["idle"]
+        m.update_from_snapshot(_snap({"gcode_state": "RUNNING", "stg_cur": 14}))
+        assert [s["stage"] for s in self._series(m, "bambulab_print_stage_info")] == ["cleaning_nozzle_tip"]
+
+    def test_skipped_objects_counted_not_labelled(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({"s_obj": [101, 205, 307]}))
+        assert m.print_skipped_objects.labels(**self.labels)._value.get() == 3.0
+        m.update_from_snapshot(_snap({"s_obj": "bad"}))
+        assert math.isnan(m.print_skipped_objects.labels(**self.labels)._value.get())
+
+    def test_print_type_unknown_values_and_clearing(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({"print_type": "Cloud"}))
+        assert [s["type"] for s in self._series(m, "bambulab_print_type_info")] == ["cloud"]
+        m.update_from_snapshot(_snap({"print_type": "something_new"}))
+        assert [s["type"] for s in self._series(m, "bambulab_print_type_info")] == ["unknown"]
+        m.update_from_snapshot(_snap({}))
+        assert self._series(m, "bambulab_print_type_info") == []
+
+    def test_prepare_percent_out_of_range_and_malformed(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        for raw in ("-1", "150", "abc", None):
+            m.update_from_snapshot(_snap({"gcode_file_prepare_percent": raw}))
+            assert math.isnan(m.print_prepare_percent.labels(**self.labels)._value.get())
+        m.update_from_snapshot(_snap({"gcode_file_prepare_percent": "42"}))
+        assert m.print_prepare_percent.labels(**self.labels)._value.get() == 42.0
+
+    def test_timelapse_and_signature_malformed(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({"ipcam": {"timelapse": "maybe"}, "fun": "zz"}))
+        assert math.isnan(m.timelapse_enabled.labels(**self.labels)._value.get())
+        assert math.isnan(m.mqtt_signature_required.labels(**self.labels)._value.get())
+        m.update_from_snapshot(_snap({"ipcam": "bad", "fun": " "}))
+        assert math.isnan(m.timelapse_enabled.labels(**self.labels)._value.get())
+        assert math.isnan(m.mqtt_signature_required.labels(**self.labels)._value.get())
+        # Bambu's own examples: dev mode disabled vs enabled.
+        m.update_from_snapshot(_snap({"fun": "3EC1AFFF9CFF"}))
+        assert m.mqtt_signature_required.labels(**self.labels)._value.get() == 1.0
+        m.update_from_snapshot(_snap({"fun": "3EC18FFF9CFF"}))
+        assert m.mqtt_signature_required.labels(**self.labels)._value.get() == 0.0
+
+    def test_axes_homed(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({"home_flag": 0b101}))
+        got = {s["axis"]: m.axis_homed.labels(**self.labels, axis=s["axis"])._value.get() for s in self._series(m, "bambulab_axis_homed")}
+        assert got == {"x": 1.0, "y": 0.0, "z": 1.0}
+        m.update_from_snapshot(_snap({"home_flag": "bad"}))
+        assert self._series(m, "bambulab_axis_homed") == []

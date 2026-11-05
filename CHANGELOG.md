@@ -5,6 +5,9 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added
+- `bambulab_print_prepare_percent` (job file download progress), `bambulab_print_type_info{type}`
+  (job source), `bambulab_print_skipped_objects`, `bambulab_timelapse_enabled`,
+  `bambulab_mqtt_signature_required` (Developer Mode off) and `bambulab_axis_homed{axis}`.
 - Images are also published to Docker Hub as `blackbush/bambulab_metrics_exporter`
   (releases: `<version>` and `latest`; develop: `develop` and `develop-<short-sha>`), alongside
   GHCR. The release workflow syncs the README to the Docker Hub description and can be run
@@ -40,6 +43,8 @@ All notable changes to this project are documented in this file.
   obsolete `PRINTER_NAME`, `SITE`, `LOCATION` and unused `RECONNECT_INTERVAL_SECONDS`.
 
 ### Fixed
+- `bambulab_print_stage_info` / `bambulab_stg_cur` report `idle` after a cancelled print; the
+  printer kept reporting the last stage while `gcode_state` was `FAILED`.
 - Unraid template category is `Tools:Utilities Network:Management`; the previous value
   produced Community Applications errors (`Unknown category "Monitoring"`).
 
@@ -87,7 +92,7 @@ All notable changes to this project are documented in this file.
   "Supported models"), replacing scattered model checks.
 - Model codes: `O2D` and the cloud short name `H2DP` (H2D Pro), `A1M`, `A04`, `A12`, `N2`
   (A1 mini), `A11` (A1), and `-V2` hardware revisions (`N6-V2`, `O1D-V2`, `O1C2-V2`, ...).
-- R1 laser engraver (serial prefix `35F`, Bambu Studio code `N8`) is recognized as model `R1`;
+- R1 laser engraver (serial prefix `35F`, model code `N8`) is recognized as model `R1`;
   no FDM metrics are reported for it.
 - `bambulab_filament_tangle_detection_enabled`: the tangle-detection setting, NaN when the
   printer does not support it.
@@ -227,8 +232,7 @@ All notable changes to this project are documented in this file.
   re-authentication never started. Any 401/403 with no successful endpoint now counts as
   rejected credentials.
 - Removed the `api-eu.bambulab.com` API endpoint: the host does not exist (it never resolved)
-  and caused the DNS failure above. Bambu Studio and ha-bambulab use only `api.bambulab.com`
-  outside China.
+  and caused the DNS failure above. `api.bambulab.com` serves every region outside China.
 - After a successful token refresh at startup, the MQTT client was still built with the old
   token and failed with `Not authorized`. Refreshed credentials now apply to the running
   configuration.

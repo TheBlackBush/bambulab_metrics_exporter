@@ -1,9 +1,8 @@
 """Per-model hardware capabilities.
 
-One table instead of scattered model checks. Values come from Bambu Studio printer and
-machine profiles (support_chamber, support_chamber_temp_edit, extruder counts,
-printer_modes) and ha-bambulab feature gates (door sensor, fans), cross-checked
-against sanitized payloads in tests/fixtures/printers. Detection is not hardware
+One table instead of scattered model checks. Values cover chamber support, extruder
+counts, printer modes, door sensor and fans, cross-checked against sanitized payloads in
+tests/fixtures/printers. Detection is not hardware
 validation: only the X1C is validated on real hardware.
 """
 
@@ -60,7 +59,7 @@ CAPABILITIES: dict[str, ModelCapabilities] = {
         chamber_heater=True, door_source=DOOR_STAT, lid_sensor=True, dual_extruder=True,
         hotend_rack=True, laser_cut=True,
     ),
-    # Laser engraver (Bambu Studio code N8, serial prefix 35F): no FDM hardware.
+    # Laser engraver (model code N8, serial prefix 35F): no FDM hardware.
     "R1": ModelCapabilities(
         chamber_sensor=False, door_source=DOOR_AUTO, aux_fan=False, chamber_fan=False,
         laser_cut=True, fdm=False,

@@ -92,6 +92,42 @@ class ExporterMetrics:
             [*label_names, "extruder_id"],
             registry=self.registry,
         )
+        self.print_prepare_percent = Gauge(
+            "bambulab_print_prepare_percent",
+            "Download progress of the job file before a print starts",
+            label_names,
+            registry=self.registry,
+        )
+        self.print_type_info = Gauge(
+            "bambulab_print_type_info",
+            "Job source (cloud, local, idle, system, unknown)",
+            [*label_names, "type"],
+            registry=self.registry,
+        )
+        self.print_skipped_objects = Gauge(
+            "bambulab_print_skipped_objects",
+            "Number of objects skipped in the current print",
+            label_names,
+            registry=self.registry,
+        )
+        self.timelapse_enabled = Gauge(
+            "bambulab_timelapse_enabled",
+            "1 if timelapse recording is enabled",
+            label_names,
+            registry=self.registry,
+        )
+        self.mqtt_signature_required = Gauge(
+            "bambulab_mqtt_signature_required",
+            "1 if the printer only accepts signed MQTT commands (Developer Mode off)",
+            label_names,
+            registry=self.registry,
+        )
+        self.axis_homed = Gauge(
+            "bambulab_axis_homed",
+            "1 if the axis is homed",
+            [*label_names, "axis"],
+            registry=self.registry,
+        )
         self.firmware_update_available = Gauge(
             "bambulab_firmware_update_available",
             "1 when a firmware update is available, 0 when up to date",
@@ -473,6 +509,16 @@ class ExporterMetrics:
         for fan, speed in snapshot.airduct_fan_speeds.items():
             self.airduct_fan_speed.labels(**labels, fan=fan).set(speed)
 
+        self._set_optional(self.print_prepare_percent, snapshot.print_prepare_percent)
+        self.print_type_info.clear()
+        if snapshot.print_type_name is not None:
+            self.print_type_info.labels(**labels, type=snapshot.print_type_name).set(1.0)
+        self._set_optional(self.print_skipped_objects, snapshot.skipped_objects)
+        self._set_optional(self.timelapse_enabled, snapshot.timelapse_enabled)
+        self._set_optional(self.mqtt_signature_required, snapshot.mqtt_signature_required)
+        self.axis_homed.clear()
+        for axis, homed in snapshot.axes_homed.items():
+            self.axis_homed.labels(**labels, axis=axis).set(homed)
         self._set_optional(self.firmware_update_available, snapshot.firmware_update_available)
         self.module_firmware_info.clear()
         for module, version in snapshot.module_firmware_versions.items():

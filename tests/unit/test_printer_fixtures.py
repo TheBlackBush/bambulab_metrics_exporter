@@ -533,3 +533,26 @@ def test_sanitizer_replaces_ams_identifiers() -> None:
     assert units[0]["ams_id"].startswith("03CFIXTURE")
     assert set(units[0]["chip_id"]) == {"0"}
     assert units[1]["ams_id"] == "1"  # numeric unit index is kept
+
+
+@pytest.mark.parametrize(
+    ("name", "prepare", "print_type", "timelapse", "signature"),
+    [
+        ("h2d", 100.0, "local", 0.0, 1.0),
+        ("h2d_external_spool", 100.0, "cloud", 0.0, 1.0),
+        ("h2d_pro", 0.0, "unknown", 0.0, 0.0),  # empty print_type; Developer Mode on
+        ("p2s", 100.0, "local", 1.0, 1.0),  # timelapse enabled
+        ("a1", 0.0, "idle", 0.0, None),  # no `fun` field
+    ],
+)
+def test_job_source_prepare_timelapse_and_signature(
+    name: str, prepare: float, print_type: str, timelapse: float, signature: float | None
+) -> None:
+    _, _, metrics = _load(name)
+    assert _value(metrics, "bambulab_print_prepare_percent") == prepare
+    types = [labels["type"] for labels, _ in _samples(metrics, "bambulab_print_type_info")]
+    assert types == [print_type]
+    assert _value(metrics, "bambulab_timelapse_enabled") == timelapse
+    got = _value(metrics, "bambulab_mqtt_signature_required")
+    assert math.isnan(got) if signature is None else got == signature
+    assert _value(metrics, "bambulab_print_skipped_objects") == 0.0  # empty s_obj list

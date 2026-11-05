@@ -58,11 +58,11 @@ _SN_PREFIX_TO_PRINTER: dict[str, str] = {
     "094": "H2D",
     "239": "H2DPRO",
     "31B": "H2C",
-    # Laser engraver; Bambu Studio code N8, Bambu Handy groups it with R1.
+    # Laser engraver (model code N8).
     "35F": "R1",
 }
 
-# Internal model codes (Bambu Studio printer model ids, also returned by the cloud
+# Internal model codes (printer model ids, also returned by the cloud
 # device list as dev_model_name on older models) → model.
 _MODEL_CODE_TO_PRINTER: dict[str, str] = {
     "BL-P001": "X1C",
@@ -126,7 +126,7 @@ _HMS_MODULE_NAMES: dict[int, str] = {
 }
 HMS_MODULES: tuple[str, ...] = ("mc", "mainboard", "ams", "toolhead", "xcam", "other")
 
-# device.airduct.modeCur, generic names per Bambu Studio (DevFan.h AIR_DUCT).
+# device.airduct.modeCur generic names.
 AIRDUCT_MODE_NAMES: dict[int, str] = {
     0: "cooling",
     1: "heating",
@@ -135,7 +135,7 @@ AIRDUCT_MODE_NAMES: dict[int, str] = {
     0xFF: "init",
 }
 AIRDUCT_MODES: tuple[str, ...] = (*AIRDUCT_MODE_NAMES.values(), "unknown")
-# device.airduct.parts[].id >> 4 → fan, per Bambu Studio (DevFan.h AIR_FUN). The `func`
+# device.airduct.parts[].id >> 4 → fan. The `func`
 # field varies between models and is ignored. Left/right placement differs per model.
 AIRDUCT_FAN_NAMES: dict[int, str] = {
     0: "heatbreak",
@@ -148,12 +148,12 @@ AIRDUCT_FAN_NAMES: dict[int, str] = {
     10: "aux_2",
 }
 
-# Lights in lights_report; modes per Bambu Studio DevLamp / Bambu Handy BblpLightNode.
+# Lights in lights_report and their modes.
 LIGHT_NODES: tuple[str, ...] = ("chamber_light", "chamber_light2", "work_light", "heatbed_light")
 LIGHT_MODES: tuple[str, ...] = ("on", "off", "flashing")
 
-# device.ext_tool (mounted 2D tool head or 3D accessory). Bambu Studio maps CP00 cutter,
-# LB00 laser, F000 fan; LB01 (40 W laser) is from ha-bambulab only.
+# device.ext_tool (mounted 2D tool head or 3D accessory): CP00 cutter, LB00 laser,
+# LB01 40 W laser, F000 fan.
 _TOOL_HEAD_TYPES: dict[str, str] = {
     "LB00": "laser_10w",
     "LB01": "laser_40w",
@@ -184,6 +184,11 @@ AMS_MODEL_BY_MODULE_PREFIX: dict[str, str] = {
     "n3f": "ams_2_pro",
     "n3s": "ams_ht",
 }
+
+# print_type values (job source); anything else is reported as "unknown".
+PRINT_TYPES: tuple[str, ...] = ("cloud", "local", "idle", "system", "unknown")
+# `fun` bit set when the printer requires signed MQTT commands (Developer Mode off).
+_FUN_MQTT_SIGNATURE_REQUIRED = 0x20000000
 
 # Printers whose only AMS is the AMS Lite (it reports no info or serial).
 _AMS_LITE_ONLY_MODELS: frozenset[str] = frozenset({"A1", "A1MINI", "A2L"})
@@ -340,7 +345,7 @@ AMS_RFID_STATUS_NAMES: dict[int, str] = {
     6: "reading_stop",
 }
 
-# AMS dry status (ams_info bits 4-7), names per Bambu Studio / Bambu Handy.
+# AMS dry status (ams_info bits 4-7).
 AMS_DRY_HEATER_STATE_NAMES: dict[int, str] = {
     0: "off",
     1: "self_check",
@@ -369,7 +374,7 @@ def ams_dry_sub_status_name(code: int) -> str:
 
 
 def parse_ams_drying(unit: dict[str, Any]) -> dict[str, float | None]:
-    """Drying telemetry of an AMS unit with a dryer (Bambu Studio DevFilaSystem).
+    """Drying telemetry of an AMS unit with a dryer.
 
     `dry_time` is the remaining time in minutes (0 when idle). `dry_setting` holds the
     configured target temperature (°C) and duration (hours); -1 means unset.
@@ -468,7 +473,7 @@ STG_CUR_NAMES: dict[int, str] = {
     56: "calibrating_cutter_model_offset",
     57: "measuring_surface",
     58: "thermal_preconditioning",
-    # 59-88: Bambu Handy BblpPrintStage (59-77 also in Bambu Studio and ha-bambulab).
+    # 59-88: newer firmware stages.
     59: "homing_blade_holder",
     60: "calibrating_camera_offset",
     61: "calibrating_blade_holder_position",
@@ -779,8 +784,8 @@ class PrinterSnapshot:
 
     @property
     def chamber_heater_state(self) -> float | None:
-        """Raw `device.ctc.state` low nibble: 0 idle, 1 heating, 2 holding, 3 cooling (names
-        per the Bambu Handy temperature-state enum). None on models without a heater."""
+        """Raw `device.ctc.state` low nibble: 0 idle, 1 heating, 2 holding, 3 cooling.
+        None on models without a heater."""
         if not self._may_have_chamber_heater():
             return None
         state = to_int(self._ctc().get("state"))
@@ -1206,7 +1211,7 @@ class PrinterSnapshot:
     @property
     def timelapse_storage(self) -> dict[str, tuple[float, float]]:
         """Storage → (free, total) bytes from `tl_{internal,external}_{free,total}_kb`
-        (`device.cam` per Bambu Studio, `ipcam` on X2D firmware). Values are KiB; -1
+        (`device.cam`, or `ipcam` on X2D firmware). Values are KiB; -1
         means unknown and a total of 0 means no storage, both omitted."""
         device = self.print_block.get("device")
         blocks = [
@@ -1229,7 +1234,7 @@ class PrinterSnapshot:
     def toolhead_filament_present(self) -> dict[str, float]:
         """Extruder → 1 when its filament sensor detects filament.
 
-        New firmware: `device.extruder.info[].info` bit 1 (Bambu Studio DevExtruderSystem).
+        New firmware: `device.extruder.info[].info` bit 1.
         Older firmware: `hw_switch_state` for the single extruder (non-zero = present)."""
         out: dict[str, float] = {}
         for entry in self.extruder_entries:
@@ -1244,11 +1249,68 @@ class PrinterSnapshot:
         return out
 
     @property
+    def print_prepare_percent(self) -> float | None:
+        """Download progress of the job file before a print starts (0-100)."""
+        value = _to_float(self.print_block.get("gcode_file_prepare_percent"))
+        if value is None or not 0 <= value <= 100:
+            return None
+        return value
+
+    @property
+    def print_type_name(self) -> str | None:
+        """Job source: cloud, local, idle, system or unknown; None when not reported."""
+        value = self.print_block.get("print_type")
+        if not isinstance(value, str):
+            return None
+        value = value.strip().lower()
+        return value if value in PRINT_TYPES else "unknown"
+
+    @property
+    def skipped_objects(self) -> float | None:
+        """Number of objects skipped in the current print (`s_obj` list length)."""
+        value = self.print_block.get("s_obj")
+        return float(len(value)) if isinstance(value, list) else None
+
+    @property
+    def timelapse_enabled(self) -> float | None:
+        ipcam = self.print_block.get("ipcam")
+        value = ipcam.get("timelapse") if isinstance(ipcam, dict) else None
+        if not isinstance(value, str):
+            return None
+        value = value.strip().lower()
+        if value == "enable":
+            return 1.0
+        if value == "disable":
+            return 0.0
+        return None
+
+    @property
+    def mqtt_signature_required(self) -> float | None:
+        """1 when the printer only accepts signed MQTT commands (Developer Mode off), from
+        `fun` bit 0x20000000."""
+        value = self.print_block.get("fun")
+        if not isinstance(value, str) or not value.strip():
+            return None
+        try:
+            fun = int(value.strip(), 16)
+        except ValueError:
+            return None
+        return 1.0 if fun & _FUN_MQTT_SIGNATURE_REQUIRED else 0.0
+
+    @property
+    def axes_homed(self) -> dict[str, float]:
+        """x/y/z -> 1 when homed (home_flag bits 0-2); empty without home_flag."""
+        if to_int(self.print_block.get("home_flag")) is None:
+            return {}
+        flags = self.home_flags
+        return {axis: 1.0 if flags.get(f"{axis}_axis") else 0.0 for axis in ("x", "y", "z")}
+
+    @property
     def hms_counts(self) -> tuple[dict[str, int], dict[str, int]] | None:
         """Active HMS errors counted by severity and by module; None without an `hms` list.
 
         severity = code >> 16 (1 fatal, 2 serious, 3 common, 4 info); module = attr >> 24
-        (0x03 mc, 0x05 mainboard, 0x07 ams, 0x08 toolhead, 0x0C xcam), per Bambu Studio.
+        (0x03 mc, 0x05 mainboard, 0x07 ams, 0x08 toolhead, 0x0C xcam).
         Full error codes are never used as labels (unbounded).
         """
         hms = self.print_block.get("hms")
@@ -1563,7 +1625,7 @@ class PrinterSnapshot:
                     "nozzle_diameter": _to_float(item.get("diameter")),
                     "wear": _to_float(item.get("wear")),
                     # `tm` is the hotend's maximum temperature (°C), `p_t` its total
-                    # print time in seconds (ha-bambulab, Bambu Studio).
+                    # print time in seconds.
                     "max_temperature": _to_float(item.get("tm")),
                     "print_time_seconds": _to_float(item.get("p_t")),
                 }
@@ -1783,6 +1845,10 @@ class PrinterSnapshot:
 
         print_type = self.print_block.get("print_type")
         if isinstance(print_type, str) and print_type.strip().lower() == "idle" and stage_id == 0:
+            return 255
+        if self.gcode_state == "FAILED":
+            # After a cancelled print the printer keeps reporting the stage it was in; nothing
+            # is running.
             return 255
 
         return stage_id
