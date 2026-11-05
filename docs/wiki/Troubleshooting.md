@@ -34,7 +34,7 @@ The exporter never exits on connection problems: the web server stays up and the
 - The `/auth` page limits verification emails: 5 sends 60 seconds apart, then a 10 minute wait,
   then a 1 hour wait after each later round of 5. Rejected sends count too. The limit survives
   restarts and is reset only by a successful login on the page. Wait for the time shown, or
-  use `bambulab-reauth` in the container, which is a separate path with its own limits.
+  use `bambulab-reauth` in the container, which is a separate path that this limit does not apply to.
 
 **The exporter ignores my changed env vars**
 - Settings saved on the `/auth` page override env vars. Use **Reset to env vars** on the page.
