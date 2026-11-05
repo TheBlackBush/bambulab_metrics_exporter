@@ -6,7 +6,7 @@ All metrics include stable labels: `printer_name` and `serial`.
 
 ## Supported models
 
-Detection is not hardware validation: only the X1C is validated on real hardware. Metrics
+Detection is not hardware validation: only the X1C is validated on real hardware (an H2D was checked while idle). Metrics
 for hardware a model does not have report NaN.
 
 | Model | Serial prefix | Chamber temp | Chamber heater | Door sensor | Lid | Aux / chamber fan | Extruders | Hotend rack | Laser / cutter |
@@ -204,7 +204,7 @@ Fan values: raw levels 0–15 → nearest-10 percent normalization.
 |--------|------|-------------|
 | `bambulab_wifi_signal` | Gauge | Wi-Fi signal (dBm) |
 | `bambulab_wired_network` | Gauge | Wired network detected |
-| `bambulab_network_rtt_milliseconds{interface}` | Gauge | `rtt` value the printer reports per network interface (`wlan`, `wired`). Reported by the printer; the unit and exact meaning are not confirmed |
+| `bambulab_network_rtt{interface}` | Gauge | Raw `rtt` value the printer reports per network interface (`wlan`, `wired`). The unit and exact meaning are not confirmed, so the name carries no unit |
 | `bambulab_network_retransmissions{interface}` | Gauge | `retrans` value the printer reports per network interface (`wlan`, `wired`). Reported by the printer; the meaning (counter or per interval) is not confirmed |
 | `bambulab_door_open` | Gauge | Door open flag. NaN on models without a door sensor (A1, A1 mini, A2L, P1P, P1S) |
 | `bambulab_lid_open` | Gauge | Top lid open flag (`stat` bit 24). H2 family only; NaN on other models |

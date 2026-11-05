@@ -3,9 +3,14 @@ from __future__ import annotations
 
 import math
 
+import pytest
 
 from bambulab_metrics_exporter.metrics import ExporterMetrics
-from bambulab_metrics_exporter.models import PrinterSnapshot, STG_CUR_NAMES
+from bambulab_metrics_exporter.models import (
+    AMS_MODELS_WITH_DRYER,
+    STG_CUR_NAMES,
+    PrinterSnapshot,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -1794,6 +1799,7 @@ class TestPrintJobMetrics:
 
 
 def _dryer_ams(**extra: object) -> dict:
+    # ams_info: bits 0-3 are the unit type (3 = ams_2_pro), bits 4-7 the dry heater state.
     return {"ams_info": 3 | (2 << 4), **extra}
 
 
@@ -1820,6 +1826,34 @@ class TestAmsDryingBlockedReason:
         assert self._reasons(m) == []
         m.update_from_snapshot(_snap({"ams": {"ams": [_dryer_ams(id="0", dry_sf_reason=[6])]}}))
         m.update_from_snapshot(_snap({"ams": {"ams": []}}))
+        assert self._reasons(m) == []
+
+    def test_two_reasons_give_two_series(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(
+            _snap({"ams": {"ams": [_dryer_ams(id="0", dry_sf_reason=[6, 1])]}})
+        )
+        assert sorted(self._reasons(m)) == [
+            ("0", "drying_in_progress", 1.0),
+            ("0", "insufficient_power", 1.0),
+        ]
+
+    def test_label_names(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({"ams": {"ams": [_dryer_ams(id="0", dry_sf_reason=[6])]}}))
+        sample = next(
+            s
+            for f in m.registry.collect()
+            for s in f.samples
+            if s.name == "bambulab_ams_drying_blocked_reason_info"
+        )
+        assert set(sample.labels) == {"printer_name", "serial", "ams_id", "reason"}
+
+    def test_no_series_without_dryer(self) -> None:
+        assert "ams_1" not in AMS_MODELS_WITH_DRYER
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        unit = {"id": "0", "ams_info": 1, "dry_sf_reason": [6]}  # type 1 is ams_1, no dryer
+        m.update_from_snapshot(_snap({"ams": {"ams": [unit]}}))
         assert self._reasons(m) == []
 
     def test_metric_type_and_help(self) -> None:
@@ -1849,17 +1883,58 @@ class TestNetworkAndUpgradeMetrics:
         m.update_from_snapshot(_snap({}))
         assert self._series(m, name) == []
 
+    def test_unlisted_upgrade_status_is_unknown(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({"upgrade_state": {"status": "SOMETHING_NEW"}}))
+        name = "bambulab_firmware_upgrade_status_info"
+        assert self._series(m, name) == [({"status": "unknown"}, 1.0)]
+
     def test_network_series_and_clearing(self) -> None:
         m = ExporterMetrics(printer_name="test", serial="SN123")
         m.update_from_snapshot(
             _snap({"net": {"info": [{"rtt": "214.81", "retrans": 3}, {"rtt": "", "retrans": 0}]}})
         )
-        assert self._series(m, "bambulab_network_rtt_milliseconds") == [
+        assert self._series(m, "bambulab_network_rtt") == [
             ({"interface": "wlan"}, 214.81)
         ]
         assert sorted(
             self._series(m, "bambulab_network_retransmissions"), key=lambda s: s[0]["interface"]
         ) == [({"interface": "wired"}, 0.0), ({"interface": "wlan"}, 3.0)]
         m.update_from_snapshot(_snap({}))
-        assert self._series(m, "bambulab_network_rtt_milliseconds") == []
+        assert self._series(m, "bambulab_network_rtt") == []
         assert self._series(m, "bambulab_network_retransmissions") == []
+
+
+@pytest.mark.parametrize(
+    ("name", "help_text", "labels"),
+    [
+        (
+            "bambulab_ams_drying_blocked_reason_info",
+            "Why this AMS cannot start drying now (drying_in_progress while it runs)",
+            ["printer_name", "serial", "ams_id", "reason"],
+        ),
+        (
+            "bambulab_firmware_upgrade_status_info",
+            "Firmware upgrade state",
+            ["printer_name", "serial", "status"],
+        ),
+        (
+            "bambulab_network_rtt",
+            "Raw round-trip value reported per network interface (unit and meaning not confirmed)",
+            ["printer_name", "serial", "interface"],
+        ),
+        (
+            "bambulab_network_retransmissions",
+            "Retransmissions reported per network interface (meaning not confirmed)",
+            ["printer_name", "serial", "interface"],
+        ),
+    ],
+)
+def test_new_metric_contract(name: str, help_text: str, labels: list[str]) -> None:
+    m = ExporterMetrics(printer_name="test", serial="SN123")
+    gauge = next(
+        g for g in vars(m).values() if getattr(g, "_name", None) == name
+    )
+    assert gauge._type == "gauge"
+    assert gauge._documentation == help_text
+    assert list(gauge._labelnames) == labels

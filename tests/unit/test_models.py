@@ -1745,6 +1745,11 @@ def test_network_stats() -> None:
         {"info": [{"rtt": None}]},
         {"info": [{"retrans": True}]},
         {"info": [{"rtt": "-5"}]},
+        {"info": [{"rtt": "inf"}]},
+        {"info": [{"rtt": "1e999"}]},
+        {"info": [{"rtt": True}]},
+        {"info": [{"rtt": 10**400}]},
+        {"info": [{"retrans": 10**400}]},
     ],
 )
 def test_network_stats_malformed(net: object) -> None:

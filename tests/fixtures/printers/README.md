@@ -25,7 +25,7 @@ check model detection and per-model metric behavior. Each file holds:
 | `x1c_fw0112_ams1.json` | X1C | firmware 01.12.00.00, new `device.*` blocks, AMS (1) |
 | `x2d.json` | X2D | dual extruder, airduct part 160, exhaust fan, timelapse storage |
 
-Fixtures describe payload shapes. Only the X1C is validated on real hardware.
+Fixtures describe payload shapes. Only the X1C is validated on real hardware (an H2D was checked while idle).
 
 ## Adding a fixture
 

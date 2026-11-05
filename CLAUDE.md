@@ -146,8 +146,8 @@ Important boundaries:
   these as potentially device-derived and sensitive. Inspect before reuse; sanitize all new
   fixtures.
 - `examples/sample_metrics.prom`: sample exposition that should track metric behavior.
-- `tests/fixtures/printers/`: one sanitized real payload per model (12 from public
-  MIT-licensed sample data, attribution in its README; one from the maintainer's X1C), checked by
+- `tests/fixtures/printers/`: one sanitized real payload per model (14: 12 from public
+  MIT-licensed sample data, attribution in its README; one from the maintainer's X1C and one from the maintainer's H2D), checked by
   `tests/unit/test_printer_fixtures.py`. Add new captures only through
   `sanitize_fixture.py` and review the output; never commit a raw capture.
 

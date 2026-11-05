@@ -1,3 +1,4 @@
+import math
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -1180,6 +1181,28 @@ class PrinterSnapshot:
         value = value.strip().lower()
         return value if value in FIRMWARE_UPGRADE_STATUSES else "unknown"
 
+    @staticmethod
+    def _net_number(value: Any, *, allow_str: bool) -> float | None:
+        """Finite, non-negative float from a network stat; None for booleans, non-finite
+        values, huge integers and anything unparsable."""
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, str):
+            if not allow_str:
+                return None
+            try:
+                number = float(value)
+            except ValueError:
+                return None
+        elif isinstance(value, (int, float)):
+            try:
+                number = float(value)
+            except OverflowError:
+                return None
+        else:
+            return None
+        return number if math.isfinite(number) and number >= 0 else None
+
     @property
     def network_stats(self) -> dict[str, dict[str, float]]:
         """Interface to `rtt` and `retrans` from `net.info` (index 0 wlan, 1 wired). The rtt
@@ -1193,12 +1216,12 @@ class PrinterSnapshot:
             if not isinstance(entry, dict):
                 continue
             stats: dict[str, float] = {}
-            rtt = _to_float(entry.get("rtt"))
-            if rtt is not None and rtt >= 0:
+            rtt = self._net_number(entry.get("rtt"), allow_str=True)
+            if rtt is not None:
                 stats["rtt"] = rtt
-            retrans = entry.get("retrans")
-            if isinstance(retrans, int) and not isinstance(retrans, bool) and retrans >= 0:
-                stats["retrans"] = float(retrans)
+            retrans = self._net_number(entry.get("retrans"), allow_str=False)
+            if retrans is not None:
+                stats["retrans"] = retrans
             if stats:
                 out[interface] = stats
         return out

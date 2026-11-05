@@ -311,9 +311,9 @@ bambulab_wired_network{printer_name="my-x1c",serial="00MFAKE0TEST0001"} NaN
 # HELP bambulab_firmware_upgrade_status_info Firmware upgrade state
 # TYPE bambulab_firmware_upgrade_status_info gauge
 bambulab_firmware_upgrade_status_info{printer_name="my-x1c",serial="00MFAKE0TEST0001",status="upgrade_success"} 1.0
-# HELP bambulab_network_rtt_milliseconds Round-trip time reported per network interface (unit not confirmed)
-# TYPE bambulab_network_rtt_milliseconds gauge
-bambulab_network_rtt_milliseconds{interface="wlan",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 3.0
+# HELP bambulab_network_rtt Raw round-trip value reported per network interface (unit and meaning not confirmed)
+# TYPE bambulab_network_rtt gauge
+bambulab_network_rtt{interface="wlan",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 200.0
 # HELP bambulab_network_retransmissions Retransmissions reported per network interface (meaning not confirmed)
 # TYPE bambulab_network_retransmissions gauge
 bambulab_network_retransmissions{interface="wlan",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0

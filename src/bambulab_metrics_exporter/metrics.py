@@ -141,9 +141,9 @@ class ExporterMetrics:
             [*label_names, "status"],
             registry=self.registry,
         )
-        self.network_rtt_milliseconds = Gauge(
-            "bambulab_network_rtt_milliseconds",
-            "Round-trip time reported per network interface (unit not confirmed)",
+        self.network_rtt = Gauge(
+            "bambulab_network_rtt",
+            "Raw round-trip value reported per network interface (unit and meaning not confirmed)",
             [*label_names, "interface"],
             registry=self.registry,
         )
@@ -550,11 +550,11 @@ class ExporterMetrics:
             self.firmware_upgrade_status_info.labels(
                 **labels, status=snapshot.firmware_upgrade_status
             ).set(1.0)
-        self.network_rtt_milliseconds.clear()
+        self.network_rtt.clear()
         self.network_retransmissions.clear()
         for interface, stats in snapshot.network_stats.items():
             if "rtt" in stats:
-                self.network_rtt_milliseconds.labels(**labels, interface=interface).set(
+                self.network_rtt.labels(**labels, interface=interface).set(
                     stats["rtt"]
                 )
             if "retrans" in stats:
