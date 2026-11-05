@@ -135,6 +135,24 @@ class ExporterMetrics:
             label_names,
             registry=self.registry,
         )
+        self.firmware_upgrade_status_info = Gauge(
+            "bambulab_firmware_upgrade_status_info",
+            "Firmware upgrade state",
+            [*label_names, "status"],
+            registry=self.registry,
+        )
+        self.network_rtt_milliseconds = Gauge(
+            "bambulab_network_rtt_milliseconds",
+            "Round-trip time reported per network interface (unit not confirmed)",
+            [*label_names, "interface"],
+            registry=self.registry,
+        )
+        self.network_retransmissions = Gauge(
+            "bambulab_network_retransmissions",
+            "Retransmissions reported per network interface (meaning not confirmed)",
+            [*label_names, "interface"],
+            registry=self.registry,
+        )
         self.module_firmware_info = Gauge(
             "bambulab_module_firmware_info",
             "Firmware version per module from get_version (module ota is the printer)",
@@ -527,6 +545,22 @@ class ExporterMetrics:
         for axis, homed in snapshot.axes_homed.items():
             self.axis_homed.labels(**labels, axis=axis).set(homed)
         self._set_optional(self.firmware_update_available, snapshot.firmware_update_available)
+        self.firmware_upgrade_status_info.clear()
+        if snapshot.firmware_upgrade_status is not None:
+            self.firmware_upgrade_status_info.labels(
+                **labels, status=snapshot.firmware_upgrade_status
+            ).set(1.0)
+        self.network_rtt_milliseconds.clear()
+        self.network_retransmissions.clear()
+        for interface, stats in snapshot.network_stats.items():
+            if "rtt" in stats:
+                self.network_rtt_milliseconds.labels(**labels, interface=interface).set(
+                    stats["rtt"]
+                )
+            if "retrans" in stats:
+                self.network_retransmissions.labels(**labels, interface=interface).set(
+                    stats["retrans"]
+                )
         self.module_firmware_info.clear()
         for module, version in snapshot.module_firmware_versions.items():
             self.module_firmware_info.labels(**labels, module=module, version=version).set(1.0)

@@ -187,6 +187,18 @@ AMS_MODEL_BY_MODULE_PREFIX: dict[str, str] = {
 
 # print_type values (job source); anything else is reported as "unknown".
 PRINT_TYPES: tuple[str, ...] = ("cloud", "local", "idle", "system", "unknown")
+FIRMWARE_UPGRADE_STATUSES: frozenset[str] = frozenset(
+    {
+        "idle",
+        "upgrade_request",
+        "downloading",
+        "download_fail",
+        "flash_fail",
+        "upgrade_fail",
+        "upgrade_success",
+    }
+)
+_NET_INTERFACES: tuple[str, ...] = ("wlan", "wired")
 # `fun` bit set when the printer requires signed MQTT commands (Developer Mode off).
 _FUN_MQTT_SIGNATURE_REQUIRED = 0x20000000
 
@@ -1157,6 +1169,39 @@ class PrinterSnapshot:
         if state == 2:
             return 0.0
         return None
+
+    @property
+    def firmware_upgrade_status(self) -> str | None:
+        """Lowercase `upgrade_state.status`, `unknown` for unlisted values."""
+        upgrade = self.print_block.get("upgrade_state")
+        value = upgrade.get("status") if isinstance(upgrade, dict) else None
+        if not isinstance(value, str) or not value.strip():
+            return None
+        value = value.strip().lower()
+        return value if value in FIRMWARE_UPGRADE_STATUSES else "unknown"
+
+    @property
+    def network_stats(self) -> dict[str, dict[str, float]]:
+        """Interface to `rtt` and `retrans` from `net.info` (index 0 wlan, 1 wired). The rtt
+        is a string, empty when the interface is unused; negative values are dropped."""
+        net = self.print_block.get("net")
+        info = net.get("info") if isinstance(net, dict) else None
+        if not isinstance(info, list):
+            return {}
+        out: dict[str, dict[str, float]] = {}
+        for interface, entry in zip(_NET_INTERFACES, info):
+            if not isinstance(entry, dict):
+                continue
+            stats: dict[str, float] = {}
+            rtt = _to_float(entry.get("rtt"))
+            if rtt is not None and rtt >= 0:
+                stats["rtt"] = rtt
+            retrans = entry.get("retrans")
+            if isinstance(retrans, int) and not isinstance(retrans, bool) and retrans >= 0:
+                stats["retrans"] = float(retrans)
+            if stats:
+                out[interface] = stats
+        return out
 
     @property
     def module_firmware_versions(self) -> dict[str, str]:

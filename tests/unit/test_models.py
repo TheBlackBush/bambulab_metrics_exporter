@@ -1699,3 +1699,58 @@ def test_dry_block_reasons_malformed_container(value: object) -> None:
 
 def test_dry_block_reasons_malformed() -> None:
     assert parse_ams_dry_block_reasons({"dry_sf_reason": [True, None, "x", {}, 2]}) == ["ams_busy"]
+
+
+def _block(print_block: dict) -> PrinterSnapshot:
+    return PrinterSnapshot(connected=True, raw={"print": print_block})
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("UPGRADE_SUCCESS", "upgrade_success"),
+        ("idle", "idle"),
+        ("DOWNLOAD_FAIL", "download_fail"),
+        ("SOMETHING_NEW", "unknown"),
+        ("", None),
+        (5, None),
+    ],
+)
+def test_firmware_upgrade_status(raw: object, expected: str | None) -> None:
+    assert _block({"upgrade_state": {"status": raw}}).firmware_upgrade_status == expected
+
+
+def test_firmware_upgrade_status_absent() -> None:
+    assert _block({}).firmware_upgrade_status is None
+    assert _block({"upgrade_state": "bad"}).firmware_upgrade_status is None
+
+
+def test_network_stats() -> None:
+    snap = _block({"net": {"info": [{"rtt": "206.35", "retrans": 36}, {"rtt": "", "retrans": 0}]}})
+    assert snap.network_stats == {
+        "wlan": {"rtt": 206.35, "retrans": 36.0},
+        "wired": {"retrans": 0.0},
+    }
+
+
+@pytest.mark.parametrize(
+    "net",
+    [
+        None,
+        "bad",
+        {},
+        {"info": "bad"},
+        {"info": ["bad"]},
+        {"info": [{"rtt": "x", "retrans": "y"}]},
+        {"info": [{"rtt": None}]},
+        {"info": [{"retrans": True}]},
+        {"info": [{"rtt": "-5"}]},
+    ],
+)
+def test_network_stats_malformed(net: object) -> None:
+    assert _block({"net": net}).network_stats == {}
+
+
+def test_network_stats_ignores_extra_interfaces() -> None:
+    info = [{"retrans": 1}, {"retrans": 2}, {"retrans": 3}]
+    assert sorted(_block({"net": {"info": info}}).network_stats) == ["wired", "wlan"]

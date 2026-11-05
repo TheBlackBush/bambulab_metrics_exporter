@@ -1829,3 +1829,37 @@ class TestAmsDryingBlockedReason:
         )
         assert family.type == "gauge"
         assert "cannot start" in family.documentation
+
+
+class TestNetworkAndUpgradeMetrics:
+    def _series(self, m: ExporterMetrics, name: str) -> list[tuple[dict[str, str], float]]:
+        return [
+            ({k: v for k, v in s.labels.items() if k not in ("printer_name", "serial")}, s.value)
+            for metric in m.registry.collect()
+            for s in metric.samples
+            if s.name == name
+        ]
+
+    def test_upgrade_status_one_series_and_cleared(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(_snap({"upgrade_state": {"status": "DOWNLOADING"}}))
+        m.update_from_snapshot(_snap({"upgrade_state": {"status": "UPGRADE_SUCCESS"}}))
+        name = "bambulab_firmware_upgrade_status_info"
+        assert self._series(m, name) == [({"status": "upgrade_success"}, 1.0)]
+        m.update_from_snapshot(_snap({}))
+        assert self._series(m, name) == []
+
+    def test_network_series_and_clearing(self) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(
+            _snap({"net": {"info": [{"rtt": "214.81", "retrans": 3}, {"rtt": "", "retrans": 0}]}})
+        )
+        assert self._series(m, "bambulab_network_rtt_milliseconds") == [
+            ({"interface": "wlan"}, 214.81)
+        ]
+        assert sorted(
+            self._series(m, "bambulab_network_retransmissions"), key=lambda s: s[0]["interface"]
+        ) == [({"interface": "wired"}, 0.0), ({"interface": "wlan"}, 3.0)]
+        m.update_from_snapshot(_snap({}))
+        assert self._series(m, "bambulab_network_rtt_milliseconds") == []
+        assert self._series(m, "bambulab_network_retransmissions") == []
