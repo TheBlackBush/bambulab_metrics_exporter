@@ -41,12 +41,13 @@ The "Required" column below applies to env-variable setups.
 | `BAMBULAB_SECRET_KEY` | recommended | - | Encrypts `/auth` page settings and cloud credentials so they survive restarts; keep stable |
 | `BAMBULAB_CONFIG_DIR` | no | `/config/bambulab-metrics-exporter` | Config directory |
 
-Files in the config directory (all encrypted with `BAMBULAB_SECRET_KEY`, mode `0600`):
+Files in the config directory (mode `0600`; all are encrypted with `BAMBULAB_SECRET_KEY` except `send-code-limit.json`, which is plain JSON):
 
 | File | Written by | Purpose |
 |------|------------|---------|
 | `credentials.enc.json` (`BAMBULAB_CREDENTIALS_FILE`) | cloud login, token refresh, `bambulab-reauth` | Cloud user ID and tokens |
 | `connection-overrides.enc.json` | `/auth` page | Connection settings that override env vars; removed by **Reset to env vars** |
+| `send-code-limit.json` | `/auth` page | Send-code limit state (plain JSON, no secrets); survives restarts and is cleared by a successful page login |
 | `credentials.enc.json.before-auth-page` | `/auth` page | The credentials that existed before the first page login; restored by **Reset to env vars** |
 
 ### Generating `BAMBULAB_SECRET_KEY`

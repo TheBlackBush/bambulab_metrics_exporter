@@ -124,7 +124,7 @@ def test_configure_local_rejects_bad_input(host, serial, code, port, fragment) -
 def test_code_sender_rate_limits(monkeypatch) -> None:
     sent: list[str] = []
     monkeypatch.setattr(auth_actions, "send_code", sent.append)
-    sender = CodeSender(interval_seconds=60)
+    sender = CodeSender()
     assert sender.send("operator@example.invalid").ok
     with pytest.raises(AuthInputError, match="Try again"):
         sender.send("operator@example.invalid")
@@ -681,3 +681,53 @@ def test_page_cloud_login_survives_restart_and_reset_restores_env(
     assert os.environ["BAMBULAB_CLOUD_ACCESS_TOKEN"] == "operator_token"
     assert os.environ["BAMBULAB_CLOUD_USER_ID"] == "operator_uid"
     assert not overrides.page_login_active()
+
+
+def test_successful_page_login_resets_send_code_limit(monkeypatch, tmp_path) -> None:
+    sent: list[str] = []
+    monkeypatch.setattr(auth_actions, "send_code", sent.append)
+    monkeypatch.setattr(auth_actions, "login_with_code", lambda email, code: _login())
+    monkeypatch.setattr(
+        auth_actions, "get_bind_devices", lambda token: [{"dev_id": "FAKE00TEST000001"}]
+    )
+    client, _ = _client()
+    email = "operator@example.invalid"
+
+    client.post("/auth/cloud/send-code", data={"email": email})
+    client.post("/auth/cloud/send-code", data={"email": email})
+    assert sent == [email]  # second press is inside the 60 s spacing
+
+    client.post("/auth/cloud/login", data={"email": email, "code": "123456"})
+    client.post("/auth/cloud/send-code", data={"email": email})
+    assert sent == [email, email]
+
+
+def test_failed_page_login_keeps_send_code_limit(monkeypatch) -> None:
+    sent: list[str] = []
+    monkeypatch.setattr(auth_actions, "send_code", sent.append)
+
+    def reject(email: str, code: str) -> LoginResult:
+        raise CloudAuthError("bad code")
+
+    monkeypatch.setattr(auth_actions, "login_with_code", reject)
+    client, _ = _client()
+    email = "operator@example.invalid"
+    client.post("/auth/cloud/send-code", data={"email": email})
+    client.post("/auth/cloud/login", data={"email": email, "code": "123456"})
+    client.post("/auth/cloud/send-code", data={"email": email})
+    assert sent == [email]
+
+
+def test_reset_and_local_do_not_clear_the_send_code_ladder(monkeypatch) -> None:
+    sent: list[str] = []
+    monkeypatch.setattr(auth_actions, "send_code", sent.append)
+    client, _ = _client()
+    client.post("/auth/cloud/send-code", data={"email": "operator@example.invalid"})
+    client.post("/auth/reset")
+    client.post(
+        "/auth/local",
+        data={"host": "192.0.2.25", "serial": "FAKE00TEST000001", "access_code": "fake-access-code"},
+    )
+    page = client.post("/auth/cloud/send-code", data={"email": "operator@example.invalid"})
+    assert "A code was just sent" in page.text
+    assert len(sent) == 1

@@ -7,10 +7,16 @@ encrypted when BAMBULAB_SECRET_KEY is set, and never returns secrets to the call
 
 from __future__ import annotations
 
+import json
+import logging
+import math
+import os
 import re
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 
 from bambulab_metrics_exporter.cloud_auth import (
     CloudAuthError,
@@ -20,6 +26,7 @@ from bambulab_metrics_exporter.cloud_auth import (
 )
 from bambulab_metrics_exporter.config import Settings
 from bambulab_metrics_exporter.overrides import (
+    DEFAULT_CONFIG_DIR,
     backup_credentials,
     remember_original,
     save_overrides,
@@ -31,6 +38,9 @@ from bambulab_metrics_exporter.reauth import (
     credentials_path,
     save_login_result,
 )
+from bambulab_metrics_exporter.security import ensure_parent
+
+logger = logging.getLogger(__name__)
 
 _HOST_RE = re.compile(r"^[A-Za-z0-9.\-:\[\]]{1,253}$")
 _SERIAL_RE = re.compile(r"^[A-Za-z0-9]{8,32}$")
@@ -39,6 +49,10 @@ _EMAIL_RE = re.compile(r"^[^@\s]{1,128}@[^@\s]{1,253}$")
 _CODE_RE = re.compile(r"^[0-9A-Za-z]{4,12}$")
 
 SEND_CODE_INTERVAL_SECONDS = 60.0
+SEND_CODE_MAX_PER_ROUND = 5
+SEND_CODE_FIRST_LOCK_SECONDS = 600.0
+SEND_CODE_LATER_LOCK_SECONDS = 3600.0
+SEND_CODE_STATE_FILE = "send-code-limit.json"
 
 
 @dataclass(slots=True)
@@ -94,28 +108,127 @@ def configure_local(host: str, serial: str, access_code: str, port: str = "") ->
     )
 
 
-class CodeSender:
-    """Sends verification emails at most once per interval (the page is unauthenticated)."""
+class SendCodeLimiter:
+    """Ladder for verification emails: the page is unauthenticated, so one global limit
+    applies. Timestamps are wall clock because they must survive a restart."""
 
-    def __init__(self, interval_seconds: float = SEND_CODE_INTERVAL_SECONDS) -> None:
-        self._interval = interval_seconds
-        self._last = float("-inf")
+    def __init__(
+        self, path: Path | None = None, clock: Callable[[], float] = time.time
+    ) -> None:
+        self._path = path
+        self._clock = clock
         self._lock = threading.Lock()
+        self._loaded = False
+        self._round = 1
+        self._sends = 0
+        self._last_send = 0.0
+        self._locked_until = 0.0
+
+    def _state_path(self) -> Path:
+        if self._path is not None:
+            return self._path
+        config_dir = os.getenv("BAMBULAB_CONFIG_DIR", DEFAULT_CONFIG_DIR)
+        return Path(config_dir) / SEND_CODE_STATE_FILE
+
+    def _load(self) -> None:
+        if self._loaded:
+            return
+        self._loaded = True
+        try:
+            raw = json.loads(self._state_path().read_text(encoding="utf-8"))
+            values = (raw["round"], raw["sends"], raw["last_send"], raw["locked_until"])
+            round_, sends = int(values[0]), int(values[1])
+            last_send, locked_until = float(values[2]), float(values[3])
+        except (OSError, ValueError, KeyError, TypeError, OverflowError, RecursionError):
+            return  # Missing or damaged: start a fresh ladder.
+        self._round = max(round_, 1)
+        self._sends = max(sends, 0)
+        self._last_send = last_send
+        self._locked_until = locked_until
+
+    def _save(self) -> None:
+        path = self._state_path()
+        payload = {
+            "round": self._round,
+            "sends": self._sends,
+            "last_send": self._last_send,
+            "locked_until": self._locked_until,
+        }
+        temp = path.with_name(path.name + ".tmp")
+        try:
+            ensure_parent(path)
+            fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                json.dump(payload, handle)
+            os.replace(temp, path)
+        except OSError:
+            logger.warning("Could not save the send-code limit; it applies until a restart")
+
+    def check_and_record(self) -> None:
+        """Count one send, or raise AuthInputError saying how long to wait."""
+        with self._lock:
+            self._load()
+            now = self._clock()
+            # A clock change must not extend the wait past the longest step; the caps are
+            # applied on every call and written back so a restart cannot renew them.
+            capped_send = min(self._last_send, now)
+            capped_lock = min(self._locked_until, now + SEND_CODE_LATER_LOCK_SECONDS)
+            if (capped_send, capped_lock) != (self._last_send, self._locked_until):
+                self._last_send, self._locked_until = capped_send, capped_lock
+                self._save()
+            if self._locked_until > now:
+                minutes = math.ceil((self._locked_until - now) / 60)
+                raise AuthInputError(f"Too many codes requested. Try again in {minutes} minutes.")
+            if self._sends >= SEND_CODE_MAX_PER_ROUND:
+                self._round += 1
+                self._sends = 0
+            wait = SEND_CODE_INTERVAL_SECONDS - (now - self._last_send)
+            if self._sends and wait > 0:
+                raise AuthInputError(
+                    f"A code was just sent. Try again in {math.ceil(wait)} seconds."
+                )
+            self._sends += 1
+            self._last_send = now
+            if self._sends >= SEND_CODE_MAX_PER_ROUND:
+                step = (
+                    SEND_CODE_FIRST_LOCK_SECONDS
+                    if self._round == 1
+                    else SEND_CODE_LATER_LOCK_SECONDS
+                )
+                self._locked_until = now + step
+                logger.warning(
+                    "Send-code limit reached; verification emails are paused for %d minutes",
+                    step // 60,
+                )
+            self._save()
+
+    def reset(self) -> None:
+        with self._lock:
+            self._loaded = True
+            self._round, self._sends = 1, 0
+            self._last_send = self._locked_until = 0.0
+            self._save()
+
+
+class CodeSender:
+    """Sends verification emails within the limits of ``SendCodeLimiter``."""
+
+    def __init__(self, limiter: SendCodeLimiter | None = None) -> None:
+        self._limiter = limiter or SendCodeLimiter()
 
     def send(self, email: str) -> ActionResult:
         email = email.strip()
         if not _EMAIL_RE.match(email):
             raise AuthInputError("Enter the email address of your Bambu account.")
-        with self._lock:
-            wait = self._interval - (time.monotonic() - self._last)
-            if wait > 0:
-                raise AuthInputError(f"A code was just sent. Try again in {int(wait) + 1} seconds.")
-            self._last = time.monotonic()
+        self._limiter.check_and_record()
         try:
             send_code(email)
         except CloudAuthError as exc:
             return ActionResult(False, f"Could not send the code: {exc}")
         return ActionResult(True, "Verification code sent. Check your email.")
+
+    def reset(self) -> None:
+        self._limiter.reset()
 
 
 class AttemptLimiter:
