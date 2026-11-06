@@ -56,7 +56,7 @@ It contains:
 | `BambuHmsSeriousError` | A serious or fatal HMS error is active |
 | `BambuNozzleTooHot` | The nozzle is above 320 °C |
 | `BambuDoorOpenWhilePrinting` | The door is open during a print (models with a door sensor) |
-| `BambuSdCardAbnormal` | The SD card reports a problem |
+| `BambuSdCardAbnormal` | The SD card reports a problem (not yet confirmed for USB drives on printers with no SD slot) |
 
 The file is the reference for exact expressions and thresholds; adjust them there.
 

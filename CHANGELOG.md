@@ -35,6 +35,8 @@ All notable changes to this project are documented in this file.
   credentials are not set. Earlier releases (0.1.0 to 0.2.1) were copied to Docker Hub.
 
 ### Changed
+- Grafana: the SD Card panel is now "SD / USB Storage", because an H2D reports a USB drive through
+  the same field. Re-import the sample dashboard to get the new title. No metric changes.
 - The `/auth` page limits verification emails to 5 sends 60 seconds apart, then waits 10
   minutes, then 1 hour after each later round. A successful login resets the limit, and it
   survives restarts. After a Send code press the button shows the time left and is

@@ -180,7 +180,7 @@ Fan values: raw levels 0–15 → nearest-10 percent normalization.
 | `bambulab_active_nozzle_info{nozzle_type,nozzle_diameter}` | Info Gauge | Active nozzle metadata (also from top-level `nozzle_type` on A1, P1 and older X1 firmware) |
 | `bambulab_extruder_loaded_slot_info{extruder_id,ams_id,slot_id}` | Info Gauge | Filament loaded in each extruder (`device.extruder.info[].snow`): AMS unit and slot, or `external`. Extruders with nothing loaded are omitted |
 | `bambulab_nozzle_wear_ratio{extruder_id}` | Gauge | Wear value of the nozzle mounted on each extruder (`device.nozzle.info[].wear`, passed through unscaled; the unit is not confirmed) |
-| `bambulab_nozzle_print_time_seconds{extruder_id}` | Gauge | Total print time of the mounted nozzle (`p_t`). Only on firmware that reports it (X2D, H2C) |
+| `bambulab_nozzle_print_time_seconds{extruder_id}` | Gauge | Total print time of the mounted nozzle (`p_t`). Only on firmware that sends the field (seen on H2D and X2D). So far it has only been seen as 0, including on an H2D during a print, so 0 can mean the printer is not counting |
 
 ---
 
@@ -213,14 +213,14 @@ Fan values: raw levels 0–15 → nearest-10 percent normalization.
 | `bambulab_axis_homed{axis}` | Gauge | 1 when the axis (`x`, `y`, `z`) is homed (`home_flag` bits 0-2) |
 | `bambulab_online_ahb` | Gauge | AMS hub online flag (`online.ahb`) |
 | `bambulab_online_ext` | Gauge | Extension board online flag (`online.ext`) |
-| `bambulab_sdcard_status_info{status}` | Info Gauge | SD card status |
+| `bambulab_sdcard_status_info{status}` | Info Gauge | SD card status. An H2D has no SD slot and reports its USB drive here: `present` means a USB drive is inserted and `absent` means none |
 | `bambulab_chamber_light_on` | Gauge | Chamber light (1/0) |
 | `bambulab_work_light_on` | Gauge | Work light (1/0). NaN when the printer reports `flashing`: printers send that constantly, also while the light is off |
 | `bambulab_light_mode_info{light,mode}` | Info Gauge | Mode per light: `light` is `chamber_light`, `chamber_light2` (H2 family), `work_light` (omitted while reported `flashing`, see above) or `heatbed_light`; `mode` is `on`, `off`, `flashing` or `unknown` |
 | `bambulab_tool_head_info{tool}` | Info Gauge | Mounted tool head (`device.ext_tool`): `none`, `laser_10w`, `laser_40w`, `cutter`, `cooling_fan`, `other`. |
 | `bambulab_accessory_present{accessory}` | Gauge | 1/0 per accessory: `filament_buffer`, `external_exhaust_fan`, `fire_extinguisher`, `rotary_attachment`, `filament_switch`, `air_pump`. Detected from `get_version` product names, plus `fire_ext`/`fourth_axis` `connect_flag` and `aux` bit 29 (filament switch). Omitted when no source is available |
 | `bambulab_toolhead_filament_present{extruder_id}` | Gauge | 1 when the extruder's filament sensor detects filament (`device.extruder.info[].info` bit 1; `hw_switch_state` on older firmware) |
-| `bambulab_timelapse_storage_free_bytes{storage}` | Gauge | Free timelapse storage (`internal` or `external`, from `tl_*_free_kb`, KiB). X2D; omitted when unknown or not present |
+| `bambulab_timelapse_storage_free_bytes{storage}` | Gauge | Free timelapse storage (`internal` or `external`, from `tl_*_free_kb`, KiB). Seen on X2D, and on H2D as `external` while a USB drive is inserted; omitted when unknown or not present |
 | `bambulab_timelapse_storage_total_bytes{storage}` | Gauge | Total timelapse storage |
 | `bambulab_camera_recording` | Gauge | Camera recording flag (camera setting `ipcam.ipcam_record`; home_flag bit 5 as fallback) |
 | `bambulab_timelapse_enabled` | Gauge | Timelapse recording enabled (`ipcam.timelapse`) |

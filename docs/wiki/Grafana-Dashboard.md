@@ -39,7 +39,7 @@ All other panels use built-in Grafana panel types.
 
 ## Rows
 
-- **Printer Status**: online state, model, gcode state, error flag, SD card, chamber light, door,
+- **Printer Status**: online state, model, gcode state, error flag, SD / USB storage, chamber light, door,
   nozzle diameter, XCam AI features
 - **Print Progress**: stage, time remaining, progress, layers, speed profile, job name
 - **Temperatures**: nozzle, bed and chamber gauges, fan gauges (aux, chamber, part cooling,
