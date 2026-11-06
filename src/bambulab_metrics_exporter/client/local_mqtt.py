@@ -13,6 +13,7 @@ import paho.mqtt.client as mqtt
 from bambulab_metrics_exporter.client.base import BambuClient
 from bambulab_metrics_exporter.config import Settings
 from bambulab_metrics_exporter.models import PrinterSnapshot
+from bambulab_metrics_exporter.printers import mask_serial
 
 logger = logging.getLogger(__name__)
 
@@ -45,11 +46,10 @@ class LocalMqttBambuClient(BambuClient):
 
     def connect(self) -> None:
         logger.info(
-            "Connecting to printer mqtt: host=%s port=%s user=%s topic=%s",
+            "Connecting to printer mqtt: host=%s port=%s serial=%s",
             self._settings.bambulab_host,
             self._settings.bambulab_port,
-            self._settings.bambulab_username,
-            self._topic_report,
+            mask_serial(self._settings.bambulab_serial),
         )
         self._client.connect(self._settings.bambulab_host, self._settings.bambulab_port, keepalive=20)
         self._client.loop_start()
@@ -121,12 +121,11 @@ class LocalMqttBambuClient(BambuClient):
             with self._lock:
                 self._auth_rejected = _is_auth_rejection(reason_code)
             logger.error(
-                "MQTT connect failed: reason=%s host=%s port=%s user=%s topic=%s",
+                "MQTT connect failed: reason=%s host=%s port=%s serial=%s",
                 str(reason_code),
                 self._settings.bambulab_host,
                 self._settings.bambulab_port,
-                self._settings.bambulab_username,
-                self._topic_report,
+                mask_serial(self._settings.bambulab_serial),
             )
             return
         with self._lock:
