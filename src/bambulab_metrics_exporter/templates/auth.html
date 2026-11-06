@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Printer Connection</title>
-{{REFRESH}}
+<noscript>{{REFRESH}}</noscript>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -129,6 +129,10 @@
     overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
   }
 
+  /* Result of a background action, filled in by the page script. */
+  #page-notice.notice { margin: 0; padding: 0.9rem 1.25rem; border: 1px solid var(--border);
+    border-radius: var(--radius); background: var(--surface); }
+
   .links { display: flex; justify-content: space-between; font-size: 0.82rem; }
   .links a { color: var(--green); text-decoration: none; }
 </style>
@@ -141,7 +145,7 @@
     <p>Bambu Lab Metrics Exporter v{{VERSION}}</p>
   </header>
 
-  <div class="card">
+  <div class="card" id="status-card" data-live{{DATA_REFRESH}}>
     <div class="status-row">
       <span class="label">Status</span>
       <span class="pill {{STATE_CLASS}}">{{STATE_LABEL}}</span>
@@ -150,6 +154,7 @@
     {{STATE_MESSAGE}}
     {{FLASH}}
   </div>
+  <div id="page-notice" role="status" aria-live="polite"></div>
 
   <div class="card">
     <div class="tabs" role="radiogroup" aria-label="Connection mode">
@@ -225,22 +230,166 @@
 (function () {
   var button = document.getElementById("send-code");
   var label = document.getElementById("send-code-label");
-  if (!button || !label || !button.hasAttribute("data-wait")) { return; }
+  var notice = document.getElementById("page-notice");
+  var countdown = null;
+  var pollTimer = null;
+  var refreshSeq = 0;
+
   // A deadline, not a counter, so a throttled background tab stays correct.
-  var deadline = Date.now() + parseInt(button.getAttribute("data-wait"), 10) * 1000;
-  function tick() {
-    var left = Math.ceil((deadline - Date.now()) / 1000);
-    if (!(left > 0)) {
-      button.removeAttribute("disabled");
-      button.removeAttribute("data-wait");
-      label.textContent = "Send code";
+  function startCountdown(seconds) {
+    if (!button || !label) { return; }
+    var deadline = Date.now() + seconds * 1000;
+    button.setAttribute("disabled", "");
+    button.setAttribute("data-wait", String(seconds));
+    function tick() {
+      var left = Math.ceil((deadline - Date.now()) / 1000);
+      if (!(left > 0)) {
+        button.removeAttribute("disabled");
+        button.removeAttribute("data-wait");
+        label.textContent = "Send code";
+        return;
+      }
+      label.textContent = "Send code (" +
+        (left <= 60 ? left + "s" : Math.floor(left / 60) + "m " + (left % 60) + "s") + ")";
+      countdown = setTimeout(tick, 1000);
+    }
+    if (countdown) { clearTimeout(countdown); }
+    tick();
+  }
+
+  // Back to an active button, e.g. after the server reset the send-code limit.
+  function resetSendButton() {
+    if (countdown) { clearTimeout(countdown); countdown = null; }
+    if (!button || !label) { return; }
+    button.removeAttribute("disabled");
+    button.removeAttribute("data-wait");
+    label.textContent = "Send code";
+  }
+
+  // Message text only, never markup.
+  function showNotice(ok, text, note) {
+    if (!notice) { return; }
+    while (notice.firstChild) { notice.removeChild(notice.firstChild); }
+    notice.className = "notice " + (ok ? "ok" : "bad");
+    var icon = document.createElement("span");
+    icon.className = "notice-icon";
+    icon.setAttribute("aria-hidden", "true");
+    icon.textContent = ok ? "✓" : "!";
+    var body = document.createElement("span");
+    body.className = "notice-text";
+    body.textContent = text;
+    if (note) {
+      var extra = document.createElement("span");
+      extra.className = "notice-note";
+      extra.textContent = note;
+      body.appendChild(extra);
+    }
+    notice.appendChild(icon);
+    notice.appendChild(body);
+  }
+
+  // Replace the [data-live] parts (the status card) with the server's current version.
+  // Inputs outside them, the Send code button and the open tab are never touched.
+  function refreshLive() {
+    var seq = ++refreshSeq;
+    return fetch("/auth", {headers: {"Accept": "text/html"}, credentials: "same-origin"})
+      .then(function (response) {
+        if (!response.ok) { throw new Error("status"); }
+        return response.text();
+      })
+      .then(function (text) {
+        if (seq !== refreshSeq) { return; }  // a newer request is in flight or done
+        var doc = new DOMParser().parseFromString(text, "text/html");
+        if (doc.querySelector("#send-code[data-wait]")) { return; }
+        var live = document.querySelectorAll("[data-live]");
+        for (var i = 0; i < live.length; i++) {
+          var current = live[i];
+          var fresh = current.id ? doc.getElementById(current.id) : null;
+          if (fresh && current.parentNode) { current.parentNode.replaceChild(fresh, current); }
+        }
+      })
+      .catch(function () {})
+      .then(schedulePoll);
+  }
+
+  // While the status card says the exporter is still connecting, poll it. One timer only,
+  // and it stops by itself once the card no longer carries data-refresh.
+  function schedulePoll() {
+    if (pollTimer) { return; }
+    var card = document.getElementById("status-card");
+    if (!card || !card.hasAttribute("data-refresh")) { return; }
+    pollTimer = setTimeout(function () {
+      pollTimer = null;
+      refreshLive();
+    }, 3000);
+  }
+
+  function clearSecrets(form) {
+    var fields = form.querySelectorAll('input[type="password"], input[name="code"]');
+    for (var i = 0; i < fields.length; i++) { fields[i].value = ""; }
+  }
+
+  function formBody(form, submitter) {
+    try {
+      return new URLSearchParams(new FormData(form, submitter));
+    } catch (error) {
+      return new URLSearchParams(new FormData(form));
+    }
+  }
+
+  // Every post form is sent in the background; without JavaScript the forms still post and
+  // the server redirects back here.
+  document.addEventListener("submit", function (event) {
+    var form = event.target;
+    if (!form || !form.matches || !form.matches('form[method="post"]')) { return; }
+    event.preventDefault();
+    if (form.busy) { return; }  // the form is already being sent
+    var submitter = event.submitter || null;
+    var isSend = !!submitter && submitter.id === "send-code";
+    var email = form.querySelector('input[name="email"]');
+    if (isSend && email) {
+      if (!email.checkValidity()) { email.reportValidity(); return; }
+    } else if (!form.reportValidity()) {
       return;
     }
-    label.textContent = "Send code (" +
-      (left <= 60 ? left + "s" : Math.floor(left / 60) + "m " + (left % 60) + "s") + ")";
-    setTimeout(tick, 1000);
+    // The formaction attribute only: the formAction property falls back to the page URL.
+    var url = (submitter && submitter.getAttribute("formaction")) || form.action;
+    form.busy = true;
+    if (submitter) { submitter.setAttribute("disabled", ""); }
+    function release() {
+      if (submitter) { submitter.removeAttribute("disabled"); }
+    }
+    fetch(url, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Accept": "application/json",
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: formBody(form, submitter)
+    }).then(function (response) {
+      if (!response.ok) { throw new Error("status"); }
+      return response.json();
+    }).then(function (data) {
+      showNotice(!!data.ok, String(data.message), data.note ? String(data.note) : "");
+      if (data.ok && !isSend) { clearSecrets(form); }
+      var wait = Number(data.wait_seconds);
+      if (isSend && wait > 0) { startCountdown(wait); } else { release(); }
+      // A successful login reset the send-code limit on the server.
+      if (data.ok && url.indexOf("/auth/cloud/login") !== -1) { resetSendButton(); }
+      return refreshLive();
+    }).catch(function () {
+      showNotice(false, "Could not complete that. Try again.");
+      release();
+    }).then(function () {
+      form.busy = false;
+    });
+  });
+
+  if (button && button.hasAttribute("data-wait")) {
+    startCountdown(parseInt(button.getAttribute("data-wait"), 10));
   }
-  tick();
+  schedulePoll();
 })();
 </script>
 </body>

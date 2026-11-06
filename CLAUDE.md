@@ -121,7 +121,10 @@ Important boundaries:
   stored secrets rendered, same-origin check, Host allowlist (`_host_allowed`, DNS rebinding,
   `AUTH_ALLOWED_HOSTS`), anti-framing headers (middleware), 8 KB form cap, send-code ladder
   (`SendCodeLimiter`, persisted) and login rate limit, per-visitor result cookie, and
-  `overrides.lock` around every page change.
+  `overrides.lock` around every page change. The page script sends every form in the
+  background with `Accept: application/json`; the four posts then answer JSON (`ok`,
+  `message`, plus `wait_seconds` for send-code) with no flash, and without that header they
+  redirect to `/auth` as before (no-JavaScript fallback).
   Preserve endpoint contracts.
 - `src/bambulab_metrics_exporter/cloud_auth.py`: Bambu Cloud HTTP/OTP CLI, token refresh,
   device discovery, bounded HTTP retry/backoff, and credential output. Never expose

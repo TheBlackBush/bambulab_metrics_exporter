@@ -592,14 +592,25 @@ def test_save_error_shows_notice_instead_of_500(monkeypatch) -> None:
     assert runtime.reconfigured == 0
 
 
-def test_post_response_does_not_auto_refresh(monkeypatch) -> None:
-    """The echoed email must not be wiped by a refresh while the runtime is connecting."""
+def test_page_after_a_press_is_a_single_view_without_auto_reload(monkeypatch) -> None:
     monkeypatch.setattr(auth_actions, "send_code", lambda email: None)
     client, runtime = _client()
     runtime.status = lambda: {"state": "connecting", "message": "", "transport": "local_mqtt"}
-    page = client.post("/auth/cloud/send-code", data={"email": "operator@example.invalid"}).text
-    assert 'http-equiv="refresh"' not in page
-    assert 'value="operator@example.invalid"' in page
+    _post_send(client)
+    page = client.get("/auth").text
+    assert f'value="{EMAIL}"' in page and 'http-equiv="refresh"' not in page
+    _assert_timer_shown(page)
+    page = client.get("/auth").text
+    assert EMAIL not in page and 'http-equiv="refresh"' in page
+    _assert_timer_hidden(page)
+
+
+def test_email_is_escaped_after_the_redirect(monkeypatch) -> None:
+    monkeypatch.setattr(auth_actions, "send_code", lambda email: None)
+    client, _ = _client()
+    client.post("/auth/cloud/send-code", data={"email": '"><script>x@example.invalid'})
+    page = client.get("/auth").text
+    assert "<script>x@" not in page
 
 
 def test_streamed_form_without_length_is_capped() -> None:
@@ -753,19 +764,106 @@ def test_send_code_button_is_enabled_without_a_wait() -> None:
     assert '<span id="send-code-label">Send code</span>' in page
 
 
-def test_send_code_post_shows_the_wait_and_keeps_email(monkeypatch) -> None:
+def _send_button(page: str) -> str:
+    start = page.index('id="send-code"')
+    return page[start: page.index(">", start)]
+
+
+def _assert_timer_hidden(page: str) -> None:
+    assert "disabled" not in _send_button(page) and 'data-wait="' not in page
+    assert '<span id="send-code-label">Send code</span>' in page
+
+
+def _assert_timer_shown(page: str) -> None:
+    assert "disabled" in _send_button(page) and 'data-wait="' in page
+    assert "Send code (" in page
+
+
+EMAIL = "operator@example.invalid"
+
+
+def _post_send(client: TestClient):
+    return client.post(
+        "/auth/cloud/send-code", data={"email": EMAIL}, follow_redirects=False
+    )
+
+
+def test_send_code_post_redirects_and_the_next_view_shows_the_wait(monkeypatch) -> None:
     sent: list[str] = []
     monkeypatch.setattr(auth_actions, "send_code", sent.append)
     client, _ = _client()
-    email = "operator@example.invalid"
-    resp = client.post("/auth/cloud/send-code", data={"email": email})
-    assert f'value="{email}"' in resp.text
-    assert " disabled data-wait=" in resp.text
-    assert "Send code (" in resp.text
+    resp = _post_send(client)
+    assert resp.status_code == 303 and resp.headers["location"] == "/auth"
+    page = client.get("/auth").text
+    assert f'value="{EMAIL}"' in page
+    assert "Verification code sent" in page
+    _assert_timer_shown(page)
+    assert sent == [EMAIL]
 
-    page = client.get("/auth").text  # a later view shows the wait, and sends nothing
-    assert " disabled data-wait=" in page and "Send code (" in page
-    assert sent == [email]
+
+def test_refresh_after_a_press_shows_an_active_button_and_sends_nothing(monkeypatch) -> None:
+    sent: list[str] = []
+    monkeypatch.setattr(auth_actions, "send_code", sent.append)
+    client, _ = _client()
+    _assert_timer_hidden(client.get("/auth").text)  # fresh page
+    _post_send(client)
+    client.get("/auth")
+    page = client.get("/auth").text  # a refresh
+    _assert_timer_hidden(page)
+    assert EMAIL not in page
+    assert len(sent) == 1
+
+
+def test_press_after_reload_is_refused_and_shows_the_timer(monkeypatch) -> None:
+    sent: list[str] = []
+    monkeypatch.setattr(auth_actions, "send_code", sent.append)
+    client, _ = _client()
+    _post_send(client)
+    client.get("/auth")
+    resp = _post_send(client)
+    assert resp.status_code == 303
+    page = client.get("/auth").text
+    assert "A code was just sent" in page
+    assert len(sent) == 1
+    _assert_timer_shown(page)
+    assert f'value="{EMAIL}"' in page
+
+
+def test_invalid_send_code_input_redirects(monkeypatch) -> None:
+    monkeypatch.setattr(auth_actions, "send_code", lambda email: None)
+    client, _ = _client()
+    resp = client.post(
+        "/auth/cloud/send-code", data={"email": "not-an-email"}, follow_redirects=False
+    )
+    assert resp.status_code == 303 and resp.headers["location"] == "/auth"
+
+
+def test_another_visitor_never_sees_the_email_or_timer(monkeypatch) -> None:
+    monkeypatch.setattr(auth_actions, "send_code", lambda email: None)
+    client, _ = _client()
+    _post_send(client)
+    other = TestClient(client.app)
+    page = other.get("/auth").text
+    assert EMAIL not in page
+    _assert_timer_hidden(page)
+
+
+def test_failed_login_redirects_and_keeps_email_and_timer(monkeypatch) -> None:
+    monkeypatch.setattr(auth_actions, "send_code", lambda email: None)
+
+    def reject(email: str, code: str):
+        raise CloudAuthError("code expired")
+
+    monkeypatch.setattr(auth_actions, "login_with_code", reject)
+    client, _ = _client()
+    _post_send(client)
+    resp = client.post(
+        "/auth/cloud/login", data={"email": EMAIL, "code": "000000"}, follow_redirects=False
+    )
+    assert resp.status_code == 303 and resp.headers["location"] == "/auth"
+    page = client.get("/auth").text
+    assert "Login failed" in page and f'value="{EMAIL}"' in page
+    _assert_timer_shown(page)
 
 
 def test_forced_post_during_the_wait_is_still_refused(monkeypatch) -> None:
@@ -777,3 +875,195 @@ def test_forced_post_during_the_wait_is_still_refused(monkeypatch) -> None:
     resp = client.post("/auth/cloud/send-code", data={"email": email})
     assert "A code was just sent" in resp.text
     assert sent == [email]
+
+
+# ---------------------------------------------------------------------------
+# background send (Accept: application/json)
+# ---------------------------------------------------------------------------
+
+_JSON = {"Accept": "application/json"}
+
+
+def test_json_send_code_stays_on_the_page(monkeypatch) -> None:
+    sent: list[str] = []
+    monkeypatch.setattr(auth_actions, "send_code", sent.append)
+    client, _ = _client()
+    resp = client.post(
+        "/auth/cloud/send-code", data={"email": EMAIL}, headers=_JSON, follow_redirects=False
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is True and body["message"]
+    assert 50 <= body["wait_seconds"] <= 60
+    assert sent == [EMAIL]
+    assert EMAIL not in resp.text
+    assert resp.headers["cache-control"] == "no-store"
+    page = client.get("/auth").text  # no flash was stored
+    _assert_timer_hidden(page)
+    assert EMAIL not in page
+
+
+def test_json_send_code_during_a_wait_is_refused(monkeypatch) -> None:
+    sent: list[str] = []
+    monkeypatch.setattr(auth_actions, "send_code", sent.append)
+    client, _ = _client()
+    client.post("/auth/cloud/send-code", data={"email": EMAIL}, headers=_JSON)
+    resp = client.post("/auth/cloud/send-code", data={"email": EMAIL}, headers=_JSON)
+    body = resp.json()
+    assert resp.status_code == 200 and body["ok"] is False and body["wait_seconds"] > 0
+    assert len(sent) == 1
+
+
+def test_json_send_code_invalid_email(monkeypatch) -> None:
+    sent: list[str] = []
+    monkeypatch.setattr(auth_actions, "send_code", sent.append)
+    client, _ = _client()
+    resp = client.post("/auth/cloud/send-code", data={"email": "nope"}, headers=_JSON)
+    assert resp.json()["ok"] is False and sent == []
+
+
+def test_json_send_code_keeps_the_guards() -> None:
+    client, _ = _client()
+    cross = client.post(
+        "/auth/cloud/send-code",
+        data={"email": EMAIL},
+        headers={**_JSON, "Origin": "https://evil.example.invalid"},
+    )
+    assert cross.status_code == 403
+    bad_host = client.post(
+        "/auth/cloud/send-code",
+        data={"email": EMAIL},
+        headers={**_JSON, "Host": "evil.example:9109", "Origin": "http://evil.example:9109"},
+    )
+    assert bad_host.status_code == 403
+    big = client.post("/auth/cloud/send-code", data={"email": "x" * 10000}, headers=_JSON)
+    assert big.status_code == 413
+
+
+def test_send_code_without_the_json_header_still_redirects(monkeypatch) -> None:
+    monkeypatch.setattr(auth_actions, "send_code", lambda email: None)
+    client, _ = _client()
+    assert _post_send(client).status_code == 303
+
+
+# ---------------------------------------------------------------------------
+# every /auth action in the background (Accept: application/json)
+# ---------------------------------------------------------------------------
+
+ACCESS_CODE = "fake-access-code"
+_LOCAL_FORM = {"host": "192.0.2.25", "serial": "FAKE00TEST000001", "access_code": ACCESS_CODE}
+_ROUTES = {
+    "/auth/local": _LOCAL_FORM,
+    "/auth/cloud/send-code": {"email": EMAIL},
+    "/auth/cloud/login": {"email": EMAIL, "code": "123456"},
+    "/auth/reset": {},
+}
+
+
+@pytest.fixture
+def stubbed(monkeypatch):
+    monkeypatch.setattr(auth_actions, "send_code", lambda email: None)
+    monkeypatch.setattr(auth_actions, "login_with_code", lambda email, code: _login())
+    monkeypatch.setattr(
+        auth_actions, "get_bind_devices", lambda token: [{"dev_id": "FAKE00TEST000001"}]
+    )
+
+
+@pytest.mark.parametrize("path", list(_ROUTES))
+def test_json_post_answers_without_redirect_or_flash(stubbed, path) -> None:
+    client, runtime = _client()
+    resp = client.post(path, data=_ROUTES[path], headers=_JSON, follow_redirects=False)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is True and body["message"]
+    assert ("wait_seconds" in body) == (path == "/auth/cloud/send-code")
+    assert resp.headers["cache-control"] == "no-store"
+    for secret in (EMAIL, ACCESS_CODE, "123456", "fresh_token"):
+        assert secret not in resp.text
+    assert (runtime.reconfigured == 1) == (path != "/auth/cloud/send-code")
+    page = client.get("/auth").text  # no flash was stored
+    assert body["message"] not in page and EMAIL not in page
+    _assert_timer_hidden(page)
+
+
+@pytest.mark.parametrize("path", list(_ROUTES))
+def test_post_without_the_json_header_redirects(stubbed, path) -> None:
+    client, _ = _client()
+    resp = client.post(path, data=_ROUTES[path], follow_redirects=False)
+    assert resp.status_code == 303 and resp.headers["location"] == "/auth"
+
+
+def test_json_login_success_resets_the_send_code_wait(stubbed) -> None:
+    client, runtime = _client()
+    client.post("/auth/cloud/send-code", data={"email": EMAIL}, headers=_JSON)
+    refused = client.post("/auth/cloud/send-code", data={"email": EMAIL}, headers=_JSON)
+    assert refused.json()["ok"] is False
+    login = client.post("/auth/cloud/login", data=_ROUTES["/auth/cloud/login"], headers=_JSON)
+    assert login.json()["ok"] is True and runtime.reconfigured == 1
+    again = client.post("/auth/cloud/send-code", data={"email": EMAIL}, headers=_JSON)
+    assert again.json()["ok"] is True
+
+
+def test_json_login_failure_is_not_ok(monkeypatch) -> None:
+    def reject(email: str, code: str):
+        raise CloudAuthError("code expired")
+
+    monkeypatch.setattr(auth_actions, "login_with_code", reject)
+    client, runtime = _client()
+    resp = client.post("/auth/cloud/login", data=_ROUTES["/auth/cloud/login"], headers=_JSON)
+    assert resp.status_code == 200 and resp.json()["ok"] is False
+    assert runtime.reconfigured == 0
+    assert "123456" not in resp.text and EMAIL not in resp.text
+
+
+@pytest.mark.parametrize("path", list(_ROUTES))
+def test_json_post_keeps_every_guard(path) -> None:
+    client, runtime = _client()
+    data = _ROUTES[path]
+    cross = client.post(
+        path, data=data, headers={**_JSON, "Origin": "https://evil.example.invalid"}
+    )
+    assert cross.status_code == 403
+    bad_host = client.post(
+        path,
+        data=data,
+        headers={**_JSON, "Host": "evil.example:9109", "Origin": "http://evil.example:9109"},
+    )
+    assert bad_host.status_code == 403
+    big = client.post(path, data={**data, "pad": "x" * 10000}, headers=_JSON)
+    assert big.status_code == 413
+    assert runtime.reconfigured == 0
+
+
+def test_auth_page_status_card_is_live_and_refresh_is_noscript_only() -> None:
+    client, runtime = _client()
+    page = client.get("/auth").text
+    assert 'id="status-card" data-live' in page and "data-refresh" not in page.split("<script>")[0]
+    assert 'http-equiv="refresh"' not in page
+    runtime.status = lambda: {"state": "connecting", "message": "", "transport": "local_mqtt"}
+    page = client.get("/auth").text
+    assert 'id="status-card" data-live data-refresh="1"' in page
+    meta = page.index('http-equiv="refresh"')
+    assert page.rindex("<noscript>", 0, meta) > page.rfind("</noscript>", 0, meta)
+    assert meta < page.index("</noscript>", meta) < page.index("<style>")
+    assert page.count('http-equiv="refresh"') == 1
+    assert '<div id="page-notice" role="status" aria-live="polite"></div>' in page
+
+
+def test_json_reply_carries_the_note(monkeypatch) -> None:
+    from bambulab_metrics_exporter import api
+
+    note = "Applies until the next restart. Set BAMBULAB_SECRET_KEY to keep it."
+    monkeypatch.setattr(
+        api, "configure_local", lambda *a, **k: auth_actions.ActionResult(True, "Saved.", note)
+    )
+    client, _ = _client()
+    resp = client.post("/auth/local", data=_LOCAL_FORM, headers=_JSON)
+    assert resp.json() == {"ok": True, "message": "Saved.", "note": note}
+
+
+def test_page_script_reads_the_formaction_attribute() -> None:
+    """The formAction property falls back to the page URL when the attribute is absent."""
+    script = _client()[0].get("/auth").text.split("<script>")[1]
+    assert 'getAttribute("formaction")' in script
+    assert ".formAction" not in script
