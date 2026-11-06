@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added
+- Multi-printer support: one exporter can monitor up to 32 printers (cloud and LAN mixed, one
+  Bambu account), chosen on the `/auth` page. After a cloud login the page lists the account
+  printers to tick; LAN printers are added with a form and any printer can be removed. The page
+  updates without a reload. A one-printer cloud account is added automatically at login when a
+  saved list exists. Removing works for a cloud printer that left the account, and saving a
+  selection is refused when the device list is empty. The list is stored encrypted in
+  `printers.enc.json` (needs `BAMBULAB_SECRET_KEY` to survive restarts) and **Reset to env vars**
+  removes it. `/auth/status` gains a `printers` list of `{id, name, state, message}`. With several
+  printers `/ready` is ready once any printer has data. Existing metrics and single-printer
+  deployments do not change, and one container per printer remains supported. Two-printer
+  operation is covered by tests with fakes, not validated on real hardware.
 - `bambulab_print_prepare_percent` (job file download progress), `bambulab_print_type_info{type}`
   (job source), `bambulab_print_skipped_objects`, `bambulab_timelapse_enabled`,
   `bambulab_mqtt_signature_required` (Developer Mode off) and `bambulab_axis_homed{axis}`.

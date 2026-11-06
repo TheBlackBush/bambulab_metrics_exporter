@@ -108,8 +108,17 @@ page) and choose one of:
 - **Local (LAN):** enter the printer's IP address, serial number and LAN access code. Best when
   the printer is on the same network as the exporter.
 - **Bambu Cloud:** enter your Bambu account email and click **Send code**, then enter the code
-  from the email and click **Log in**. The serial number is only needed if your account has more
-  than one printer. Use this when the printer is not on the same network.
+  from the email and click **Log in**. Use this when the printer is not on the same network.
+  After login the page lists the printers on the account; tick the ones to monitor and save.
+  An account with a single printer is added automatically.
+
+One exporter can monitor up to 32 printers, with cloud and LAN printers mixed (one Bambu account
+per exporter). Add LAN printers with the LAN form, tick cloud printers in the list, and remove any
+printer from the printer table. The picker and table update without a page reload. The list is
+stored encrypted in the config volume and needs `BAMBULAB_SECRET_KEY` to survive restarts; without
+it, extra printers exist only until the next restart. With a single printer nothing changes:
+metrics, labels and settings are the same as before. Running one container per printer remains
+supported. Two-printer operation has been tested with fakes only, not on real hardware.
 
 The exporter connects right away; no restart is needed.
 
@@ -199,7 +208,7 @@ Full reference, including `PUID`, `PGID` and `UMASK`:
 
 ## Prometheus and Grafana
 
-**Prometheus:** add the exporter as a scrape target (one target per printer container):
+**Prometheus:** add the exporter as a scrape target (one target per exporter; it serves every printer it monitors):
 
 ```yaml
 scrape_configs:
@@ -265,7 +274,9 @@ A sample of the output is in [`examples/sample_metrics.prom`](examples/sample_me
 
 1. Only the X1C has been fully tested on real hardware (an H2D was checked while idle and while printing); other models are recognized from their data
    and may report some values differently.
-2. One container monitors one printer. For several printers, run one container per printer.
+2. One exporter monitors up to 32 printers (one Bambu account for the cloud ones). Running
+   several printers in one exporter has not been validated on real hardware; separate containers
+   remain supported.
 3. The MQTT connection is encrypted, but the printer's certificate is not verified (the printers
    use self-signed certificates).
 4. Some values depend on the printer model and firmware; missing values are left empty rather
