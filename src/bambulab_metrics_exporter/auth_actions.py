@@ -23,7 +23,6 @@ from typing import Any
 from bambulab_metrics_exporter.cloud_auth import (
     CloudAuthError,
     fetch_bind_devices,
-    get_bind_devices,
     login_with_code,
     send_code,
 )
@@ -298,14 +297,20 @@ def configure_cloud(email: str, code: str, serial: str = "") -> ActionResult:
     login_only_message = "Signed in. Select your printers below."
     device: CloudDevice | None = None
     if not serial:
-        devices = _devices_after_login(result.access_token)
-        if len(devices) == 1:
+        # A code is single use, so nothing about the printer list may fail the login.
+        devices = _fetch_devices(result.access_token)
+        if devices is not None and len(devices) == 1:
             device = devices[0]
             serial = device.serial
         else:
             login_only = True  # The page lists the printers; nothing else changes yet.
-        if not devices:
-            login_only_message = "Signed in. Refresh the page if your printers do not appear."
+        if devices is None:
+            login_only_message = (
+                "Signed in, but Bambu Cloud did not return your printers. "
+                "Reload the page to retry."
+            )
+        elif not devices:
+            login_only_message = "Signed in. This account has no printers."
 
     # Record what the container had, so "Reset to env vars" can undo this login.
     for key in CREDENTIAL_KEYS:
@@ -361,8 +366,10 @@ def add_login_printer(
     )
     try:
         persisted = update([*current, config])
-    except Exception:  # noqa: BLE001 - a spent code means nothing here may fail the login
-        logger.warning("Could not add the signed-in printer to the saved list")
+    except Exception as exc:  # noqa: BLE001 - a spent code means nothing here may fail the login
+        logger.warning(
+            "Could not add the signed-in printer to the saved list (%s)", type(exc).__name__
+        )
         message = (
             f"Signed in to Bambu Cloud, but printer {masked} could not be added. Select it below."
         )
@@ -396,6 +403,7 @@ class CloudDeviceList:
         self._clock = clock
         self._expires = float("-inf")
         self._devices: list[CloudDevice] = []
+        self._failed = False
         self._generation = 0
         self._lock = threading.Lock()
         self._fetch_lock = threading.Lock()
@@ -409,10 +417,11 @@ class CloudDeviceList:
                 if self._clock() < self._expires:
                     return
                 generation = self._generation
-            devices = _fetch_devices(token)
+            devices = _fetch_devices(token, timeout_seconds=5.0, retries=1)
             with self._lock:
                 # A clear() during the fetch means this answer may be the previous account's.
                 if generation == self._generation:
+                    self._failed = devices is None
                     if devices is not None:  # A failed fetch keeps the last good list.
                         self._devices = devices
                     self._expires = self._clock() + self._ttl
@@ -421,9 +430,16 @@ class CloudDeviceList:
         with self._lock:
             return list(self._devices)
 
+    @property
+    def refresh_failed(self) -> bool:
+        """The latest refresh got no answer, so ``peek`` is the last known list."""
+        with self._lock:
+            return self._failed
+
     def clear(self) -> None:
         with self._lock:
             self._devices = []
+            self._failed = False
             self._expires = float("-inf")
             self._generation += 1
 
@@ -441,23 +457,17 @@ def _parse_devices(raw: list[Any]) -> list[CloudDevice]:
     return list(unique.values())
 
 
-def _fetch_devices(token: str) -> list[CloudDevice] | None:
+def _fetch_devices(token: str, **options: Any) -> list[CloudDevice] | None:
     """None when the list could not be read. Never raises for a bad response: this runs on
-    page load. The errors can carry response content, so none of it reaches the log."""
+    page load and during a login. The errors can carry response content, so only the class
+    name reaches the log."""
     try:
-        return _parse_devices(fetch_bind_devices(token, timeout_seconds=5.0, retries=1))
-    except _DEVICE_LIST_ERRORS:
-        logger.warning("Could not read the printer list from Bambu Cloud")
+        return _parse_devices(fetch_bind_devices(token, **options))
+    except _DEVICE_LIST_ERRORS as exc:
+        logger.warning(
+            "Could not read the printer list from Bambu Cloud (%s)", type(exc).__name__
+        )
         return None
-
-
-def _devices_after_login(token: str) -> list[CloudDevice]:
-    """A code is single use, so nothing about the printer list may fail the login."""
-    try:
-        return _parse_devices(get_bind_devices(token))
-    except _DEVICE_LIST_ERRORS:
-        logger.warning("Could not read the printer list from Bambu Cloud")
-        return []
 
 
 def _text(value: Any, limit: int) -> str:
@@ -502,7 +512,7 @@ def select_cloud_printers(
         raise AuthInputError("A selected printer is no longer on this account. Reload the page.")
     lan = [config for config in current if config.transport == TRANSPORT_LOCAL]
     lan_serials = {config.serial for config in lan}
-    env_serials = {config.serial for config in current if config.env_printer}
+    env_configs = {config.serial: config for config in current if config.env_printer}
     listed = {device.serial for device in devices}
     missing = [
         config for config in current
@@ -516,10 +526,13 @@ def select_cloud_printers(
             raise AuthInputError(
                 f"Printer {mask_serial(device.serial)} is already added as a LAN printer."
             )
+        # The env printer keeps its name and model: a change would split its series.
+        env_config = env_configs.get(device.serial)
+        source = env_config if env_config is not None else device
         chosen.append(
             PrinterConfig(
-                serial=device.serial, transport=TRANSPORT_CLOUD, name=device.name,
-                model=device.model, env_printer=device.serial in env_serials,
+                serial=device.serial, transport=TRANSPORT_CLOUD, name=source.name,
+                model=source.model, env_printer=env_config is not None,
             )
         )
     _check_limit(len(lan) + len(missing) + len(chosen))

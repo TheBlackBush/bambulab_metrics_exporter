@@ -353,10 +353,17 @@ def _printer_table(printers: list[dict[str, str]]) -> str:
     return '<div class="card"><span class="label">Printers</span>' + "".join(rows) + "</div>"
 
 
-def _cloud_picker(devices: list[CloudDevice], selected: set[str]) -> str:
+def _cloud_picker(
+    devices: list[CloudDevice], selected: set[str], refresh_failed: bool = False
+) -> str:
     """Checkbox names carry the opaque id; the form parser keeps one value per key."""
     if not devices:
-        return ""
+        if not refresh_failed:
+            return ""
+        return (
+            '<div class="device-list"><span class="hint">The printer list could not be '
+            "refreshed from Bambu Cloud. Reload the page in a minute to retry.</span></div>"
+        )
     rows = []
     for device in devices:
         checked = " checked" if device.serial in selected else ""
@@ -371,6 +378,12 @@ def _cloud_picker(devices: list[CloudDevice], selected: set[str]) -> str:
     return (
         '<form method="post" action="/auth/printers/select" class="device-list">'
         '<span class="label">Printers on this account</span>'
+        + (
+            '<span class="hint">The list could not be refreshed from Bambu Cloud; '
+            "this is the last known one.</span>"
+            if refresh_failed
+            else ""
+        )
         + "".join(rows)
         + '<button type="submit">Save selection</button></form>'
     )
@@ -577,7 +590,7 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
             selected = {
                 config.serial for config in fleet.configs() if config.transport != TRANSPORT_LOCAL
             }
-            picker = _cloud_picker(devices.peek(), selected)
+            picker = _cloud_picker(devices.peek(), selected, devices.refresh_failed)
         page = (
             _AUTH_TEMPLATE
             .replace("{{VERSION}}", __version__)
@@ -767,6 +780,11 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
         def select(f: dict[str, str]) -> ActionResult:
             chosen = {k.removeprefix("printer_") for k in f if k.startswith("printer_")}
             devices.refresh()  # A printer gone from the account must not come back.
+            if devices.refresh_failed:
+                raise AuthInputError(
+                    "The printer list could not be refreshed from Bambu Cloud. "
+                    "Nothing was changed. Try again in a minute."
+                )
             configs = select_cloud_printers(fleet.configs(), devices.peek(), chosen)
             return saved(fleet.update(configs), "Printer selection saved.")
 
