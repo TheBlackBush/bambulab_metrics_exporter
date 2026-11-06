@@ -116,6 +116,7 @@ class ExporterRuntime:
         retry_seconds: float = RETRY_SECONDS,
         store_poll_seconds: float = STORE_POLL_SECONDS,
         auth_retry_seconds: float = AUTH_RETRY_SECONDS,
+        sync_env: bool = True,
     ) -> None:
         self._settings_factory = settings_factory
         self._validate = validate
@@ -124,6 +125,7 @@ class ExporterRuntime:
         self._retry_seconds = retry_seconds
         self._store_poll_seconds = store_poll_seconds
         self._auth_retry_seconds = auth_retry_seconds
+        self._sync_env = sync_env
 
         self._lock = threading.Lock()
         self._wake = threading.Event()
@@ -319,12 +321,13 @@ class ExporterRuntime:
             return
         # Validation may have refreshed tokens or discovered metadata.
         self._ensure_metrics(settings)
-        try:
-            # Values saved on the /auth page stay out of .env, so "Reset to env vars" is
-            # not undone by the next restart.
-            sync_env_file(Path(".env"), exclude=overridden_keys())
-        except (OSError, UnicodeError):
-            logger.warning("Skipping .env sync (not writable or not UTF-8)")
+        if self._sync_env:
+            try:
+                # Values saved on the /auth page stay out of .env, so "Reset to env vars" is
+                # not undone by the next restart.
+                sync_env_file(Path(".env"), exclude=overridden_keys())
+            except (OSError, UnicodeError):
+                logger.warning("Skipping .env sync (not writable or not UTF-8)")
 
         if self._stop.is_set():
             return

@@ -634,3 +634,18 @@ def test_store_retry_during_validation_happens_only_once_in_a_row(tmp_path: Path
         assert attempts["n"] == 2
     finally:
         runtime.stop()
+
+
+def test_env_sync_can_be_disabled(monkeypatch) -> None:
+    calls: list[object] = []
+    monkeypatch.setattr(rt, "sync_env_file", lambda *a, **k: calls.append(a))
+    runtime = rt.ExporterRuntime(
+        settings_factory=_local, validate=lambda s: None, client_factory=lambda s: _Client(),
+        discover=lambda s: None, sync_env=False,
+    )
+    runtime.start()
+    try:
+        _wait_until(lambda: runtime.ready)
+    finally:
+        runtime.stop()
+    assert calls == []
