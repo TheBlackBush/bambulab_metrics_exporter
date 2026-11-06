@@ -6,7 +6,7 @@ All metrics include stable labels: `printer_name` and `serial`.
 
 ## Supported models
 
-Detection is not hardware validation: only the X1C is validated on real hardware (an H2D was checked while idle). Metrics
+Detection is not hardware validation: only the X1C is validated on real hardware (an H2D was checked while idle and while printing). Metrics
 for hardware a model does not have report NaN.
 
 | Model | Serial prefix | Chamber temp | Chamber heater | Door sensor | Lid | Aux / chamber fan | Extruders | Hotend rack | Laser / cutter |
@@ -204,8 +204,8 @@ Fan values: raw levels 0–15 → nearest-10 percent normalization.
 |--------|------|-------------|
 | `bambulab_wifi_signal` | Gauge | Wi-Fi signal (dBm) |
 | `bambulab_wired_network` | Gauge | Wired network detected |
-| `bambulab_network_rtt{interface}` | Gauge | Raw `rtt` value the printer reports per network interface (`wlan`, `wired`). The unit and exact meaning are not confirmed, so the name carries no unit |
-| `bambulab_network_retransmissions{interface}` | Gauge | `retrans` value the printer reports per network interface (`wlan`, `wired`). Reported by the printer; the meaning (counter or per interval) is not confirmed |
+| `bambulab_network_rtt{interface}` | Gauge | Raw `rtt` value the printer reports per network interface (`wlan`, `wired`). The unit and exact meaning are not confirmed, so the name carries no unit. On a real H2D it stayed near 215 while a connection to the cloud broker took about 210 ms, so it likely tracks the cloud connection in milliseconds. |
+| `bambulab_network_retransmissions{interface}` | Gauge | `retrans` value the printer reports per network interface (`wlan`, `wired`). Reported by the printer; the meaning (counter or per interval) is not confirmed. On a real H2D it held steady during a print and was higher than a day earlier, so it likely is a running total. |
 | `bambulab_door_open` | Gauge | Door open flag. NaN on models without a door sensor (A1, A1 mini, A2L, P1P, P1S) |
 | `bambulab_lid_open` | Gauge | Top lid open flag (`stat` bit 24). H2 family only; NaN on other models |
 | `bambulab_mqtt_signature_required` | Gauge | 1 when the printer only accepts signed MQTT commands (Developer Mode off; `fun` bit 0x20000000). Unsigned control commands from other tools are then rejected with HMS `0500_0500_0001_0007` |

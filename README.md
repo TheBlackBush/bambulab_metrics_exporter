@@ -17,7 +17,7 @@ printer over your home network (or through Bambu Cloud), and publishes the data 
 ![Grafana Dashboard Sample](examples/grafana/dashboard-sample.jpg)
 
 **Supported printers:** X1, X1C, X1E, X2D, P1P, P1S, P2S, A1, A1 mini, A2L, H2D, H2D Pro, H2S
-and H2C are recognized. Real-world testing so far is on an **X1C**, and an **H2D** was checked on real hardware while idle; if you own another model and
+and H2C are recognized. Real-world testing so far is on an **X1C**, and an **H2D** was checked on real hardware while idle and while printing; if you own another model and
 want to help, please open an issue on GitHub.
 
 ---
@@ -263,7 +263,7 @@ A sample of the output is in [`examples/sample_metrics.prom`](examples/sample_me
 
 ## Known limitations
 
-1. Only the X1C has been fully tested on real hardware (an H2D was checked while idle); other models are recognized from their data
+1. Only the X1C has been fully tested on real hardware (an H2D was checked while idle and while printing); other models are recognized from their data
    and may report some values differently.
 2. One container monitors one printer. For several printers, run one container per printer.
 3. The MQTT connection is encrypted, but the printer's certificate is not verified (the printers
