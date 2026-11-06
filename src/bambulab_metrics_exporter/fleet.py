@@ -17,6 +17,7 @@ from bambulab_metrics_exporter.client.base import BambuClient
 from bambulab_metrics_exporter.client.factory import build_client
 from bambulab_metrics_exporter.config import Settings
 from bambulab_metrics_exporter.metrics import ExporterMetrics
+from bambulab_metrics_exporter.overrides import lock as overrides_lock
 from bambulab_metrics_exporter.printers import (
     TRANSPORT_CLOUD,
     PrinterConfig,
@@ -106,7 +107,11 @@ class PrinterFleet:
 
     def _validate(self, settings: Settings) -> None:
         """Cloud printers share one account: one validation at a time, each starting from
-        the newest tokens, so a refresh by one printer is reused by the rest."""
+        the newest tokens, so a refresh by one printer is reused by the rest.
+
+        The lock deliberately covers the whole validation: cloud printers share one account
+        and its tokens. One unreachable cloud printer can delay the other cloud printers by a
+        probe timeout, but never LAN printers, which skip the lock."""
         if settings.bambulab_transport != TRANSPORT_CLOUD:
             self._validate_fn(settings)
             return
@@ -264,32 +269,34 @@ class PrinterFleet:
 
     def update(self, configs: list[PrinterConfig]) -> bool:
         """Save the list and apply it. Unchanged printers stay connected. True when saved."""
-        persisted = self._store.save(configs)
         wanted = {config.printer_id: config for config in configs}
-        started: list[ExporterRuntime] = []
-        with self._lock:
+        # Same order as request handlers: overrides lock first, then the fleet lock.
+        with overrides_lock, self._lock:
+            persisted = self._store.save(configs)
+            # The env runtime is keyed "env", not by printer id, so it never compares equal
+            # to a saved config. Retire it always; its saved config replaces it.
+            env_runtime = self._runtimes.pop(ENV_RUNTIME_ID, None)
+            if env_runtime is not None:
+                self._retire(env_runtime)
             for printer_id in list(self._runtimes):
                 if self._configs.get(printer_id) != wanted.get(printer_id):
                     self._retire(self._runtimes.pop(printer_id))
                     self._configs.pop(printer_id, None)
             for printer_id, config in wanted.items():
                 if printer_id not in self._runtimes:
-                    started.append(self._add(config))
-            running = self._started
-        if running:
-            for runtime in started:
-                runtime.start()
+                    runtime = self._add(config)
+                    if self._started:
+                        runtime.start()
         return persisted
 
     def reset_to_env(self) -> None:
-        self._store.clear()
-        with self._lock:
+        with overrides_lock, self._lock:
+            self._store.clear()
             for runtime in self._runtimes.values():
                 self._retire(runtime)
             self._runtimes.clear()
             self._configs.clear()
             runtime = self._env_runtime()
             self._runtimes[ENV_RUNTIME_ID] = runtime
-            running = self._started
-        if running:
-            runtime.start()
+            if self._started:
+                runtime.start()

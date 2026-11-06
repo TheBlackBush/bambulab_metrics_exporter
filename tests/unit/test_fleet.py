@@ -172,11 +172,31 @@ def test_saving_the_env_printer_keeps_its_exposition(monkeypatch) -> None:
         _running(fleet)
         _wait_until(lambda: fleet.ready)
         before = fleet.metrics._base_labels
-        fleet.update(fleet.configs())
+        saved = fleet.configs()
+        fleet.update(saved)
         _running(fleet)
+        assert len(fleet._runtimes) == 1
+        assert "env" not in fleet._runtimes
+        assert fleet.configs() == saved
+        assert len(fleet.printers_status()) == 1
         assert fleet.metrics._base_labels == before
+        _wait_until(
+            lambda: generate_latest(fleet.scrape_registry).decode().count("bambulab_printer_up{")
+            == 1
+        )
     finally:
         fleet.stop()
+
+
+def test_update_after_stop_starts_nothing() -> None:
+    fleet = _fleet(configs=[A, B])
+    fleet.start()
+    _running(fleet)
+    fleet.stop()
+    fleet.update([A, C1])
+    fleet.reset_to_env()
+    assert all(rt._thread is None or not rt._thread.is_alive() for rt in fleet._runtimes.values())
+    fleet.stop()
 
 
 def test_reset_returns_to_env_mode(monkeypatch, tmp_path: Path) -> None:
