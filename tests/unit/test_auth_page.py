@@ -1810,16 +1810,50 @@ def test_serial_field_left_the_cloud_form(monkeypatch) -> None:
 def test_printer_blocks_are_always_rendered_empty_capable(monkeypatch) -> None:
     for client in (_client()[0], _fleet_client(monkeypatch, devices=[])[0]):
         page = client.get("/auth").text
-        assert '<div id="printers-live" data-live></div>' in page
         assert '<div id="cloud-picker" data-live></div>' in page
     page = _fleet_client(monkeypatch)[0].get("/auth").text
     assert '<div id="cloud-picker" data-live><form' in page
 
 
-def test_printer_table_sits_right_after_the_status_card(monkeypatch) -> None:
+def _status_card(page: str) -> str:
+    return page.split('id="status-card"')[1].split('id="page-notice"')[0]
+
+
+def test_one_printer_shows_one_card_and_one_state(monkeypatch) -> None:
+    client, runtime = _fleet_client(monkeypatch, devices=[])
+    runtime.message = "Could not connect"
+    runtime.list = [PrinterConfig(serial=S3, transport="local_mqtt", name="Garage")]
+    page = client.get("/auth").text
+    card = _status_card(page)
+    assert '<span class="label">Printer</span>' in card and "Status" not in card
+    assert card.count('class="pill ') == 1 and card.count("Could not connect") == 1
+    assert card.count("Garage") == 1 and "action=\"/auth/printers/remove\"" in card
+    assert 'class="card"><span class="label">Printers' not in page
+
+
+def test_several_printers_add_only_an_overall_state(monkeypatch) -> None:
+    client, runtime = _fleet_client(monkeypatch, devices=[])
+    runtime.list = [
+        PrinterConfig(serial=S3, transport="local_mqtt", name="Garage"),
+        PrinterConfig(serial=S1, transport="cloud_mqtt", name="Cloudy"),
+    ]
+    card = _status_card(client.get("/auth").text)
+    assert '<span class="label">Printers</span>' in card
+    assert card.count('class="pill ') == 3
+
+
+def test_no_printers_keeps_the_status_summary_without_a_printer_line(monkeypatch) -> None:
+    client, _runtime = _fleet_client(monkeypatch, devices=[])
+    card = _status_card(client.get("/auth").text)
+    assert '<span class="label">Status</span>' in card and "Re-authentication required" in card
+    assert card.count('class="pill ') == 1
+    assert "no host set" not in card and "no printer set" not in card
+
+
+def test_printer_list_sits_in_the_live_status_card(monkeypatch) -> None:
     page = _client()[0].get("/auth").text
-    assert page.index('id="status-card"') < page.index('id="printers-live"')
-    assert page.index('id="printers-live"') < page.index('id="page-notice"')
+    assert page.index('id="status-card"') < page.index('id="page-notice"')
+    assert "printers-live" not in page
     cloud = page.index("panel-cloud\">")
     assert cloud < page.index('id="cloud-picker"') < page.index('action="/auth/reset"')
     assert page.index("</form>", cloud) < page.index('id="cloud-picker"')
@@ -1832,7 +1866,7 @@ def test_printer_table_escapes_and_shows_state_message_and_transport(monkeypatch
         PrinterConfig(serial=S3, transport="local_mqtt", name="<img src=x>"),
         PrinterConfig(serial=S1, transport="cloud_mqtt", name="Cloudy"),
     ]
-    table = client.get("/auth").text.split('id="printers-live"')[1].split('id="page-notice"')[0]
+    table = _status_card(client.get("/auth").text)
     assert "&lt;img src=x&gt;" in table and "<img" not in table
     assert "Could not &lt;b&gt;connect&lt;/b&gt;" in table
     assert "LAN" in table and "Cloud" in table and "Connected" in table
@@ -1995,7 +2029,7 @@ def test_page_on_an_empty_real_fleet(monkeypatch) -> None:
     fleet.update([])
     page = client.get("/auth")
     assert page.status_code == 200 and "No printers selected." in page.text
-    assert '<div id="printers-live" data-live></div>' in page.text
+    assert 'class="printer-row"' not in page.text
 
 
 def test_empty_real_fleet_keeps_the_allowed_hosts(monkeypatch) -> None:
@@ -2340,3 +2374,51 @@ def test_select_does_not_carry_lan_values_into_the_env_printer() -> None:
 def test_lan_form_says_names_matter_with_several_printers(monkeypatch) -> None:
     client, _runtime = _fleet_client(monkeypatch)
     assert "unnamed printers of one model share a label" in client.get("/auth").text
+
+
+# ---------------------------------------------------------------------------
+# login to an account with several printers: choose before anything connects
+# ---------------------------------------------------------------------------
+
+_TWO_DEVICES = [
+    {"dev_id": S1, "name": "One", "dev_product_name": "H2D", "online": True},
+    {"dev_id": S2, "name": "Two", "dev_product_name": "X1C", "online": True},
+]
+
+
+def test_login_with_several_printers_connects_nothing_until_saved(monkeypatch) -> None:
+    client, runtime = _fleet_client(monkeypatch, devices=_TWO_DEVICES)
+    monkeypatch.setattr(auth_actions, "login_with_code", lambda email, code: _login())
+    response = client.post("/auth/cloud/login", data=_LOGIN, headers=_JSON)
+    assert response.json()["ok"] is True
+    assert runtime.updates == [] and runtime.list == []
+
+    page = client.get("/auth").text
+    assert "Select your printers below." in _status_card(page)
+    assert 'class="printer-row"' not in page
+    assert f'name="printer_{printer_id_for(S1)}"' in page
+    assert 'id="mode-cloud" checked' in page
+
+    client.post(
+        "/auth/printers/select", data={f"printer_{printer_id_for(S2)}": "on"}, headers=_JSON
+    )
+    assert [config.serial for config in runtime.list] == [S2]
+    card = _status_card(client.get("/auth").text)
+    assert 'class="printer-row"' in card and "Two" in card and "Select your printers" not in card
+
+
+def test_login_with_one_printer_shows_it_at_once(monkeypatch) -> None:
+    client, runtime = _login_client(monkeypatch)
+    runtime.list = [LAN3]
+    client.post("/auth/cloud/login", data=_LOGIN, headers=_JSON)
+    assert S1 in [config.serial for config in runtime.list]
+    assert "Solo" in _status_card(client.get("/auth").text)
+
+
+def test_unreadable_note_stays_while_choosing_printers(monkeypatch) -> None:
+    client, runtime = _fleet_client(monkeypatch, devices=_TWO_DEVICES)
+    monkeypatch.setattr(auth_actions, "login_with_code", lambda email, code: _login())
+    runtime.list_unreadable = True
+    client.post("/auth/cloud/login", data=_LOGIN, headers=_JSON)
+    card = _status_card(client.get("/auth").text)
+    assert "Select your printers below." in card and "could not be read" in card

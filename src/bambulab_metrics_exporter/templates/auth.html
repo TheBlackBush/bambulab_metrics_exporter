@@ -135,7 +135,7 @@
 
   /* Printer list and account picker. Their wrappers are always there, so a background
      refresh can fill them; empty ones must not add a gap to the page. */
-  #printers-live:empty, #cloud-picker:empty { display: none; }
+  #cloud-picker:empty { display: none; }
   .printer-row { display: flex; flex-direction: row; align-items: center; gap: 0.6rem; padding: 0.4rem 0; }
   .printer-row .step { flex: 1; min-width: 0; overflow-wrap: anywhere; }
   .printer-message { display: block; }
@@ -157,14 +157,14 @@
 
   <div class="card" id="status-card" data-live{{DATA_REFRESH}}>
     <div class="status-row">
-      <span class="label">Status</span>
-      <span class="pill {{STATE_CLASS}}">{{STATE_LABEL}}</span>
+      <span class="label">{{STATUS_TITLE}}</span>
+      {{STATUS_PILL}}
     </div>
-    <div class="detail">{{CURRENT}}</div>
+    {{CURRENT}}
+    {{PRINTERS}}
     {{STATE_MESSAGE}}
     {{FLASH}}
   </div>
-  <div id="printers-live" data-live>{{PRINTERS}}</div>
   <div id="page-notice" role="status" aria-live="polite"></div>
 
   <div class="card">

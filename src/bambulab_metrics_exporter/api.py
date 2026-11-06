@@ -48,7 +48,6 @@ from bambulab_metrics_exporter.overrides import lock as overrides_lock
 from bambulab_metrics_exporter.printers import TRANSPORT_LOCAL, PrinterConfig
 from bambulab_metrics_exporter.reauth import credentials_path
 
-
 logger = logging.getLogger(__name__)
 
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
@@ -329,10 +328,8 @@ def _page_text(text: str) -> str:
     return html.escape(text, quote=True).replace("{", "&#123;")
 
 
-def _printer_table(printers: list[dict[str, str]]) -> str:
+def _printer_rows(printers: list[dict[str, str]]) -> str:
     """Monitored printers; only masked serials reach this unauthenticated page."""
-    if not printers:
-        return ""
     rows = []
     for printer in printers:
         label, css = _STATE_LABELS.get(printer["state"], (printer["state"], "wait"))
@@ -350,7 +347,7 @@ def _printer_table(printers: list[dict[str, str]]) -> str:
             f'<span class="pill {css}">{_page_text(label)}</span>'
             '<button type="submit" class="danger small">Remove</button></form>'
         )
-    return '<div class="card"><span class="label">Printers</span>' + "".join(rows) + "</div>"
+    return "".join(rows)
 
 
 def _cloud_picker(
@@ -558,8 +555,22 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
             if status["message"]
             else ""
         )
-        if fleet and fleet.list_unreadable:
-            message += f'<div class="detail">{_UNREADABLE_NOTE}</div>'
+        # One card: printer rows carry each state and message, so the summary only adds
+        # an overall state when there are several printers to sum up.
+        printers = fleet.printers_status() if fleet else []
+        title = "Status"
+        pill = f'<span class="pill {css}">{html.escape(label)}</span>'
+        detail = html.escape(f"{where}, printer {printer}")
+        current_html = "" if fleet else f'<div class="detail">{detail}</div>'
+        if printers:
+            title = "Printers" if len(printers) > 1 else "Printer"
+            pill = pill if len(printers) > 1 else ""
+            message = ""
+        unreadable = (
+            f'<div class="detail">{_UNREADABLE_NOTE}</div>'
+            if fleet and fleet.list_unreadable
+            else ""
+        )
         # While connecting, reload every few seconds so the status updates by itself, and
         # keep the last result visible until the state settles. Every post redirects here
         # (so a refresh cannot submit a form again); the flash carries the email the visitor
@@ -579,7 +590,6 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
         email = flash.email if flash else ""
         show_send_wait = flash.show_send_wait if flash else False
         flash_html = _notice_html(result) if result else ""
-        cloud = show_send_wait or current.bambulab_transport == "cloud_mqtt"
         # The wait shows only right after a Send code or login post, never on a plain
         # load, so the button starts active and the timer follows a press.
         send_attrs, send_label = _send_code_button(
@@ -591,12 +601,20 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
                 config.serial for config in fleet.configs() if config.transport != TRANSPORT_LOCAL
             }
             picker = _cloud_picker(devices.peek(), selected, devices.refresh_failed)
+        if picker and not printers:
+            # Signed in with nothing chosen yet: the next step is the picker, not env settings.
+            message = '<div class="detail">Select your printers below.</div>'
+        message += unreadable
+        cloud = (
+            show_send_wait or current.bambulab_transport == "cloud_mqtt"
+            or bool(picker and not printers)
+        )
         page = (
             _AUTH_TEMPLATE
             .replace("{{VERSION}}", __version__)
-            .replace("{{STATE_LABEL}}", html.escape(label))
-            .replace("{{STATE_CLASS}}", css)
-            .replace("{{CURRENT}}", html.escape(f"{where}, printer {printer}"))
+            .replace("{{STATUS_TITLE}}", title)
+            .replace("{{STATUS_PILL}}", pill)
+            .replace("{{CURRENT}}", current_html)
             .replace("{{STATE_MESSAGE}}", message)
             .replace("{{FLASH}}", flash_html)
             .replace("{{DATA_REFRESH}}", ' data-refresh="1"' if refreshing else "")
@@ -608,7 +626,7 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
             .replace("{{CLOUD_CHECKED}}", "checked" if cloud else "")
             .replace("{{SEND_ATTRS}}", send_attrs)
             .replace("{{SEND_LABEL}}", send_label)
-            .replace("{{PRINTERS}}", _printer_table(fleet.printers_status()) if fleet else "")
+            .replace("{{PRINTERS}}", _printer_rows(printers))
             .replace("{{CLOUD_PICKER}}", picker)
             .replace("{{LOCAL_ACTION}}", "/auth/printers/add-local" if fleet else "/auth/local")
             .replace("{{LOCAL_BUTTON}}", "Add printer" if fleet else "Connect locally")
