@@ -272,3 +272,32 @@ def test_mixed_fleet_loads_cloud_tokens_with_local_env_transport(monkeypatch, tm
     PrinterStore().save([PrinterConfig(serial="FAKE00TEST000001", transport="cloud_mqtt")])
     main._bootstrap_cloud_credentials(force=main._has_cloud_printer(PrinterStore()))
     assert os.environ["BAMBULAB_CLOUD_ACCESS_TOKEN"] == "fake-access-token"
+
+
+def _run_collecting_force(monkeypatch) -> list[bool]:
+    from bambulab_metrics_exporter import main
+
+    forced: list[bool] = []
+    monkeypatch.setattr(main, "_safe_load_dotenv", lambda: None)
+    monkeypatch.setattr(main, "apply_overrides_to_env", lambda: [])
+    monkeypatch.setattr(main, "_bootstrap_cloud_credentials", lambda force=False: forced.append(force))
+    monkeypatch.setattr(main, "PrinterFleet", lambda store: _RuntimeStub())
+    monkeypatch.setattr(main, "build_app", lambda runtime=None: _capture_app({}))
+    monkeypatch.setattr(main.uvicorn, "run", lambda app, host, port, log_level: None)
+    main.run()
+    return forced
+
+
+def test_page_login_with_no_saved_list_loads_tokens_after_a_restart(monkeypatch, tmp_path) -> None:
+    """The picker needs the account token even before a printer is ticked."""
+    monkeypatch.setenv("BAMBULAB_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("BAMBULAB_TRANSPORT", "local_mqtt")
+    monkeypatch.delenv("BAMBULAB_CREDENTIALS_FILE", raising=False)
+    (tmp_path / "credentials.enc.json.before-auth-page").write_bytes(b"")
+    assert _run_collecting_force(monkeypatch) == [True]
+
+
+def test_no_page_login_and_no_cloud_printer_needs_no_tokens(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("BAMBULAB_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("BAMBULAB_TRANSPORT", "local_mqtt")
+    assert _run_collecting_force(monkeypatch) == [False]

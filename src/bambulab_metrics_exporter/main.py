@@ -33,8 +33,8 @@ def _has_cloud_printer(store: PrinterStore) -> bool:
 
 
 def _bootstrap_cloud_credentials(force: bool = False) -> None:
-    """``force``: the saved printer list has cloud printers even if the env transport is
-    local, so the account tokens are needed anyway."""
+    """``force``: the saved printer list has cloud printers, or a page login is active, even
+    if the env transport is local, so the account tokens are needed anyway."""
     transport = os.getenv("BAMBULAB_TRANSPORT", "local_mqtt")
     if transport != "cloud_mqtt" and not force:
         return
@@ -117,7 +117,8 @@ def run() -> None:
     configure_logging(os.getenv("LOG_LEVEL", "INFO"))
     apply_overrides_to_env()
     store = PrinterStore()
-    _bootstrap_cloud_credentials(force=_has_cloud_printer(store))
+    # A page login with no printer ticked yet still needs its token: the picker uses it.
+    _bootstrap_cloud_credentials(force=_has_cloud_printer(store) or page_login_active())
     try:
         settings = Settings()
     except Exception as exc:  # noqa: BLE001 - serve /auth even with invalid env values
