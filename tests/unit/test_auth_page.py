@@ -2335,3 +2335,8 @@ def test_select_does_not_carry_lan_values_into_the_env_printer() -> None:
     listed = CloudDevice(printer_id_for(S1), S1, "Named", "H2D", True)
     chosen = auth_actions.select_cloud_printers([env], [listed], {listed.printer_id})
     assert chosen[0].host == "" and chosen[0].access_code == ""
+
+
+def test_lan_form_says_names_matter_with_several_printers(monkeypatch) -> None:
+    client, _runtime = _fleet_client(monkeypatch)
+    assert "unnamed printers of one model share a label" in client.get("/auth").text

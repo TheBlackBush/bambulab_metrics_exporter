@@ -69,9 +69,14 @@ The exporter never exits on connection problems: the web server stays up and the
   level `state` is the worst one.
 - All cloud printers show **Login required**: they share one Bambu account, so one login on `/auth`
   restores all of them. LAN printers are not affected.
-- Saving a selection is refused when the account device list is empty (for example a failed
-  lookup). Reload the page and try again. A cloud printer that left the account can still be
-  removed.
+- Saving a selection is refused when the account device list is empty or the latest refresh failed
+  (the picker then says the list is the last known one). Try again in a minute. A cloud printer that
+  left the account can still be removed.
+- **The saved printer list could not be read** on `/auth`: the exporter runs the env-var printer (or
+  nothing) because `printers.enc.json` did not decrypt or is damaged. Usually `BAMBULAB_SECRET_KEY`
+  changed or is missing: restore it and restart. The log names the error type. If you save a new list
+  or reset instead, the old file is kept as `printers.enc.json.bad`.
+- A serial is either cloud or LAN, never both: remove the printer first to change how it connects.
 - Two printers can have the same `printer_name`; filter on `serial` to separate them.
 - Several printers per exporter have not been validated on real hardware. If one misbehaves, run it
   in its own container.

@@ -195,7 +195,7 @@ needed when you do not use the `/auth` page.
 | `BAMBULAB_CLOUD_MQTT_HOST` | no | `us.mqtt.bambulab.com` | Bambu Cloud MQTT server |
 | `BAMBULAB_CLOUD_MQTT_PORT` | no | `8883` | Bambu Cloud MQTT port |
 | `BAMBULAB_REQUEST_PUSHALL` | no | `true` | Ask the printer for a full status report on every poll (read-only) |
-| `PRINTER_NAME_LABEL` | no | empty | Name shown for the printer in metrics (default: the printer's own name) |
+| `PRINTER_NAME_LABEL` | no | empty | Name shown for the printer in metrics (default: the printer's own name). Applies only to the env-var printer, not to printers added on `/auth` |
 | `POLLING_INTERVAL_SECONDS` | no | `10` | Seconds between polls |
 | `REQUEST_TIMEOUT_SECONDS` | no | `8` | Seconds to wait for a printer report |
 | `LISTEN_HOST` | no | `0.0.0.0` | Web server bind address inside the container |
@@ -268,7 +268,7 @@ A sample of the output is in [`examples/sample_metrics.prom`](examples/sample_me
   | `/auth/status` | Connection state as JSON |
   | `/metrics` | Data for Prometheus |
   | `/health` | Liveness check (for container health checks) |
-  | `/ready` | Ready once the first printer data has arrived |
+  | `/ready` | Ready once any printer has data |
 
 ## Known limitations
 

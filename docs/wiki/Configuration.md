@@ -46,7 +46,7 @@ Files in the config directory (mode `0600`; all are encrypted with `BAMBULAB_SEC
 | File | Written by | Purpose |
 |------|------------|---------|
 | `credentials.enc.json` (`BAMBULAB_CREDENTIALS_FILE`) | cloud login, token refresh, `bambulab-reauth` | Cloud user ID and tokens |
-| `printers.enc.json` | `/auth` page | The printer list (up to 32, cloud and LAN) once you change it on the page; includes LAN access codes. When absent, the exporter runs the one printer from env vars. Removed by **Reset to env vars** |
+| `printers.enc.json` | `/auth` page | The printer list (up to 32, cloud and LAN) once you change it on the page; includes LAN access codes. When absent, the exporter runs the one printer from env vars. Removed by **Reset to env vars**. A file that cannot be read is kept as `printers.enc.json.bad` before it is replaced or removed |
 | `connection-overrides.enc.json` | `/auth` page | Connection settings that override env vars; removed by **Reset to env vars** |
 | `send-code-limit.json` | `/auth` page | Send-code limit state (plain JSON, no secrets); survives restarts and is cleared by a successful page login |
 | `credentials.enc.json.before-auth-page` | `/auth` page | The credentials that existed before the first page login; restored by **Reset to env vars** |
@@ -90,7 +90,7 @@ BAMBULAB_SECRET_KEY=a3f1c8e2d4b7901234567890abcdef1234567890abcdef1234567890abcd
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `PRINTER_NAME_LABEL` | no | empty | **Canonical** custom printer name label; takes priority over all other sources |
+| `PRINTER_NAME_LABEL` | no | empty | **Canonical** custom printer name label; takes priority over all other sources. Applies only to the env-var printer: printers added on `/auth` use their own name |
 | `BAMBULAB_PRINTER_NAME` | no | `auto` | Discovered printer name (auto-persisted) |
 | `BAMBULAB_PRINTER_MODEL` | no | empty | Model hint used when the serial prefix is not recognized (for example `P2S`, `X1 Carbon`, `BL-P001`). Filled by cloud discovery; unrecognized values are ignored |
 
@@ -99,7 +99,8 @@ BAMBULAB_SECRET_KEY=a3f1c8e2d4b7901234567890abcdef1234567890abcdef1234567890abcd
 > **Deprecated (no effect):** `SITE` and `LOCATION` variables appeared in older configurations but are **inactive** and have no effect. Do not set them; they are ignored by the exporter.
 
 All metrics include `printer_name` and `serial` labels. With several printers in one exporter the
-labels keep their series apart; two printers may share a `printer_name`. The printer list needs
+labels keep their series apart; two printers may share a `printer_name`, and unnamed LAN printers of
+one model do share one, so name each printer. The printer list needs
 `BAMBULAB_SECRET_KEY` to survive restarts; without it the list lives in memory until the next restart
 and the page says so. The env-var printer keeps its existing `printer_name` after the first page change.
 
