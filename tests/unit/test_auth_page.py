@@ -592,15 +592,25 @@ def test_save_error_shows_notice_instead_of_500(monkeypatch) -> None:
     assert runtime.reconfigured == 0
 
 
-def test_connecting_page_keeps_the_typed_email_through_auto_refreshes(monkeypatch) -> None:
-    """The flash survives the auto-reloads while connecting, so the email is not wiped."""
+def test_page_after_a_press_is_a_single_view_without_auto_reload(monkeypatch) -> None:
     monkeypatch.setattr(auth_actions, "send_code", lambda email: None)
     client, runtime = _client()
     runtime.status = lambda: {"state": "connecting", "message": "", "transport": "local_mqtt"}
-    client.post("/auth/cloud/send-code", data={"email": "operator@example.invalid"})
-    for _ in range(2):
-        page = client.get("/auth").text
-        assert 'value="operator@example.invalid"' in page
+    _post_send(client)
+    page = client.get("/auth").text
+    assert f'value="{EMAIL}"' in page and 'http-equiv="refresh"' not in page
+    _assert_timer_shown(page)
+    page = client.get("/auth").text
+    assert EMAIL not in page and 'http-equiv="refresh"' in page
+    _assert_timer_hidden(page)
+
+
+def test_email_is_escaped_after_the_redirect(monkeypatch) -> None:
+    monkeypatch.setattr(auth_actions, "send_code", lambda email: None)
+    client, _ = _client()
+    client.post("/auth/cloud/send-code", data={"email": '"><script>x@example.invalid'})
+    page = client.get("/auth").text
+    assert "<script>x@" not in page
 
 
 def test_streamed_form_without_length_is_capped() -> None:
@@ -830,7 +840,7 @@ def test_invalid_send_code_input_redirects(monkeypatch) -> None:
 
 def test_another_visitor_never_sees_the_email_or_timer(monkeypatch) -> None:
     monkeypatch.setattr(auth_actions, "send_code", lambda email: None)
-    client, runtime = _client()
+    client, _ = _client()
     _post_send(client)
     other = TestClient(client.app)
     page = other.get("/auth").text

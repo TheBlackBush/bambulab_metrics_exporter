@@ -182,8 +182,9 @@ _FLASH_LIMIT = 64
 class _Flash:
     """What one visitor sees once after a page action.
 
-    The email is held in memory for that single page view only (never on disk), and the
-    store of these is capped by ``_FLASH_LIMIT``.
+    The email is held in memory only (never on disk), and the store of these is capped by
+    ``_FLASH_LIMIT``. A flash with ``show_send_wait`` is shown for a single page view; a
+    plain result flash may be shown again by the auto-reloads while connecting.
     """
 
     result: ActionResult
@@ -425,7 +426,13 @@ def _add_auth_routes(app: FastAPI, runtime: ExporterRuntime) -> None:
         token = visitor(request)
         flash = None
         if token:
-            flash = flashes.get(token) if refreshing else flashes.pop(token, None)
+            flash = flashes.get(token)
+            # The page after a Send code or login press is a single view in any state: it
+            # holds the typed email and the timer, so it is consumed and does not reload.
+            if flash and (flash.show_send_wait or not refreshing):
+                flashes.pop(token, None)
+            if flash and flash.show_send_wait:
+                refreshing = False
         result = flash.result if flash else None
         email = flash.email if flash else ""
         show_send_wait = flash.show_send_wait if flash else False
