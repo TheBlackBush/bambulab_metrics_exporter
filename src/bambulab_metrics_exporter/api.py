@@ -68,6 +68,10 @@ _STATE_LABELS: dict[str, tuple[str, str]] = {
 
 _REFRESH_STATES = {"starting", "connecting"}
 
+_UNREADABLE_NOTE = (
+    "The saved printer list could not be read, so it is not in use. Check BAMBULAB_SECRET_KEY."
+)
+
 _PRINTER_ICON = (
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
     'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
@@ -184,6 +188,9 @@ class _Backend(Protocol):
 class _Fleet(_Backend, Protocol):
     @property
     def saved(self) -> bool: ...
+
+    @property
+    def list_unreadable(self) -> bool: ...
 
     def configs(self) -> list[PrinterConfig]: ...
 
@@ -534,6 +541,8 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
             if status["message"]
             else ""
         )
+        if fleet and fleet.list_unreadable:
+            message += f'<div class="detail">{_UNREADABLE_NOTE}</div>'
         # While connecting, reload every few seconds so the status updates by itself, and
         # keep the last result visible until the state settles. Every post redirects here
         # (so a refresh cannot submit a form again); the flash carries the email the visitor

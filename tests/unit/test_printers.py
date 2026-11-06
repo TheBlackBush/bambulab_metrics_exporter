@@ -1,11 +1,15 @@
 """Tests for the saved printer list and per-printer settings."""
 from __future__ import annotations
 
+import logging
+import stat
+from dataclasses import asdict
 from pathlib import Path
 
 import pytest
 
 from bambulab_metrics_exporter.config import Settings
+from bambulab_metrics_exporter.credentials_store import save_encrypted_credentials
 from bambulab_metrics_exporter.printers import (
     PrinterConfig,
     PrinterStore,
@@ -13,6 +17,7 @@ from bambulab_metrics_exporter.printers import (
     printer_id_for,
     printer_settings,
 )
+from bambulab_metrics_exporter.security import encrypt_json
 
 SECRET = "fake-development-key-never-use"
 LAN = PrinterConfig(
@@ -141,3 +146,197 @@ def test_name_label_only_for_env_printer(monkeypatch) -> None:
     assert printer_settings(LAN).printer_name_label == ""
     env_printer = PrinterConfig(serial=LAN.serial, transport="local_mqtt", env_printer=True)
     assert printer_settings(env_printer).printer_name_label == "operator-label"
+
+
+# ---------------------------------------------------------------------------
+# unreadable saved list
+# ---------------------------------------------------------------------------
+
+def _store_path(tmp_path: Path) -> Path:
+    return tmp_path / "printers.enc.json"
+
+
+def _wrong_key(path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    save_encrypted_credentials(path, "fake-other-key", {"printers": [asdict(LAN)]})
+
+
+def _truncated(path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    save_encrypted_credentials(path, SECRET, {"printers": [asdict(LAN)]})
+    path.write_bytes(path.read_bytes()[:20])
+
+
+def _bad_json(path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    path.write_bytes(encrypt_json(SECRET, "{not json"))
+
+
+def _not_a_list(path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    save_encrypted_credentials(path, SECRET, {"printers": {"serial": "FAKE00TEST000001"}})
+
+
+def _no_printers_key(path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    save_encrypted_credentials(path, SECRET, {"other": 1})
+
+
+def _nothing_parses(path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    save_encrypted_credentials(path, SECRET, {"printers": [{"serial": ""}, "junk"]})
+
+
+def _no_key(path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    save_encrypted_credentials(path, SECRET, {"printers": [asdict(LAN)]})
+    monkeypatch.delenv("BAMBULAB_SECRET_KEY")
+
+
+_UNREADABLE = [
+    _wrong_key, _truncated, _bad_json, _not_a_list, _no_printers_key, _nothing_parses, _no_key,
+]
+
+
+@pytest.mark.parametrize("damage", _UNREADABLE)
+def test_unreadable_list_falls_back_and_warns_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, damage
+) -> None:
+    monkeypatch.setenv("BAMBULAB_SECRET_KEY", SECRET)
+    damage(_store_path(tmp_path), monkeypatch)
+    store = PrinterStore()
+    with caplog.at_level(logging.WARNING):
+        assert store.load() is None
+        assert store.load() is None
+    assert store.unreadable is True
+    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 1
+    assert "printers.enc.json" in warnings[0] and "BAMBULAB_SECRET_KEY" in warnings[0]
+
+
+def test_unreadable_warning_names_the_class_never_the_message(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setenv("BAMBULAB_SECRET_KEY", SECRET)
+    _store_path(tmp_path).write_bytes(b"x")
+
+    def boom(_path: Path, _secret: str) -> dict:
+        raise KeyError("fake-sensitive-detail")
+
+    monkeypatch.setattr("bambulab_metrics_exporter.printers.load_encrypted_credentials", boom)
+    with caplog.at_level(logging.WARNING):
+        assert PrinterStore().load() is None
+    assert "KeyError" in caplog.text and "fake-sensitive-detail" not in caplog.text
+
+
+def test_absent_file_is_not_unreadable(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setenv("BAMBULAB_SECRET_KEY", SECRET)
+    store = PrinterStore()
+    with caplog.at_level(logging.WARNING):
+        assert store.load() is None
+    assert store.unreadable is False and caplog.text == ""
+
+
+def test_saved_empty_list_is_not_unreadable(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setenv("BAMBULAB_SECRET_KEY", SECRET)
+    store = PrinterStore()
+    store.save([])
+    with caplog.at_level(logging.WARNING):
+        assert store.load() == []
+    assert store.unreadable is False and caplog.text == ""
+
+
+def test_store_is_unreadable_only_after_a_failed_load_and_recovers_on_save(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("BAMBULAB_SECRET_KEY", SECRET)
+    _wrong_key(_store_path(tmp_path), monkeypatch)
+    store = PrinterStore()
+    assert store.load() is None and store.unreadable is True
+    store.save([LAN])
+    assert store.unreadable is False and store.load() == [LAN]
+
+
+@pytest.mark.parametrize("damage", [d for d in _UNREADABLE if d is not _no_key])
+def test_first_save_over_an_unreadable_file_keeps_a_private_copy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, damage
+) -> None:
+    monkeypatch.setenv("BAMBULAB_SECRET_KEY", SECRET)
+    path = _store_path(tmp_path)
+    damage(path, monkeypatch)
+    original = path.read_bytes()
+    store = PrinterStore()
+    store.save([LAN])
+    bad = tmp_path / "printers.enc.json.bad"
+    assert bad.read_bytes() == original
+    assert stat.S_IMODE(bad.stat().st_mode) == 0o600
+
+    store.save([CLOUD])  # The file is readable now: the copy stays as it was.
+    assert bad.read_bytes() == original
+    assert store.load() == [CLOUD]
+
+
+def test_save_over_a_readable_file_keeps_no_copy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("BAMBULAB_SECRET_KEY", SECRET)
+    store = PrinterStore()
+    store.save([LAN])
+    store.save([CLOUD])
+    assert not (tmp_path / "printers.enc.json.bad").exists()
+
+
+def test_save_is_refused_when_the_copy_cannot_be_kept(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("BAMBULAB_SECRET_KEY", SECRET)
+    path = _store_path(tmp_path)
+    _wrong_key(path, monkeypatch)
+    original = path.read_bytes()
+    (tmp_path / "printers.enc.json.bad").mkdir()  # os.replace onto a directory fails
+
+    with pytest.raises(OSError):
+        PrinterStore().save([LAN])
+    assert path.read_bytes() == original
+
+
+def test_session_save_without_a_key_leaves_the_unreadable_file_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = _store_path(tmp_path)
+    monkeypatch.setenv("BAMBULAB_SECRET_KEY", SECRET)
+    _no_key(path, monkeypatch)
+    original = path.read_bytes()
+    store = PrinterStore()
+    assert store.load() is None
+    assert store.save([CLOUD]) is False
+    assert store.load() == [CLOUD]
+    assert path.read_bytes() == original
+    assert store.unreadable is True
+    assert not (tmp_path / "printers.enc.json.bad").exists()
+
+
+def test_clear_keeps_a_copy_of_an_unreadable_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("BAMBULAB_SECRET_KEY", SECRET)
+    path = _store_path(tmp_path)
+    _wrong_key(path, monkeypatch)
+    original = path.read_bytes()
+    store = PrinterStore()
+    store.clear()
+    assert not path.exists() and store.unreadable is False
+    assert (tmp_path / "printers.enc.json.bad").read_bytes() == original
+
+
+def test_ignored_entries_are_counted_once_without_values(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setenv("BAMBULAB_SECRET_KEY", SECRET)
+    bad = {"serial": "FAKE00TEST000009", "transport": "carrier_pigeon"}
+    save_encrypted_credentials(
+        _store_path(tmp_path), SECRET, {"printers": [asdict(LAN), bad, "junk"]}
+    )
+    store = PrinterStore()
+    with caplog.at_level(logging.WARNING):
+        assert store.load() == [LAN]
+        assert store.load() == [LAN]
+    assert store.unreadable is False
+    assert caplog.messages == ["2 of 3 saved printers were ignored"]

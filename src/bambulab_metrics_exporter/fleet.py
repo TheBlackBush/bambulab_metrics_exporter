@@ -178,6 +178,10 @@ class PrinterFleet:
     def saved(self) -> bool:
         return self._store.load() is not None
 
+    @property
+    def list_unreadable(self) -> bool:
+        return self._store.unreadable
+
     def start(self) -> None:
         with self._lock:
             self._started = True

@@ -1531,6 +1531,7 @@ class _FleetRuntime(_Runtime):
         self.updates: list[list[PrinterConfig]] = []
         self.reset_called = False
         self.saved = True
+        self.list_unreadable = False
         self.message = ""
 
     def configs(self) -> list[PrinterConfig]:
@@ -2131,3 +2132,10 @@ def test_one_printer_login_on_a_real_fleet(monkeypatch) -> None:
     assert client.post("/auth/cloud/login", data=_LOGIN, headers=_JSON).json()["ok"] is True
     assert [c.serial for c in fleet.configs()] == [S3, S1]
     assert f'name="printer_{printer_id_for(S1)}" checked' in client.get("/auth").text
+
+
+def test_page_says_when_the_saved_list_could_not_be_read(monkeypatch) -> None:
+    client, runtime = _fleet_client(monkeypatch)
+    assert "saved printer list could not be read" not in client.get("/auth").text
+    runtime.list_unreadable = True
+    assert "saved printer list could not be read" in client.get("/auth").text

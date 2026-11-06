@@ -294,3 +294,21 @@ def test_status_keeps_single_printer_fields() -> None:
         assert fleet.status() == {"state": "running", "message": "", "transport": "local_mqtt"}
     finally:
         fleet.stop()
+
+
+def test_unreadable_list_falls_back_to_env_and_is_reported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("BAMBULAB_SERIAL", "FAKE00TEST000005")
+    (tmp_path / "printers.enc.json").write_bytes(b"damaged")
+    fleet = _fleet()
+    assert fleet.saved is False and fleet.list_unreadable is True
+    assert [(c.serial, c.env_printer) for c in fleet.configs()] == [("FAKE00TEST000005", True)]
+
+
+def test_saving_over_an_unreadable_list_clears_the_report(tmp_path: Path) -> None:
+    (tmp_path / "printers.enc.json").write_bytes(b"damaged")
+    fleet = _fleet()
+    fleet.update([A])
+    assert fleet.list_unreadable is False
+    assert (tmp_path / "printers.enc.json.bad").read_bytes() == b"damaged"

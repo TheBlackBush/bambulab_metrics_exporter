@@ -18,6 +18,7 @@ from bambulab_metrics_exporter.config import Settings
 from bambulab_metrics_exporter.credentials_store import (
     load_encrypted_credentials,
     save_encrypted_credentials,
+    write_private_file,
 )
 from bambulab_metrics_exporter.overrides import DEFAULT_CONFIG_DIR
 from bambulab_metrics_exporter.overrides import lock as overrides_lock
@@ -25,6 +26,7 @@ from bambulab_metrics_exporter.overrides import lock as overrides_lock
 logger = logging.getLogger(__name__)
 
 PRINTERS_FILE = "printers.enc.json"
+UNREADABLE_COPY_FILE = f"{PRINTERS_FILE}.bad"
 MAX_PRINTERS = 32
 TRANSPORT_LOCAL = "local_mqtt"
 TRANSPORT_CLOUD = "cloud_mqtt"
@@ -85,6 +87,9 @@ class PrinterStore:
 
     def __init__(self) -> None:
         self._session: list[PrinterConfig] | None = None
+        self._unreadable = False
+        self._unreadable_logged = False
+        self._ignored_logged = False
 
     @staticmethod
     def _path() -> Path:
@@ -94,25 +99,62 @@ class PrinterStore:
     def _secret() -> str:
         return os.getenv("BAMBULAB_SECRET_KEY", "")
 
+    @property
+    def unreadable(self) -> bool:
+        """A saved file was there but gave no list at the last read. No I/O and no lock, so
+        rendering a page cannot wait on a login that holds the overrides lock."""
+        return self._unreadable
+
+    def _mark_unreadable(self, reason: str) -> None:
+        self._unreadable = True
+        if not self._unreadable_logged:
+            self._unreadable_logged = True
+            logger.warning(
+                "The saved printer list (%s) could not be read (%s); check BAMBULAB_SECRET_KEY. "
+                "Using environment variables",
+                PRINTERS_FILE,
+                reason,
+            )
+
+    def _read_file(self) -> list[PrinterConfig] | None:
+        """None when there is no list to use; ``unreadable`` tells why. Only the exception
+        class is logged: the message could carry file content."""
+        self._unreadable = False
+        path, secret = self._path(), self._secret()
+        try:
+            if not path.exists():
+                return None
+            if not secret:
+                self._mark_unreadable("no key set")
+                return None
+            items = load_encrypted_credentials(path, secret).get("printers")
+            if not isinstance(items, list):
+                raise ValueError("no printer list in the file")
+            configs = [config for config in map(_parse, items) if config is not None]
+            if items and not configs:
+                raise ValueError("no usable printer in the file")
+        except Exception as exc:  # noqa: BLE001 - any failure keeps the env fallback
+            self._mark_unreadable(type(exc).__name__)
+            return None
+        ignored = len(items) - len(configs)
+        if ignored and not self._ignored_logged:
+            self._ignored_logged = True
+            logger.warning("%d of %d saved printers were ignored", ignored, len(items))
+        return configs
+
+    def _keep_unreadable_copy(self) -> None:
+        """An unreadable file may be fine with the right key, so it is never just replaced.
+        A failed copy raises: nothing is lost then, and the save or clear does not happen."""
+        self._read_file()
+        if self._unreadable:
+            path = self._path()
+            write_private_file(path.with_name(UNREADABLE_COPY_FILE), path.read_bytes())
+
     def load(self) -> list[PrinterConfig] | None:
         with overrides_lock:
             if self._session is not None:
                 return list(self._session)
-            path, secret = self._path(), self._secret()
-            if not secret or not path.exists():
-                return None
-            try:
-                raw = load_encrypted_credentials(path, secret)
-            except Exception:  # noqa: BLE001 - unreadable means "no saved list"
-                logger.warning(
-                    "The saved printer list could not be read; using environment variables"
-                )
-                return None
-            items = raw.get("printers")
-            if not isinstance(items, list):
-                return None
-            parsed = [_parse(item) for item in items]
-            return [config for config in parsed if config is not None]
+            return self._read_file()
 
     def save(self, configs: list[PrinterConfig]) -> bool:
         with overrides_lock:
@@ -120,16 +162,20 @@ class PrinterStore:
             if not secret:
                 self._session = list(configs)
                 return False
+            self._keep_unreadable_copy()
             save_encrypted_credentials(
                 self._path(), secret, {"printers": [asdict(config) for config in configs]}
             )
             self._session = None
+            self._unreadable = False
             return True
 
     def clear(self) -> None:
         with overrides_lock:
+            self._keep_unreadable_copy()
             self._session = None
             self._path().unlink(missing_ok=True)
+            self._unreadable = False
 
 
 def printer_settings(
