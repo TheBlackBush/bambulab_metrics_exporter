@@ -1759,3 +1759,42 @@ def test_network_stats_malformed(net: object) -> None:
 def test_network_stats_ignores_extra_interfaces() -> None:
     info = [{"retrans": 1}, {"retrans": 2}, {"retrans": 3}]
     assert sorted(_block({"net": {"info": info}}).network_stats) == ["wired", "wlan"]
+
+
+def _dual(state: object, temps: dict[int, object], top: object = 43) -> PrinterSnapshot:
+    return _block({
+        "nozzle_temper": top,
+        "device": {"extruder": {"state": state, "info": [
+            {"id": i, "temp": t} for i, t in temps.items()
+        ]}},
+    })
+
+
+def test_active_nozzle_uses_the_active_extruder() -> None:
+    assert _dual(1 << 4, {0: 43, 1: (245 << 16) | 245}).active_nozzle_temp == 245.0
+    assert _dual(0, {0: 43, 1: (245 << 16) | 245}).active_nozzle_temp == 43.0
+
+
+def test_active_nozzle_keeps_the_old_metric_value_unchanged() -> None:
+    assert _dual(1 << 4, {0: 43, 1: (245 << 16) | 245}).nozzle_temp == 43.0
+
+
+def test_active_nozzle_falls_back_to_the_top_level_value() -> None:
+    assert _block({"nozzle_temper": 210}).active_nozzle_temp == 210.0
+    assert _dual(15 << 4, {0: 43, 1: 245}, top=210).active_nozzle_temp == 210.0  # no such extruder
+    assert _dual("bad", {0: 43}, top=210).active_nozzle_temp == 210.0
+    assert _dual(1 << 4, {1: "bad"}, top=210).active_nozzle_temp == 210.0
+
+
+def test_active_nozzle_absent() -> None:
+    assert _block({}).active_nozzle_temp is None
+
+
+def test_active_nozzle_none_on_laser_only_printer() -> None:
+    snap = PrinterSnapshot(
+        connected=True,
+        raw={"print": {"nozzle_temper": 200.0}},
+        configured_serial="35FFAKE0000001",
+    )
+    assert snap.model_name == "R1"
+    assert snap.active_nozzle_temp is None

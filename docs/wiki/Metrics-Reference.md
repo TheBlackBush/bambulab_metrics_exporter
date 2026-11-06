@@ -76,8 +76,9 @@ Unknown models export whatever the payload carries.
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `bambulab_nozzle_temperature_celsius` | Gauge | Current nozzle temperature |
+| `bambulab_nozzle_temperature_celsius` | Gauge | Current nozzle temperature. On dual-nozzle printers this is extruder 0, which can be idle during a print; use bambulab_active_nozzle_temperature_celsius. |
 | `bambulab_nozzle_target_temperature_celsius` | Gauge | Target nozzle temperature |
+| `bambulab_active_nozzle_temperature_celsius` | Gauge | Temperature of the nozzle in use (the active extruder); same as the nozzle temperature on single-nozzle printers |
 | `bambulab_nozzle_diameter` | Gauge | Nozzle diameter from telemetry |
 | `bambulab_bed_temperature_celsius` | Gauge | Current bed temperature |
 | `bambulab_bed_target_temperature_celsius` | Gauge | Target bed temperature |

@@ -763,6 +763,20 @@ class PrinterSnapshot:
         return _to_float(self.print_block.get("nozzle_target_temper"))
 
     @property
+    def active_nozzle_temp(self) -> float | None:
+        """Temperature of the extruder in use. Top-level `nozzle_temper` is extruder 0 on
+        dual-nozzle printers, so it can show an idle nozzle during a print. Falls back to it
+        when there is no matching extruder entry. Single-extruder printers always use it,
+        because the packed per-extruder value is an integer and loses the decimals."""
+        entries = self.extruder_entries
+        active = self.active_extruder_index
+        if active is not None and len(entries) > 1:
+            for entry in entries:
+                if entry["id"] == str(int(active)) and entry["actual_temp"] is not None:
+                    return float(entry["actual_temp"])
+        return self.nozzle_temp
+
+    @property
     def nozzle_diameter(self) -> float | None:
         if not self.capabilities.fdm:
             return None

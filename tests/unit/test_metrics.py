@@ -1909,6 +1909,11 @@ class TestNetworkAndUpgradeMetrics:
     ("name", "help_text", "labels"),
     [
         (
+            "bambulab_active_nozzle_temperature_celsius",
+            "Temperature of the nozzle in use (the active extruder)",
+            ["printer_name", "serial"],
+        ),
+        (
             "bambulab_ams_drying_blocked_reason_info",
             "Why this AMS cannot start drying now (drying_in_progress while it runs)",
             ["printer_name", "serial", "ams_id", "reason"],
@@ -1938,3 +1943,26 @@ def test_new_metric_contract(name: str, help_text: str, labels: list[str]) -> No
     assert gauge._type == "gauge"
     assert gauge._documentation == help_text
     assert list(gauge._labelnames) == labels
+
+
+def _gauge_value(m: ExporterMetrics, gauge_name: str) -> float:
+    labels = {"printer_name": "test", "serial": "SN123"}
+    return getattr(m, gauge_name).labels(**labels)._value.get()
+
+
+def test_active_nozzle_temperature_follows_active_extruder() -> None:
+    m = _metrics()
+    m.update_from_snapshot(_snap({
+        "nozzle_temper": 43,
+        "device": {"extruder": {"state": 1 << 4, "info": [
+            {"id": 0, "temp": 43}, {"id": 1, "temp": (245 << 16) | 245},
+        ]}},
+    }))
+    assert _gauge_value(m, "active_nozzle_temp") == 245.0
+    assert _gauge_value(m, "nozzle_temp") == 43.0
+
+
+def test_active_nozzle_temperature_nan_when_absent() -> None:
+    m = _metrics()
+    m.update_from_snapshot(_snap({}))
+    assert math.isnan(_gauge_value(m, "active_nozzle_temp"))

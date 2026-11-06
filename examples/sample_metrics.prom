@@ -28,6 +28,9 @@ bambulab_nozzle_temperature_celsius{printer_name="my-x1c",serial="00MFAKE0TEST00
 # HELP bambulab_nozzle_target_temperature_celsius Nozzle target temperature
 # TYPE bambulab_nozzle_target_temperature_celsius gauge
 bambulab_nozzle_target_temperature_celsius{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_active_nozzle_temperature_celsius Temperature of the nozzle in use (the active extruder)
+# TYPE bambulab_active_nozzle_temperature_celsius gauge
+bambulab_active_nozzle_temperature_celsius{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 30.0
 # HELP bambulab_nozzle_diameter Nozzle diameter from MQTT
 # TYPE bambulab_nozzle_diameter gauge
 bambulab_nozzle_diameter{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.4

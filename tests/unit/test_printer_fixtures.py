@@ -571,3 +571,14 @@ def test_h2d_real_idle_new_metrics() -> None:
         "wired",
     }
     assert _value(metrics, "bambulab_wired_network") == 0.0
+
+
+@pytest.mark.parametrize("name", ALL)
+def test_active_nozzle_matches_old_metric_on_single_extruder(name: str) -> None:
+    fixture, snap, metrics = _load(name)
+    if len(snap.extruder_entries) > 1:
+        pytest.skip("dual extruder: the two metrics may legitimately differ")
+    old = _value(metrics, "bambulab_nozzle_temperature_celsius")
+    new = _value(metrics, "bambulab_active_nozzle_temperature_celsius")
+    if not (math.isnan(old) or math.isnan(new)):
+        assert new == old

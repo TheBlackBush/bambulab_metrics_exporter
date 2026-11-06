@@ -229,7 +229,7 @@ highlights:
 | `bambulab_printer_gcode_state{state}` | Printer state (`IDLE`, `RUNNING`, `PAUSE`, `FINISH`, `FAILED`, ...) |
 | `bambulab_print_progress_percent` | Print progress (0-100) |
 | `bambulab_print_remaining_seconds` | Estimated time left |
-| `bambulab_nozzle_temperature_celsius`, `bambulab_bed_temperature_celsius` | Temperatures (plus `_target_` versions) |
+| `bambulab_nozzle_temperature_celsius`, `bambulab_bed_temperature_celsius` | Temperatures (plus `_target_` versions); `bambulab_active_nozzle_temperature_celsius` is the nozzle in use on dual-nozzle printers |
 | `bambulab_hms_active_errors{severity}` | Active printer errors by severity |
 | `bambulab_ams_slot_remaining_percent{ams_id,slot_id}` | Filament left per AMS slot |
 | `bambulab_ams_unit_humidity_index{ams_id}` | AMS humidity level (1-5) |
