@@ -342,3 +342,66 @@ def test_reconfigure_still_reaches_every_printer(monkeypatch: pytest.MonkeyPatch
     counts = _reconfigure_counts(fleet, monkeypatch)
     fleet.reconfigure()
     assert counts == {A.printer_id: 1, C1.printer_id: 1}
+
+
+class _Boom(RuntimeError):
+    pass
+
+
+def _raises(*_a: object) -> None:
+    raise _Boom("fake-sensitive-detail")
+
+
+def _counter(calls: list[str], name: str):
+    return lambda: calls.append(name)
+
+
+def _first_fails(fleet: PrinterFleet, monkeypatch: pytest.MonkeyPatch, method: str) -> list[str]:
+    """The first runtime raises, the others record that they were reached."""
+    calls: list[str] = []
+    runtimes = list(fleet._runtimes.items())
+    monkeypatch.setattr(runtimes[0][1], method, _raises)
+    for printer_id, runtime in runtimes[1:]:
+        monkeypatch.setattr(runtime, method, _counter(calls, printer_id))
+    return calls
+
+
+@pytest.mark.parametrize("method", ["stop", "reconfigure", "reconfigure_cloud"])
+def test_one_failing_runtime_does_not_stop_the_others(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, method: str
+) -> None:
+    fleet = _fleet(configs=[C1, C2])
+    calls = _first_fails(fleet, monkeypatch, "stop" if method == "stop" else "reconfigure")
+    getattr(fleet, method)()
+    assert calls == [C2.printer_id]
+    assert "_Boom" in caplog.text and "FAK*************" in caplog.text
+    assert "fake-sensitive-detail" not in caplog.text
+    assert "FAKE00TEST" not in caplog.text
+
+
+def test_retire_thread_logs_a_failing_stop(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    fleet = _fleet(configs=[A])
+    runtime = fleet._runtimes[A.printer_id]
+    monkeypatch.setattr(runtime, "stop", _raises)
+    fleet._retire(runtime)
+    fleet._retiring[0].join(timeout=2)
+    assert "_Boom" in caplog.text and "FAK*************" in caplog.text
+
+
+class _StuckThread:
+    def join(self, timeout: float | None = None) -> None:
+        pass
+
+    def is_alive(self) -> bool:
+        return True
+
+
+def test_stop_warns_about_a_retiring_thread_that_outlives_its_join(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    fleet = _fleet(configs=[])
+    fleet._retiring = [_StuckThread()]
+    fleet.stop()
+    assert "still stopping" in caplog.text

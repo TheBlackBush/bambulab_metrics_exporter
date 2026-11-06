@@ -39,6 +39,7 @@ from bambulab_metrics_exporter.startup import startup_validate
 logger = logging.getLogger(__name__)
 
 ENV_RUNTIME_ID = "env"
+RETIRE_JOIN_SECONDS = 12
 # Worst first: the summary state for the status page.
 _STATE_ORDER = (
     STATE_ERROR,
@@ -48,6 +49,24 @@ _STATE_ORDER = (
     STATE_STARTING,
     STATE_RUNNING,
 )
+
+
+def _isolated(runtime: ExporterRuntime, action: str, call: Callable[[], None]) -> None:
+    """One printer's failure must not reach the others, a request or the shutdown. Only the
+    exception class is logged: the message could carry connection details."""
+    try:
+        call()
+    except Exception as exc:  # noqa: BLE001 - see above
+        serial = mask_serial(str(runtime.settings.bambulab_serial))
+        logger.warning("Could not %s printer %s (%s)", action, serial, type(exc).__name__)
+
+
+def _stop_runtime(runtime: ExporterRuntime) -> None:
+    _isolated(runtime, "stop", runtime.stop)
+
+
+def _reconfigure_runtime(runtime: ExporterRuntime) -> None:
+    _isolated(runtime, "reconfigure", runtime.reconfigure)
 
 
 class MergedCollector:
@@ -195,13 +214,17 @@ class PrinterFleet:
             runtimes = list(self._runtimes.values())
             retiring, self._retiring = self._retiring, []
         for thread in retiring:
-            thread.join(timeout=12)
+            thread.join(timeout=RETIRE_JOIN_SECONDS)
+            if thread.is_alive():
+                logger.warning(
+                    "A removed printer was still stopping after %d s", RETIRE_JOIN_SECONDS
+                )
         for runtime in runtimes:
-            runtime.stop()
+            _stop_runtime(runtime)
 
     def reconfigure(self) -> None:
         for runtime in self._snapshot():
-            runtime.reconfigure()
+            _reconfigure_runtime(runtime)
 
     def reconfigure_cloud(self) -> None:
         """After a cloud login: only printers on the account, and the env printer, which may
@@ -213,7 +236,7 @@ class PrinterFleet:
                 or self._configs[printer_id].transport == TRANSPORT_CLOUD
             ]
         for runtime in runtimes:
-            runtime.reconfigure()
+            _reconfigure_runtime(runtime)
 
     def status(self) -> dict[str, str]:
         statuses = [runtime.status() for runtime in self._snapshot()]
@@ -285,7 +308,9 @@ class PrinterFleet:
 
     def _retire(self, runtime: ExporterRuntime) -> None:
         """Stop in the background: a stop can take seconds and this runs during a request."""
-        thread = threading.Thread(target=runtime.stop, name="runtime-retire", daemon=True)
+        thread = threading.Thread(
+            target=_stop_runtime, args=(runtime,), name="runtime-retire", daemon=True
+        )
         self._retiring = [t for t in self._retiring if t.is_alive()] + [thread]
         thread.start()
 
