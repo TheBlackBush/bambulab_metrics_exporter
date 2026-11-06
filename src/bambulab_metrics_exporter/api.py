@@ -128,6 +128,17 @@ def _last_update(last: float | None, poll: float | None, now: float) -> tuple[st
     return text, "fresh" if fresh else "stale"
 
 
+def _send_code_button(seconds: int) -> tuple[str, str]:
+    """Attributes and label for the Send code button. Only integers and fixed text."""
+    if seconds <= 0:
+        return "", "Send code"
+    if seconds < 60:
+        label = f"{seconds}s"
+    else:
+        label = f"{seconds // 60}m {seconds % 60}s"
+    return f' disabled data-wait="{seconds}"', f"Send code ({label})"
+
+
 def _notice_html(result: ActionResult) -> str:
     kind, icon = ("ok", "&#10003;") if result.ok else ("bad", "!")
     note = (
@@ -407,6 +418,7 @@ def _add_auth_routes(app: FastAPI, runtime: ExporterRuntime) -> None:
             result = flashes.get(token) if refreshing else flashes.pop(token, None)
         flash_html = _notice_html(result) if result else ""
         cloud = current.bambulab_transport == "cloud_mqtt" if cloud_tab is None else cloud_tab
+        send_attrs, send_label = _send_code_button(code_sender.wait_seconds())
         page = (
             _AUTH_TEMPLATE
             .replace("{{VERSION}}", __version__)
@@ -421,6 +433,8 @@ def _add_auth_routes(app: FastAPI, runtime: ExporterRuntime) -> None:
             )
             .replace("{{LOCAL_CHECKED}}", "" if cloud else "checked")
             .replace("{{CLOUD_CHECKED}}", "checked" if cloud else "")
+            .replace("{{SEND_ATTRS}}", send_attrs)
+            .replace("{{SEND_LABEL}}", send_label)
             # Echo only the email the visitor just submitted; it is never stored.
             .replace("{{CLOUD_EMAIL}}", html.escape(email, quote=True))
         )

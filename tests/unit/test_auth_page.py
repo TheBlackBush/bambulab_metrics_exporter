@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from bambulab_metrics_exporter import auth_actions, overrides
-from bambulab_metrics_exporter.api import build_app
+from bambulab_metrics_exporter.api import _send_code_button, build_app
 from bambulab_metrics_exporter.auth_actions import AuthInputError, CodeSender
 from bambulab_metrics_exporter.cloud_auth import CloudAuthError, LoginResult
 from bambulab_metrics_exporter.config import Settings
@@ -731,3 +731,48 @@ def test_reset_and_local_do_not_clear_the_send_code_ladder(monkeypatch) -> None:
     page = client.post("/auth/cloud/send-code", data={"email": "operator@example.invalid"})
     assert "A code was just sent" in page.text
     assert len(sent) == 1
+
+
+# ---------------------------------------------------------------------------
+# send-code button shows the wait
+# ---------------------------------------------------------------------------
+
+def test_send_code_button_attributes_and_label() -> None:
+    assert _send_code_button(0) == ("", "Send code")
+    assert _send_code_button(42) == (' disabled data-wait="42"', "Send code (42s)")
+    assert _send_code_button(60) == (' disabled data-wait="60"', "Send code (1m 0s)")
+    assert _send_code_button(570) == (' disabled data-wait="570"', "Send code (9m 30s)")
+
+
+def test_send_code_button_is_enabled_without_a_wait() -> None:
+    page = _client()[0].get("/auth").text
+    button = page[page.index('id="send-code"'):]
+    button = button[: button.index(">")]
+    assert "disabled" not in button and "data-wait" not in button
+    assert '<span id="send-code-label">Send code</span>' in page
+
+
+def test_send_code_post_shows_the_wait_and_keeps_email(monkeypatch) -> None:
+    sent: list[str] = []
+    monkeypatch.setattr(auth_actions, "send_code", sent.append)
+    client, _ = _client()
+    email = "operator@example.invalid"
+    resp = client.post("/auth/cloud/send-code", data={"email": email})
+    assert f'value="{email}"' in resp.text
+    assert " disabled data-wait=" in resp.text
+    assert "Send code (" in resp.text
+
+    page = client.get("/auth").text  # a later view shows the wait, and sends nothing
+    assert " disabled data-wait=" in page and "Send code (" in page
+    assert sent == [email]
+
+
+def test_forced_post_during_the_wait_is_still_refused(monkeypatch) -> None:
+    sent: list[str] = []
+    monkeypatch.setattr(auth_actions, "send_code", sent.append)
+    client, _ = _client()
+    email = "operator@example.invalid"
+    client.post("/auth/cloud/send-code", data={"email": email})
+    resp = client.post("/auth/cloud/send-code", data={"email": email})
+    assert "A code was just sent" in resp.text
+    assert sent == [email]

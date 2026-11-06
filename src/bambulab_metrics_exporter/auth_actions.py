@@ -164,6 +164,23 @@ class SendCodeLimiter:
         except OSError:
             logger.warning("Could not save the send-code limit; it applies until a restart")
 
+    def wait_seconds(self) -> int:
+        """Seconds until the next send is allowed, 0 when it is. Read-only: it never counts
+        a send and never saves, but applies the same caps as ``check_and_record``."""
+        with self._lock:
+            self._load()
+            now = self._clock()
+            last_send = min(self._last_send, now)
+            locked_until = min(self._locked_until, now + SEND_CODE_LATER_LOCK_SECONDS)
+            if locked_until > now:
+                return math.ceil(locked_until - now)
+            if self._sends >= SEND_CODE_MAX_PER_ROUND:
+                return 0  # The finished round is over; the next send starts a new one.
+            wait = SEND_CODE_INTERVAL_SECONDS - (now - last_send)
+            if self._sends and wait > 0:
+                return math.ceil(wait)
+            return 0
+
     def check_and_record(self) -> None:
         """Count one send, or raise AuthInputError saying how long to wait."""
         with self._lock:
@@ -226,6 +243,9 @@ class CodeSender:
         except CloudAuthError as exc:
             return ActionResult(False, f"Could not send the code: {exc}")
         return ActionResult(True, "Verification code sent. Check your email.")
+
+    def wait_seconds(self) -> int:
+        return self._limiter.wait_seconds()
 
     def reset(self) -> None:
         self._limiter.reset()

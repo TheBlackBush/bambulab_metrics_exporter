@@ -223,3 +223,100 @@ def test_concurrent_sends_count_once_within_interval(tmp_path: Path, monkeypatch
     for thread in threads:
         thread.join()
     assert len(sent) == 1
+
+
+# ---------------------------------------------------------------------------
+# wait_seconds: read-only view of the wait, used by the /auth button
+# ---------------------------------------------------------------------------
+
+def test_wait_seconds_is_zero_when_fresh(tmp_path: Path) -> None:
+    assert SendCodeLimiter(tmp_path / "s.json", Clock()).wait_seconds() == 0
+
+
+def test_wait_seconds_after_one_send(tmp_path: Path) -> None:
+    clock = Clock()
+    limiter = SendCodeLimiter(tmp_path / "s.json", clock)
+    limiter.check_and_record()
+    assert limiter.wait_seconds() == 60
+    clock.advance(59)
+    assert limiter.wait_seconds() == 1
+    clock.advance(1)
+    assert limiter.wait_seconds() == 0
+
+
+def test_wait_seconds_during_ten_minute_lock(tmp_path: Path) -> None:
+    clock = Clock()
+    limiter = SendCodeLimiter(tmp_path / "s.json", clock)
+    _round(limiter, clock, sends=5)  # 60 s past the fifth send, lock was 600 s
+    assert limiter.wait_seconds() == 540
+    clock.advance(539.5)
+    assert limiter.wait_seconds() == 1  # rounds up
+    clock.advance(0.5)
+    assert limiter.wait_seconds() == 0
+
+
+def test_wait_seconds_during_one_hour_lock(tmp_path: Path) -> None:
+    clock = Clock()
+    limiter = SendCodeLimiter(tmp_path / "s.json", clock)
+    _round(limiter, clock, sends=5)
+    clock.advance(600)
+    _round(limiter, clock, sends=5)  # second round locks for an hour
+    assert limiter.wait_seconds() == 3600 - 60
+    clock.advance(3540)
+    assert limiter.wait_seconds() == 0
+
+
+def test_wait_seconds_does_not_count_or_write(tmp_path: Path) -> None:
+    state = tmp_path / "s.json"
+    clock = Clock()
+    limiter = SendCodeLimiter(state, clock)
+    assert limiter.wait_seconds() == 0
+    assert not state.exists()
+    limiter.check_and_record()
+    before = state.read_text(encoding="utf-8")
+    for _ in range(3):
+        limiter.wait_seconds()
+    assert state.read_text(encoding="utf-8") == before
+    clock.advance(60)
+    limiter.check_and_record()  # still the second send, not a rejected one
+    assert json.loads(state.read_text(encoding="utf-8"))["sends"] == 2
+
+
+def test_wait_seconds_caps_a_future_lock(tmp_path: Path) -> None:
+    state = tmp_path / "s.json"
+    clock = Clock()
+    state.write_text(
+        json.dumps(
+            {
+                "round": 2,
+                "sends": 5,
+                "last_send": clock.now,
+                "locked_until": clock.now + 10_000_000,
+            }
+        ),
+        encoding="utf-8",
+    )
+    before = state.read_text(encoding="utf-8")
+    assert SendCodeLimiter(state, clock).wait_seconds() == 3600
+    assert state.read_text(encoding="utf-8") == before
+
+
+def test_wait_seconds_ignores_a_future_last_send(tmp_path: Path) -> None:
+    state = tmp_path / "s.json"
+    clock = Clock()
+    state.write_text(
+        json.dumps(
+            {"round": 1, "sends": 1, "last_send": clock.now + 5000, "locked_until": 0}
+        ),
+        encoding="utf-8",
+    )
+    assert SendCodeLimiter(state, clock).wait_seconds() == 60
+
+
+def test_code_sender_wait_seconds_delegates(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(auth_actions, "send_code", lambda email: None)
+    clock = Clock()
+    sender = CodeSender(SendCodeLimiter(tmp_path / "s.json", clock))
+    assert sender.wait_seconds() == 0
+    sender.send(EMAIL)
+    assert sender.wait_seconds() == 60
