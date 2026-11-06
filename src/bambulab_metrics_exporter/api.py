@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Protocol
 from urllib.parse import parse_qs, urlsplit
 
 from fastapi import FastAPI, HTTPException, Request, Response
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from starlette.concurrency import run_in_threadpool
@@ -451,6 +451,7 @@ def _add_auth_routes(app: FastAPI, runtime: ExporterRuntime) -> None:
             .replace("{{CURRENT}}", html.escape(f"{where}, printer {printer}"))
             .replace("{{STATE_MESSAGE}}", message)
             .replace("{{FLASH}}", flash_html)
+            .replace("{{DATA_REFRESH}}", ' data-refresh="1"' if refreshing else "")
             .replace(
                 "{{REFRESH}}",
                 '<meta http-equiv="refresh" content="3;url=/auth">' if refreshing else "",
@@ -492,10 +493,25 @@ def _add_auth_routes(app: FastAPI, runtime: ExporterRuntime) -> None:
             result = ActionResult(False, f"Could not save the settings: {_short_error(exc)}")
         return form, result
 
+    def wants_json(request: Request) -> bool:
+        return "application/json" in request.headers.get("accept", "")
+
+    def json_reply(result: ActionResult, reconnect: bool, with_wait: bool) -> Response:
+        """Answer a background request from the page script: no redirect and no flash, and
+        nothing the visitor typed is echoed (only the result message and the wait)."""
+        if reconnect and result.ok:
+            runtime.reconfigure()
+        body: dict[str, object] = {"ok": result.ok, "message": result.message}
+        if with_wait:
+            body["wait_seconds"] = code_sender.wait_seconds()
+        return JSONResponse(body, headers={"Cache-Control": "no-store"})
+
     async def handle(
         request: Request, action: Callable[[dict[str, str]], ActionResult], reconnect: bool
     ) -> Response:
         _form_data, result = await run_action(request, action)
+        if wants_json(request):
+            return json_reply(result, reconnect, with_wait=False)
         token = visitor(request) or secrets.token_urlsafe(16)
         set_flash(token, _Flash(result))
         if reconnect and result.ok:
@@ -503,11 +519,16 @@ def _add_auth_routes(app: FastAPI, runtime: ExporterRuntime) -> None:
         return with_visitor(RedirectResponse("/auth", status_code=303), token)
 
     async def cloud_action(
-        request: Request, action: Callable[[dict[str, str]], ActionResult], reconnect: bool
+        request: Request,
+        action: Callable[[dict[str, str]], ActionResult],
+        reconnect: bool,
+        with_wait: bool = False,
     ) -> Response:
         """Cloud steps redirect like every other post (so a refresh cannot press Send code
         again); the flash keeps the typed email and the wait for the next page view."""
         form, result = await run_action(request, action)
+        if wants_json(request):
+            return json_reply(result, reconnect, with_wait)
         token = visitor(request) or secrets.token_urlsafe(16)
         if reconnect and result.ok:
             set_flash(token, _Flash(result))
@@ -542,7 +563,7 @@ def _add_auth_routes(app: FastAPI, runtime: ExporterRuntime) -> None:
     @app.post("/auth/cloud/send-code")
     async def auth_send_code(request: Request) -> Response:
         return await cloud_action(
-            request, lambda f: code_sender.send(f.get("email", "")), reconnect=False
+            request, lambda f: code_sender.send(f.get("email", "")), reconnect=False, with_wait=True
         )
 
     @app.post("/auth/cloud/login")
