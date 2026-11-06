@@ -32,6 +32,7 @@ from bambulab_metrics_exporter.overrides import (
     save_overrides,
     set_env,
 )
+from bambulab_metrics_exporter.printers import mask_serial as mask_serial
 from bambulab_metrics_exporter.reauth import (
     CREDENTIAL_KEYS,
     apply_credentials,
@@ -64,11 +65,6 @@ class ActionResult:
 
 class AuthInputError(ValueError):
     """Invalid user input; the message is safe to show on the page."""
-
-
-def mask_serial(serial: str) -> str:
-    """Show only the model prefix of a serial on the unauthenticated page."""
-    return f"{serial[:3]}{'*' * max(len(serial) - 3, 0)}" if serial else ""
 
 
 def _persist(values: dict[str, str]) -> bool:
