@@ -320,3 +320,38 @@ def test_code_sender_wait_seconds_delegates(tmp_path: Path, monkeypatch) -> None
     assert sender.wait_seconds() == 0
     sender.send(EMAIL)
     assert sender.wait_seconds() == 60
+
+
+def _assert_parity(limiter: SendCodeLimiter) -> bool:
+    """wait_seconds() is 0 exactly when check_and_record() accepts."""
+    waiting = limiter.wait_seconds()
+    try:
+        limiter.check_and_record()
+    except AuthInputError:
+        assert waiting > 0
+        return False
+    assert waiting == 0
+    return True
+
+
+def test_wait_seconds_agrees_with_check_and_record(tmp_path: Path) -> None:
+    clock = Clock()
+    limiter = SendCodeLimiter(tmp_path / "s.json", clock)
+    steps = [0, 30, 29.5, 0.5, 60, 1, 59, 1, 60, 60, 1, 59, 60, 0, 1]  # incl. 5th send
+    steps += [60, 540, 1, 60] + [60] * 5 + [3599, 1, 1, 60, 60]
+    for step in steps * 2:
+        clock.advance(step)
+        _assert_parity(limiter)
+
+
+@pytest.mark.parametrize("field", ["last_send", "locked_until"])
+def test_wait_seconds_agrees_for_future_state(tmp_path: Path, field: str) -> None:
+    clock = Clock()
+    state = tmp_path / "s.json"
+    values = {"round": 1, "sends": 1, "last_send": clock.now, "locked_until": 0.0}
+    values[field] = clock.now + 100_000
+    state.write_text(json.dumps(values), encoding="utf-8")
+    limiter = SendCodeLimiter(state, clock)
+    for _ in range(4):
+        _assert_parity(limiter)
+        clock.advance(1000)

@@ -237,7 +237,7 @@
       return;
     }
     label.textContent = "Send code (" +
-      (left < 60 ? left + "s" : Math.floor(left / 60) + "m " + (left % 60) + "s") + ")";
+      (left <= 60 ? left + "s" : Math.floor(left / 60) + "m " + (left % 60) + "s") + ")";
     setTimeout(tick, 1000);
   }
   tick();

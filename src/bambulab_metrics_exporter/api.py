@@ -132,7 +132,7 @@ def _send_code_button(seconds: int) -> tuple[str, str]:
     """Attributes and label for the Send code button. Only integers and fixed text."""
     if seconds <= 0:
         return "", "Send code"
-    if seconds < 60:
+    if seconds <= 60:
         label = f"{seconds}s"
     else:
         label = f"{seconds // 60}m {seconds % 60}s"

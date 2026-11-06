@@ -740,7 +740,8 @@ def test_reset_and_local_do_not_clear_the_send_code_ladder(monkeypatch) -> None:
 def test_send_code_button_attributes_and_label() -> None:
     assert _send_code_button(0) == ("", "Send code")
     assert _send_code_button(42) == (' disabled data-wait="42"', "Send code (42s)")
-    assert _send_code_button(60) == (' disabled data-wait="60"', "Send code (1m 0s)")
+    assert _send_code_button(60) == (' disabled data-wait="60"', "Send code (60s)")
+    assert _send_code_button(61) == (' disabled data-wait="61"', "Send code (1m 1s)")
     assert _send_code_button(570) == (' disabled data-wait="570"', "Send code (9m 30s)")
 
 

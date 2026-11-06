@@ -33,8 +33,9 @@ The exporter never exits on connection problems: the web server stays up and the
 **Too many codes requested**
 - The `/auth` page limits verification emails: 5 sends 60 seconds apart, then a 10 minute wait,
   then a 1 hour wait after each later round of 5. Rejected sends count too. The limit survives
-  restarts and is reset only by a successful login on the page. The **Send code** button shows the time left and stays disabled until then. Wait for it, or
-  use `bambulab-reauth` in the container, which is a separate path that this limit does not apply to.
+  restarts and is reset only by a successful login on the page. The **Send code** button shows
+  the time left and stays disabled until then. Wait for it, or use `bambulab-reauth` in the
+  container, which is a separate path that this limit does not apply to.
   To clear the limit by hand, stop the container, delete `send-code-limit.json` from the config
   directory, and start it again. Deleting it while the container runs has no effect.
 
