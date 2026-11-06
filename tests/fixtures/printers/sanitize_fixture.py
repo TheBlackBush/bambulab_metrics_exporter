@@ -38,6 +38,8 @@ _FIXED = {
     "user_id": "0",
     "mc_print_line": "",
     "chip_id": "00000000000000000000000000000000",
+    "idx2": 0,
+    "t_utc": 0,
 }
 _SERIAL_KEYS = {"sn", "dev_id", "serial"}
 # 192.0.2.1 (RFC 5737 documentation range) as the printer's little-endian uint32.

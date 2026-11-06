@@ -1,3 +1,4 @@
+import math
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -187,6 +188,18 @@ AMS_MODEL_BY_MODULE_PREFIX: dict[str, str] = {
 
 # print_type values (job source); anything else is reported as "unknown".
 PRINT_TYPES: tuple[str, ...] = ("cloud", "local", "idle", "system", "unknown")
+FIRMWARE_UPGRADE_STATUSES: frozenset[str] = frozenset(
+    {
+        "idle",
+        "upgrade_request",
+        "downloading",
+        "download_fail",
+        "flash_fail",
+        "upgrade_fail",
+        "upgrade_success",
+    }
+)
+_NET_INTERFACES: tuple[str, ...] = ("wlan", "wired")
 # `fun` bit set when the printer requires signed MQTT commands (Developer Mode off).
 _FUN_MQTT_SIGNATURE_REQUIRED = 0x20000000
 
@@ -391,6 +404,38 @@ def parse_ams_drying(unit: dict[str, Any]) -> dict[str, float | None]:
         "duration_seconds": float(duration * 3600) if duration is not None and duration > 0
         else None,
     }
+
+
+# Why an AMS cannot start drying right now (`dry_sf_reason`, a list of codes). Code 6 only
+# means a drying run is already active.
+AMS_DRY_BLOCK_REASONS: dict[int, str] = {
+    0: "task_occupied",
+    1: "insufficient_power",
+    2: "ams_busy",
+    3: "consumable_at_ams_outlet",
+    4: "initiating_ams_drying",
+    5: "not_supported_in_2d_mode",
+    6: "drying_in_progress",
+    7: "upgrading",
+    8: "insufficient_power_need_plugin_power",
+    9: "closing_ams_drying",
+    10: "filament_at_ams_outlet_manual_unload",
+}
+
+
+def parse_ams_dry_block_reasons(unit: dict[str, Any]) -> list[str]:
+    """Reason names in payload order, without repeats. Non-integer entries are ignored."""
+    raw = unit.get("dry_sf_reason")
+    if not isinstance(raw, list):
+        return []
+    reasons: list[str] = []
+    for code in raw:
+        if not isinstance(code, int) or isinstance(code, bool):
+            continue
+        name = AMS_DRY_BLOCK_REASONS.get(code, "unknown")
+        if name not in reasons:
+            reasons.append(name)
+    return reasons
 
 
 def _ams_status_name(code: int) -> str:
@@ -716,6 +761,20 @@ class PrinterSnapshot:
         if not self.capabilities.fdm:
             return None
         return _to_float(self.print_block.get("nozzle_target_temper"))
+
+    @property
+    def active_nozzle_temp(self) -> float | None:
+        """Temperature of the extruder in use. Top-level `nozzle_temper` is extruder 0 on
+        dual-nozzle printers, so it can show an idle nozzle during a print. Falls back to it
+        when there is no matching extruder entry. Single-extruder printers always use it,
+        because the packed per-extruder value is an integer and loses the decimals."""
+        entries = self.extruder_entries
+        active = self.active_extruder_index
+        if active is not None and len(entries) > 1:
+            for entry in entries:
+                if entry["id"] == str(int(active)) and entry["actual_temp"] is not None:
+                    return float(entry["actual_temp"])
+        return self.nozzle_temp
 
     @property
     def nozzle_diameter(self) -> float | None:
@@ -1125,6 +1184,61 @@ class PrinterSnapshot:
         if state == 2:
             return 0.0
         return None
+
+    @property
+    def firmware_upgrade_status(self) -> str | None:
+        """Lowercase `upgrade_state.status`, `unknown` for unlisted values."""
+        upgrade = self.print_block.get("upgrade_state")
+        value = upgrade.get("status") if isinstance(upgrade, dict) else None
+        if not isinstance(value, str) or not value.strip():
+            return None
+        value = value.strip().lower()
+        return value if value in FIRMWARE_UPGRADE_STATUSES else "unknown"
+
+    @staticmethod
+    def _net_number(value: Any, *, allow_str: bool) -> float | None:
+        """Finite, non-negative float from a network stat; None for booleans, non-finite
+        values, huge integers and anything unparsable."""
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, str):
+            if not allow_str:
+                return None
+            try:
+                number = float(value)
+            except ValueError:
+                return None
+        elif isinstance(value, (int, float)):
+            try:
+                number = float(value)
+            except OverflowError:
+                return None
+        else:
+            return None
+        return number if math.isfinite(number) and number >= 0 else None
+
+    @property
+    def network_stats(self) -> dict[str, dict[str, float]]:
+        """Interface to `rtt` and `retrans` from `net.info` (index 0 wlan, 1 wired). The rtt
+        is a string, empty when the interface is unused; negative values are dropped."""
+        net = self.print_block.get("net")
+        info = net.get("info") if isinstance(net, dict) else None
+        if not isinstance(info, list):
+            return {}
+        out: dict[str, dict[str, float]] = {}
+        for interface, entry in zip(_NET_INTERFACES, info):
+            if not isinstance(entry, dict):
+                continue
+            stats: dict[str, float] = {}
+            rtt = self._net_number(entry.get("rtt"), allow_str=True)
+            if rtt is not None:
+                stats["rtt"] = rtt
+            retrans = self._net_number(entry.get("retrans"), allow_str=False)
+            if retrans is not None:
+                stats["retrans"] = retrans
+            if stats:
+                out[interface] = stats
+        return out
 
     @property
     def module_firmware_versions(self) -> dict[str, str]:

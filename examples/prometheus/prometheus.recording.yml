@@ -12,7 +12,7 @@ groups:
         expr: last_over_time(bambulab_print_progress_percent[5m])
 
       - record: bambulab:nozzle_temp:avg5m
-        expr: avg_over_time(bambulab_nozzle_temperature_celsius[5m])
+        expr: avg_over_time(bambulab_active_nozzle_temperature_celsius[5m])
 
       - record: bambulab:bed_temp:avg5m
         expr: avg_over_time(bambulab_bed_temperature_celsius[5m])

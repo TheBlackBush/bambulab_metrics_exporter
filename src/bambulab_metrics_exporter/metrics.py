@@ -11,6 +11,7 @@ from bambulab_metrics_exporter.models import (
     _extract_ams_info,
     ams_dry_state_name,
     ams_dry_sub_status_name,
+    parse_ams_dry_block_reasons,
     parse_ams_drying,
     parse_ams_info,
 )
@@ -34,6 +35,7 @@ class ExporterMetrics:
         self.print_layer_progress_percent = Gauge("bambulab_print_layer_progress_percent", "Layer-based progress percent", label_names, registry=self.registry)
         self.nozzle_temp = Gauge("bambulab_nozzle_temperature_celsius", "Nozzle temperature", label_names, registry=self.registry)
         self.nozzle_target_temp = Gauge("bambulab_nozzle_target_temperature_celsius", "Nozzle target temperature", label_names, registry=self.registry)
+        self.active_nozzle_temp = Gauge("bambulab_active_nozzle_temperature_celsius", "Temperature of the nozzle in use (the active extruder)", label_names, registry=self.registry)
         self.nozzle_diameter = Gauge("bambulab_nozzle_diameter", "Nozzle diameter from MQTT", label_names, registry=self.registry)
         self.bed_temp = Gauge("bambulab_bed_temperature_celsius", "Bed temperature", label_names, registry=self.registry)
         self.bed_target_temp = Gauge("bambulab_bed_target_temperature_celsius", "Bed target temperature", label_names, registry=self.registry)
@@ -132,6 +134,24 @@ class ExporterMetrics:
             "bambulab_firmware_update_available",
             "1 when a firmware update is available, 0 when up to date",
             label_names,
+            registry=self.registry,
+        )
+        self.firmware_upgrade_status_info = Gauge(
+            "bambulab_firmware_upgrade_status_info",
+            "Firmware upgrade state",
+            [*label_names, "status"],
+            registry=self.registry,
+        )
+        self.network_rtt = Gauge(
+            "bambulab_network_rtt",
+            "Raw round-trip value reported per network interface (unit and meaning not confirmed)",
+            [*label_names, "interface"],
+            registry=self.registry,
+        )
+        self.network_retransmissions = Gauge(
+            "bambulab_network_retransmissions",
+            "Retransmissions reported per network interface (meaning not confirmed)",
+            [*label_names, "interface"],
             registry=self.registry,
         )
         self.module_firmware_info = Gauge(
@@ -326,6 +346,12 @@ class ExporterMetrics:
             [*label_names, "ams_id"],
             registry=self.registry,
         )
+        self.ams_drying_blocked_reason_info = Gauge(
+            "bambulab_ams_drying_blocked_reason_info",
+            "Why this AMS cannot start drying now (drying_in_progress while it runs)",
+            [*label_names, "ams_id", "reason"],
+            registry=self.registry,
+        )
 
         # Phase 1: New metrics
         self.sdcard_status_info = Gauge(
@@ -480,6 +506,7 @@ class ExporterMetrics:
         self._set_optional(self.print_layer_progress_percent, snapshot.layer_progress_percent)
         self._set_optional(self.nozzle_temp, snapshot.nozzle_temp)
         self._set_optional(self.nozzle_target_temp, snapshot.nozzle_target_temp)
+        self._set_optional(self.active_nozzle_temp, snapshot.active_nozzle_temp)
         self._set_optional(self.nozzle_diameter, snapshot.nozzle_diameter)
         self._set_optional(self.bed_temp, snapshot.bed_temp)
         self._set_optional(self.bed_target_temp, snapshot.bed_target_temp)
@@ -520,6 +547,22 @@ class ExporterMetrics:
         for axis, homed in snapshot.axes_homed.items():
             self.axis_homed.labels(**labels, axis=axis).set(homed)
         self._set_optional(self.firmware_update_available, snapshot.firmware_update_available)
+        self.firmware_upgrade_status_info.clear()
+        if snapshot.firmware_upgrade_status is not None:
+            self.firmware_upgrade_status_info.labels(
+                **labels, status=snapshot.firmware_upgrade_status
+            ).set(1.0)
+        self.network_rtt.clear()
+        self.network_retransmissions.clear()
+        for interface, stats in snapshot.network_stats.items():
+            if "rtt" in stats:
+                self.network_rtt.labels(**labels, interface=interface).set(
+                    stats["rtt"]
+                )
+            if "retrans" in stats:
+                self.network_retransmissions.labels(**labels, interface=interface).set(
+                    stats["retrans"]
+                )
         self.module_firmware_info.clear()
         for module, version in snapshot.module_firmware_versions.items():
             self.module_firmware_info.labels(**labels, module=module, version=version).set(1.0)
@@ -827,6 +870,10 @@ class ExporterMetrics:
                     value = drying[key]
                     if value is not None:
                         gauge.labels(**labels, ams_id=ams_id).set(value)
+                for reason in parse_ams_dry_block_reasons(ams):
+                    self.ams_drying_blocked_reason_info.labels(
+                        **labels, ams_id=ams_id, reason=reason
+                    ).set(1.0)
 
             raw_trays = ams.get("tray")
             trays = [t for t in raw_trays if isinstance(t, dict)] if isinstance(raw_trays, list) else []
@@ -902,6 +949,7 @@ class ExporterMetrics:
         self.ams_drying_remaining_seconds.clear()
         self.ams_drying_target_temperature.clear()
         self.ams_drying_duration_seconds.clear()
+        self.ams_drying_blocked_reason_info.clear()
 
     def mark_scrape(self, duration_seconds: float, success: bool, now_ts: float | None = None) -> None:
         labels = self._labels()

@@ -1704,7 +1704,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
-          "expr": "max(bambulab_nozzle_temperature_celsius{job=\"$job\", printer_name=\"$printer\"})",
+          "expr": "max(bambulab_active_nozzle_temperature_celsius{job=\"$job\", printer_name=\"$printer\"})",
           "instant": false,
           "legendFormat": "Nozzle Temperature",
           "range": true,
@@ -2122,7 +2122,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
-          "expr": "max(bambulab_nozzle_temperature_celsius{job=\"$job\", printer_name=\"$printer\"})",
+          "expr": "max(bambulab_active_nozzle_temperature_celsius{job=\"$job\", printer_name=\"$printer\"})",
           "instant": false,
           "legendFormat": "Nozzle Temperature",
           "range": true,
@@ -4975,7 +4975,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
-          "expr": "max(bambulab_nozzle_temperature_celsius{job=\"$job\", printer_name=\"$printer\"})",
+          "expr": "max(bambulab_active_nozzle_temperature_celsius{job=\"$job\", printer_name=\"$printer\"})",
           "instant": false,
           "legendFormat": "Nozzle Temperature",
           "range": true,

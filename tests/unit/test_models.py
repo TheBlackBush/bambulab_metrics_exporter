@@ -13,6 +13,7 @@ from bambulab_metrics_exporter.models import (
     AMS_SERIAL_PREFIX_TO_MODEL,
     AMS_MODEL_TO_SERIES,
     AMS_TYPE_TO_MODEL,
+    parse_ams_dry_block_reasons,
 )
 
 
@@ -1677,3 +1678,123 @@ def test_xcam_halt_print_sensitivity_non_string_value() -> None:
     """Returns None when halt_print_sensitivity is not a string (e.g. int)."""
     snap = _snap({"print": {"xcam": {"halt_print_sensitivity": 1}}})
     assert snap.xcam_halt_print_sensitivity is None
+
+
+def test_dry_block_reasons_named_and_unknown() -> None:
+    assert parse_ams_dry_block_reasons({"dry_sf_reason": [6, 0, 99]}) == [
+        "drying_in_progress", "task_occupied", "unknown",
+    ]
+
+
+def test_dry_block_reasons_dedupes() -> None:
+    assert parse_ams_dry_block_reasons({"dry_sf_reason": [1, 1, 42, 43]}) == [
+        "insufficient_power", "unknown",
+    ]
+
+
+@pytest.mark.parametrize("value", [None, "6", {}, 6])
+def test_dry_block_reasons_malformed_container(value: object) -> None:
+    assert parse_ams_dry_block_reasons({"dry_sf_reason": value}) == []
+
+
+def test_dry_block_reasons_malformed() -> None:
+    assert parse_ams_dry_block_reasons({"dry_sf_reason": [True, None, "x", {}, 2]}) == ["ams_busy"]
+
+
+def _block(print_block: dict) -> PrinterSnapshot:
+    return PrinterSnapshot(connected=True, raw={"print": print_block})
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("UPGRADE_SUCCESS", "upgrade_success"),
+        ("idle", "idle"),
+        ("DOWNLOAD_FAIL", "download_fail"),
+        ("SOMETHING_NEW", "unknown"),
+        ("", None),
+        (5, None),
+    ],
+)
+def test_firmware_upgrade_status(raw: object, expected: str | None) -> None:
+    assert _block({"upgrade_state": {"status": raw}}).firmware_upgrade_status == expected
+
+
+def test_firmware_upgrade_status_absent() -> None:
+    assert _block({}).firmware_upgrade_status is None
+    assert _block({"upgrade_state": "bad"}).firmware_upgrade_status is None
+
+
+def test_network_stats() -> None:
+    snap = _block({"net": {"info": [{"rtt": "206.35", "retrans": 36}, {"rtt": "", "retrans": 0}]}})
+    assert snap.network_stats == {
+        "wlan": {"rtt": 206.35, "retrans": 36.0},
+        "wired": {"retrans": 0.0},
+    }
+
+
+@pytest.mark.parametrize(
+    "net",
+    [
+        None,
+        "bad",
+        {},
+        {"info": "bad"},
+        {"info": ["bad"]},
+        {"info": [{"rtt": "x", "retrans": "y"}]},
+        {"info": [{"rtt": None}]},
+        {"info": [{"retrans": True}]},
+        {"info": [{"rtt": "-5"}]},
+        {"info": [{"rtt": "inf"}]},
+        {"info": [{"rtt": "1e999"}]},
+        {"info": [{"rtt": True}]},
+        {"info": [{"rtt": 10**400}]},
+        {"info": [{"retrans": 10**400}]},
+    ],
+)
+def test_network_stats_malformed(net: object) -> None:
+    assert _block({"net": net}).network_stats == {}
+
+
+def test_network_stats_ignores_extra_interfaces() -> None:
+    info = [{"retrans": 1}, {"retrans": 2}, {"retrans": 3}]
+    assert sorted(_block({"net": {"info": info}}).network_stats) == ["wired", "wlan"]
+
+
+def _dual(state: object, temps: dict[int, object], top: object = 43) -> PrinterSnapshot:
+    return _block({
+        "nozzle_temper": top,
+        "device": {"extruder": {"state": state, "info": [
+            {"id": i, "temp": t} for i, t in temps.items()
+        ]}},
+    })
+
+
+def test_active_nozzle_uses_the_active_extruder() -> None:
+    assert _dual(1 << 4, {0: 43, 1: (245 << 16) | 245}).active_nozzle_temp == 245.0
+    assert _dual(0, {0: 43, 1: (245 << 16) | 245}).active_nozzle_temp == 43.0
+
+
+def test_active_nozzle_keeps_the_old_metric_value_unchanged() -> None:
+    assert _dual(1 << 4, {0: 43, 1: (245 << 16) | 245}).nozzle_temp == 43.0
+
+
+def test_active_nozzle_falls_back_to_the_top_level_value() -> None:
+    assert _block({"nozzle_temper": 210}).active_nozzle_temp == 210.0
+    assert _dual(15 << 4, {0: 43, 1: 245}, top=210).active_nozzle_temp == 210.0  # no such extruder
+    assert _dual("bad", {0: 43}, top=210).active_nozzle_temp == 210.0
+    assert _dual(1 << 4, {1: "bad"}, top=210).active_nozzle_temp == 210.0
+
+
+def test_active_nozzle_absent() -> None:
+    assert _block({}).active_nozzle_temp is None
+
+
+def test_active_nozzle_none_on_laser_only_printer() -> None:
+    snap = PrinterSnapshot(
+        connected=True,
+        raw={"print": {"nozzle_temper": 200.0}},
+        configured_serial="35FFAKE0000001",
+    )
+    assert snap.model_name == "R1"
+    assert snap.active_nozzle_temp is None

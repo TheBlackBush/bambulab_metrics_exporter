@@ -71,7 +71,7 @@ Important boundaries:
 - A process has one serial, client, state store, registry, and collector. Multiple printers
   require separate processes/containers. Do not imply same-process multi-printer support.
 - Model recognition is broader than hardware validation. The README says real-world
-  development and validation currently occur only on an X1C.
+  development and validation currently occur on an X1C (an H2D was checked on real hardware while idle and while printing).
 
 # Repository Map
 
@@ -146,8 +146,8 @@ Important boundaries:
   these as potentially device-derived and sensitive. Inspect before reuse; sanitize all new
   fixtures.
 - `examples/sample_metrics.prom`: sample exposition that should track metric behavior.
-- `tests/fixtures/printers/`: one sanitized real payload per model (12 from public
-  MIT-licensed sample data, attribution in its README; one from the maintainer's X1C), checked by
+- `tests/fixtures/printers/`: one sanitized real payload per model (14: 12 from public
+  MIT-licensed sample data, attribution in its README; one from the maintainer's X1C and one from the maintainer's H2D), checked by
   `tests/unit/test_printer_fixtures.py`. Add new captures only through
   `sanitize_fixture.py` and review the output; never commit a raw capture.
 
@@ -762,7 +762,7 @@ Evidence at the time this manual was created:
 - Local and cloud MQTT modes work through the same client architecture. Cloud supports OTP
   authentication, encrypted credential persistence, and refresh-token recovery. Model
   detection recognizes A1/A1 Mini/A2L, P1P/P1S/P2S, H2C/H2D/H2D Pro/H2S, X1/X1C/X1E/X2D and
-  AMS variants; only X1C is stated as real-world validated. The serial prefix (payload
+  AMS variants; only X1C is stated as real-world validated (the H2D was checked on real hardware while idle and while printing). The serial prefix (payload
   `print.sn` or configured `BAMBULAB_SERIAL`) is the main identity source because pushall
   omits identity fields. `print.device.type` is a mode bitmask and `print.model_id` an
   opaque job id; never use either for model identity.

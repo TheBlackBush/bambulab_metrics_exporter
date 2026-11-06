@@ -6,7 +6,7 @@ All metrics include stable labels: `printer_name` and `serial`.
 
 ## Supported models
 
-Detection is not hardware validation: only the X1C is validated on real hardware. Metrics
+Detection is not hardware validation: only the X1C is validated on real hardware (an H2D was checked while idle and while printing). Metrics
 for hardware a model does not have report NaN.
 
 | Model | Serial prefix | Chamber temp | Chamber heater | Door sensor | Lid | Aux / chamber fan | Extruders | Hotend rack | Laser / cutter |
@@ -66,6 +66,7 @@ Unknown models export whatever the payload carries.
 | `bambulab_print_real_action` | Gauge | Raw `print_real_action` code |
 | `bambulab_print_gcode_action` | Gauge | Raw `print_gcode_action` code |
 | `bambulab_firmware_update_available` | Gauge | 1 when the printer offers a firmware update (`upgrade_state.new_version_state` 1), 0 when up to date (2), NaN when unknown (0 or absent) |
+| `bambulab_firmware_upgrade_status_info{status}` | Info Gauge | Firmware upgrade state (`upgrade_state.status`): `idle`, `upgrade_request`, `downloading`, `download_fail`, `flash_fail`, `upgrade_fail`, `upgrade_success`, or `unknown` for any other value. Omitted when absent |
 | `bambulab_module_firmware_info{module,version}` | Info Gauge | Firmware version of each module from `get_version` (`module="ota"` is the printer firmware; also `mc`, `th`, AMS units such as `n3f/0`). Absent when `BAMBULAB_REQUEST_PUSHALL=false` |
 | `bambulab_printer_model_info{model}` | Info Gauge | Detected printer model |
 
@@ -75,8 +76,9 @@ Unknown models export whatever the payload carries.
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `bambulab_nozzle_temperature_celsius` | Gauge | Current nozzle temperature |
+| `bambulab_nozzle_temperature_celsius` | Gauge | Current nozzle temperature. On dual-nozzle printers this is extruder 0, which can be idle during a print; use bambulab_active_nozzle_temperature_celsius. |
 | `bambulab_nozzle_target_temperature_celsius` | Gauge | Target nozzle temperature |
+| `bambulab_active_nozzle_temperature_celsius` | Gauge | Temperature of the nozzle in use (the active extruder); same as the nozzle temperature on single-nozzle printers |
 | `bambulab_nozzle_diameter` | Gauge | Nozzle diameter from telemetry |
 | `bambulab_bed_temperature_celsius` | Gauge | Current bed temperature |
 | `bambulab_bed_target_temperature_celsius` | Gauge | Target bed temperature |
@@ -154,6 +156,7 @@ Fan values: raw levels 0–15 → nearest-10 percent normalization.
 | `bambulab_ams_drying_remaining_seconds{ams_id}` | Gauge | Remaining drying time (`dry_time`, minutes in the payload), 0 when not drying. AMS 2 Pro and AMS HT only |
 | `bambulab_ams_drying_target_temperature_celsius{ams_id}` | Gauge | Configured drying temperature (`dry_setting.dry_temperature`). Omitted when unset or on older firmware |
 | `bambulab_ams_drying_duration_seconds{ams_id}` | Gauge | Configured drying duration (`dry_setting.dry_duration`, hours in the payload). Omitted when unset |
+| `bambulab_ams_drying_blocked_reason_info{ams_id,reason}` | Info Gauge | Why this AMS cannot start drying now (`dry_sf_reason`, a list of codes), one series per reason with value 1. `reason` is one of `task_occupied`, `insufficient_power`, `ams_busy`, `consumable_at_ams_outlet`, `initiating_ams_drying`, `not_supported_in_2d_mode`, `drying_in_progress`, `upgrading`, `insufficient_power_need_plugin_power`, `closing_ams_drying`, `filament_at_ams_outlet_manual_unload`, `unknown`. `drying_in_progress` only means a drying run is active. Omitted when no reason is reported |
 
 ---
 
@@ -202,6 +205,8 @@ Fan values: raw levels 0–15 → nearest-10 percent normalization.
 |--------|------|-------------|
 | `bambulab_wifi_signal` | Gauge | Wi-Fi signal (dBm) |
 | `bambulab_wired_network` | Gauge | Wired network detected |
+| `bambulab_network_rtt{interface}` | Gauge | Raw `rtt` value the printer reports per network interface (`wlan`, `wired`). The unit and exact meaning are not confirmed, so the name carries no unit. On a real H2D it stayed near 215 while a connection to the cloud broker took about 210 ms, so it likely tracks the cloud connection in milliseconds. |
+| `bambulab_network_retransmissions{interface}` | Gauge | `retrans` value the printer reports per network interface (`wlan`, `wired`). Reported by the printer; the meaning (counter or per interval) is not confirmed. On a real H2D it held steady during a print and was higher than a day earlier, so it likely is a running total. |
 | `bambulab_door_open` | Gauge | Door open flag. NaN on models without a door sensor (A1, A1 mini, A2L, P1P, P1S) |
 | `bambulab_lid_open` | Gauge | Top lid open flag (`stat` bit 24). H2 family only; NaN on other models |
 | `bambulab_mqtt_signature_required` | Gauge | 1 when the printer only accepts signed MQTT commands (Developer Mode off; `fun` bit 0x20000000). Unsigned control commands from other tools are then rejected with HMS `0500_0500_0001_0007` |

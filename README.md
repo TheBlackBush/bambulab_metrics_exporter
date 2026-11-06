@@ -17,7 +17,7 @@ printer over your home network (or through Bambu Cloud), and publishes the data 
 ![Grafana Dashboard Sample](examples/grafana/dashboard-sample.jpg)
 
 **Supported printers:** X1, X1C, X1E, X2D, P1P, P1S, P2S, A1, A1 mini, A2L, H2D, H2D Pro, H2S
-and H2C are recognized. Real-world testing so far is on an **X1C**; if you own another model and
+and H2C are recognized. Real-world testing so far is on an **X1C**, and an **H2D** was checked on real hardware while idle and while printing; if you own another model and
 want to help, please open an issue on GitHub.
 
 ---
@@ -229,7 +229,7 @@ highlights:
 | `bambulab_printer_gcode_state{state}` | Printer state (`IDLE`, `RUNNING`, `PAUSE`, `FINISH`, `FAILED`, ...) |
 | `bambulab_print_progress_percent` | Print progress (0-100) |
 | `bambulab_print_remaining_seconds` | Estimated time left |
-| `bambulab_nozzle_temperature_celsius`, `bambulab_bed_temperature_celsius` | Temperatures (plus `_target_` versions) |
+| `bambulab_nozzle_temperature_celsius`, `bambulab_bed_temperature_celsius` | Temperatures (plus `_target_` versions); `bambulab_active_nozzle_temperature_celsius` is the nozzle in use on dual-nozzle printers |
 | `bambulab_hms_active_errors{severity}` | Active printer errors by severity |
 | `bambulab_ams_slot_remaining_percent{ams_id,slot_id}` | Filament left per AMS slot |
 | `bambulab_ams_unit_humidity_index{ams_id}` | AMS humidity level (1-5) |
@@ -263,7 +263,7 @@ A sample of the output is in [`examples/sample_metrics.prom`](examples/sample_me
 
 ## Known limitations
 
-1. Only the X1C has been tested on real hardware; other models are recognized from their data
+1. Only the X1C has been fully tested on real hardware (an H2D was checked while idle and while printing); other models are recognized from their data
    and may report some values differently.
 2. One container monitors one printer. For several printers, run one container per printer.
 3. The MQTT connection is encrypted, but the printer's certificate is not verified (the printers
