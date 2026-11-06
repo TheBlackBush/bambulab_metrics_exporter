@@ -16,15 +16,18 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from http.client import HTTPException
 from pathlib import Path
+from typing import Any
 
 from bambulab_metrics_exporter.cloud_auth import (
     CloudAuthError,
-    get_bind_devices,
+    fetch_bind_devices,
     login_with_code,
     send_code,
 )
 from bambulab_metrics_exporter.config import Settings
+from bambulab_metrics_exporter.fleet import ENV_RUNTIME_ID
 from bambulab_metrics_exporter.overrides import (
     DEFAULT_CONFIG_DIR,
     backup_credentials,
@@ -32,6 +35,14 @@ from bambulab_metrics_exporter.overrides import (
     save_overrides,
     set_env,
 )
+from bambulab_metrics_exporter.printers import (
+    MAX_PRINTERS,
+    TRANSPORT_CLOUD,
+    TRANSPORT_LOCAL,
+    PrinterConfig,
+    printer_id_for,
+)
+from bambulab_metrics_exporter.printers import mask_serial as mask_serial
 from bambulab_metrics_exporter.reauth import (
     CREDENTIAL_KEYS,
     apply_credentials,
@@ -47,6 +58,8 @@ _SERIAL_RE = re.compile(r"^[A-Za-z0-9]{8,32}$")
 _ACCESS_CODE_RE = re.compile(r"^\S{4,64}$")
 _EMAIL_RE = re.compile(r"^[^@\s]{1,128}@[^@\s]{1,253}$")
 _CODE_RE = re.compile(r"^[0-9A-Za-z]{4,12}$")
+_NAME_RE = re.compile(r"^[^\x00-\x1f]{0,64}$")
+_PORT_RE = re.compile(r"[0-9]{1,5}")
 
 SEND_CODE_INTERVAL_SECONDS = 60.0
 SEND_CODE_MAX_PER_ROUND = 5
@@ -60,15 +73,12 @@ class ActionResult:
     ok: bool
     message: str
     note: str = ""
+    device: CloudDevice | None = None  # A login's only printer; never sent to the page.
+    applied: bool = False  # The fleet already runs the change: nothing to reconnect.
 
 
 class AuthInputError(ValueError):
     """Invalid user input; the message is safe to show on the page."""
-
-
-def mask_serial(serial: str) -> str:
-    """Show only the model prefix of a serial on the unauthenticated page."""
-    return f"{serial[:3]}{'*' * max(len(serial) - 3, 0)}" if serial else ""
 
 
 def _persist(values: dict[str, str]) -> bool:
@@ -77,7 +87,7 @@ def _persist(values: dict[str, str]) -> bool:
     return save_overrides(values)
 
 
-def _persist_note(persisted: bool) -> str:
+def persist_note(persisted: bool) -> str:
     if persisted:
         return "Kept after restarts; overrides the container's env vars."
     return "Applies until the next restart. Set BAMBULAB_SECRET_KEY to keep it."
@@ -99,12 +109,12 @@ def configure_local(host: str, serial: str, access_code: str, port: str = "") ->
         "BAMBULAB_ACCESS_CODE": access_code,
     }
     if port:
-        if not port.isdigit() or not 0 < int(port) < 65536:
+        if not _PORT_RE.fullmatch(port) or not 0 < int(port) < 65536:
             raise AuthInputError("The port must be a number between 1 and 65535.")
         values["BAMBULAB_PORT"] = port
     persisted = _persist(values)
     return ActionResult(
-        True, f"Local connection saved for printer {mask_serial(serial)}.", _persist_note(persisted)
+        True, f"Local connection saved for printer {mask_serial(serial)}.", persist_note(persisted)
     )
 
 
@@ -283,24 +293,30 @@ def configure_cloud(email: str, code: str, serial: str = "") -> ActionResult:
     except CloudAuthError as exc:
         return ActionResult(False, f"Login failed (codes are single-use and expire): {exc}")
 
+    login_only = False
+    login_only_message = "Signed in. Select your printers below."
+    device: CloudDevice | None = None
     if not serial:
-        try:
-            devices = get_bind_devices(result.access_token)
-        except CloudAuthError as exc:
-            return ActionResult(False, f"Logged in, but the printer list failed: {exc}")
-        serials = [str(d["dev_id"]) for d in devices if d.get("dev_id")]
-        if len(serials) != 1:
-            return ActionResult(
-                False,
-                f"Your account has {len(serials)} printers; enter the serial of the one to "
-                "monitor and log in again with a new code.",
+        # A code is single use, so nothing about the printer list may fail the login.
+        devices = _fetch_devices(result.access_token)
+        if devices is not None and len(devices) == 1:
+            device = devices[0]
+            serial = device.serial
+        else:
+            login_only = True  # The page lists the printers; nothing else changes yet.
+        if devices is None:
+            login_only_message = (
+                "Signed in, but Bambu Cloud did not return your printers. "
+                "Reload the page to retry."
             )
-        serial = serials[0]
+        elif not devices:
+            login_only_message = "Signed in. This account has no printers."
 
     # Record what the container had, so "Reset to env vars" can undo this login.
     for key in CREDENTIAL_KEYS:
         remember_original(key)
-    persisted = _persist({"BAMBULAB_TRANSPORT": "cloud_mqtt", "BAMBULAB_SERIAL": serial})
+    values = {"BAMBULAB_TRANSPORT": "cloud_mqtt", "BAMBULAB_SERIAL": serial}
+    persisted = save_overrides({}) if login_only else _persist(values)
     settings = Settings()
     if persisted:
         backup_credentials(credentials_path(settings))
@@ -314,8 +330,259 @@ def configure_cloud(email: str, code: str, serial: str = "") -> ActionResult:
                 "BAMBULAB_CLOUD_REFRESH_TOKEN": result.refresh_token,
             },
         )
+    if login_only:
+        return ActionResult(True, login_only_message, persist_note(persisted))
     return ActionResult(
         True,
         f"Signed in to Bambu Cloud for printer {mask_serial(serial)}.",
-        _persist_note(persisted),
+        persist_note(persisted),
+        device,
     )
+
+
+def add_login_printer(
+    current: list[PrinterConfig],
+    device: CloudDevice,
+    update: Callable[[list[PrinterConfig]], bool],
+    signed_in: ActionResult,
+) -> ActionResult:
+    """Monitor the only printer of the account that just signed in, when a saved list decides
+    what runs. The result stays ok whatever happens: the login is done and its code is spent."""
+    masked = mask_serial(device.serial)
+    existing = next((config for config in current if config.serial == device.serial), None)
+    if existing is not None:
+        if existing.transport == TRANSPORT_LOCAL:
+            message = f"Signed in to Bambu Cloud. Printer {masked} stays a LAN printer."
+            return ActionResult(True, message, signed_in.note)
+        return signed_in
+    if len(current) >= MAX_PRINTERS:
+        message = (
+            f"Signed in to Bambu Cloud. Printer {masked} was not added: "
+            f"an exporter can monitor at most {MAX_PRINTERS} printers."
+        )
+        return ActionResult(True, message, signed_in.note)
+    config = PrinterConfig(
+        serial=device.serial, transport=TRANSPORT_CLOUD, name=device.name, model=device.model
+    )
+    try:
+        persisted = update([*current, config])
+    except Exception as exc:  # noqa: BLE001 - a spent code means nothing here may fail the login
+        logger.warning(
+            "Could not add the signed-in printer to the saved list (%s)", type(exc).__name__
+        )
+        message = (
+            f"Signed in to Bambu Cloud, but printer {masked} could not be added. Select it below."
+        )
+        return ActionResult(True, message, signed_in.note)
+    message = f"Signed in to Bambu Cloud. Printer {masked} was added to the list."
+    return ActionResult(True, message, persist_note(persisted))
+
+
+@dataclass(frozen=True, slots=True)
+class CloudDevice:
+    printer_id: str
+    serial: str
+    name: str
+    model: str
+    online: bool
+
+
+class CloudDeviceList:
+    """Printers on the signed-in account, cached so page reloads do not hit Bambu Cloud.
+    ``refresh`` does network I/O; ``peek`` is safe on the event loop.
+
+    ``_fetch_lock`` makes concurrent refreshes share one fetch per TTL. ``_lock`` guards only
+    the cached values and is never held across the network call, so a slow Bambu response
+    cannot block ``peek`` or ``clear``.
+    """
+
+    def __init__(
+        self, ttl_seconds: float = 60.0, clock: Callable[[], float] = time.monotonic
+    ) -> None:
+        self._ttl = ttl_seconds
+        self._clock = clock
+        self._expires = float("-inf")
+        self._devices: list[CloudDevice] = []
+        self._failed = False
+        self._generation = 0
+        self._lock = threading.Lock()
+        self._fetch_lock = threading.Lock()
+
+    def refresh(self) -> None:
+        with self._fetch_lock:
+            token = os.getenv("BAMBULAB_CLOUD_ACCESS_TOKEN", "")
+            if not token:
+                return
+            with self._lock:
+                if self._clock() < self._expires:
+                    return
+                generation = self._generation
+            devices = _fetch_devices(token, timeout_seconds=5.0, retries=1)
+            with self._lock:
+                # A clear() during the fetch means this answer may be the previous account's.
+                if generation == self._generation:
+                    self._failed = devices is None
+                    if devices is not None:  # A failed fetch keeps the last good list.
+                        self._devices = devices
+                    self._expires = self._clock() + self._ttl
+
+    def peek(self) -> list[CloudDevice]:
+        with self._lock:
+            return list(self._devices)
+
+    @property
+    def refresh_failed(self) -> bool:
+        """The latest refresh got no answer, so ``peek`` is the last known list."""
+        with self._lock:
+            return self._failed
+
+    def clear(self) -> None:
+        with self._lock:
+            self._devices = []
+            self._failed = False
+            self._expires = float("-inf")
+            self._generation += 1
+
+
+_DEVICE_LIST_ERRORS = (
+    CloudAuthError, OSError, ValueError, AttributeError, RecursionError, HTTPException,
+)
+
+
+def _parse_devices(raw: list[Any]) -> list[CloudDevice]:
+    unique: dict[str, CloudDevice] = {}
+    for device in map(_device, raw):
+        if device is not None:
+            unique.setdefault(device.serial, device)
+    return list(unique.values())
+
+
+def _fetch_devices(token: str, **options: Any) -> list[CloudDevice] | None:
+    """None when the list could not be read. Never raises for a bad response: this runs on
+    page load and during a login. The errors can carry response content, so only the class
+    name reaches the log."""
+    try:
+        return _parse_devices(fetch_bind_devices(token, **options))
+    except _DEVICE_LIST_ERRORS as exc:
+        logger.warning(
+            "Could not read the printer list from Bambu Cloud (%s)", type(exc).__name__
+        )
+        return None
+
+
+def _text(value: Any, limit: int) -> str:
+    """Bounded plain text. JSON can carry lone surrogates, which UTF-8 output cannot."""
+    return str(value or "").encode("utf-8", "replace").decode("utf-8")[:limit]
+
+
+def _device(item: object) -> CloudDevice | None:
+    """Payload is untrusted: skip anything without a usable serial."""
+    if not isinstance(item, dict):
+        return None
+    serial = str(item.get("dev_id") or "").upper()
+    if not _SERIAL_RE.fullmatch(serial):  # match would allow a trailing newline
+        return None
+    return CloudDevice(
+        printer_id=printer_id_for(serial),
+        serial=serial,
+        name=_text(item.get("name"), 64),
+        model=_text(item.get("dev_product_name") or item.get("model"), 32),
+        online=item.get("online") is True,
+    )
+
+
+def _check_limit(count: int) -> None:
+    if count > MAX_PRINTERS:
+        raise AuthInputError(f"An exporter can monitor at most {MAX_PRINTERS} printers.")
+
+
+def select_cloud_printers(
+    current: list[PrinterConfig], devices: list[CloudDevice], selected: set[str]
+) -> list[PrinterConfig]:
+    """Replace the cloud part of the list with ``selected``. LAN printers stay, and so do
+    cloud printers missing from ``devices``: only Remove takes those off the list."""
+    if not devices:
+        # Not the same as unticking everything: nothing here says what the account holds.
+        raise AuthInputError(
+            "The printer list from Bambu Cloud is not available. Nothing was changed. "
+            "Reload the page and try again."
+        )
+    by_id = {device.printer_id: device for device in devices}
+    if not selected <= by_id.keys():
+        raise AuthInputError("A selected printer is no longer on this account. Reload the page.")
+    lan = [config for config in current if config.transport == TRANSPORT_LOCAL]
+    lan_serials = {config.serial for config in lan}
+    env_configs = {config.serial: config for config in current if config.env_printer}
+    listed = {device.serial for device in devices}
+    missing = [
+        config for config in current
+        if config.transport != TRANSPORT_LOCAL and config.serial not in listed
+    ]
+    chosen: list[PrinterConfig] = []
+    for device in by_id.values():
+        if device.printer_id not in selected:
+            continue
+        if device.serial in lan_serials:
+            raise AuthInputError(
+                f"Printer {mask_serial(device.serial)} is already added as a LAN printer."
+            )
+        # The env printer keeps its name and model: a change would split its series.
+        env_config = env_configs.get(device.serial)
+        source = env_config if env_config is not None else device
+        chosen.append(
+            PrinterConfig(
+                serial=device.serial, transport=TRANSPORT_CLOUD, name=source.name,
+                model=source.model, env_printer=env_config is not None,
+            )
+        )
+    _check_limit(len(lan) + len(missing) + len(chosen))
+    return [*lan, *missing, *chosen]
+
+
+def add_local_printer(
+    current: list[PrinterConfig],
+    host: str,
+    serial: str,
+    access_code: str,
+    port: str = "",
+    name: str = "",
+) -> list[PrinterConfig]:
+    """Add a LAN printer, or update the LAN printer with the same serial."""
+    host, serial = host.strip(), serial.strip().upper()
+    access_code, port, name = access_code.strip(), port.strip(), name.strip()
+    if not _HOST_RE.match(host):
+        raise AuthInputError("Enter the printer IP address or host name.")
+    if not _SERIAL_RE.match(serial):
+        raise AuthInputError("The serial number must be 8 to 32 letters or digits.")
+    if not _ACCESS_CODE_RE.match(access_code):
+        raise AuthInputError("Enter the LAN access code shown on the printer.")
+    if not _NAME_RE.match(name):
+        raise AuthInputError("The printer name can have at most 64 characters.")
+    if port and (not _PORT_RE.fullmatch(port) or not 0 < int(port) < 65536):
+        raise AuthInputError("The port must be a number between 1 and 65535.")
+    existing = next((config for config in current if config.serial == serial), None)
+    if existing is not None and existing.transport != TRANSPORT_LOCAL:
+        raise AuthInputError(f"Printer {mask_serial(serial)} is already added through the cloud.")
+    config = PrinterConfig(
+        serial=serial, transport=TRANSPORT_LOCAL, host=host,
+        port=int(port) if port else (existing.port if existing else 8883),
+        access_code=access_code, name=name or (existing.name if existing else ""),
+        env_printer=existing.env_printer if existing else False,
+    )
+    updated = [config if item.serial == serial else item for item in current]
+    if existing is None:
+        updated.append(config)
+    _check_limit(len(updated))
+    return updated
+
+
+def remove_printer(current: list[PrinterConfig], printer_id: str) -> list[PrinterConfig]:
+    """Before a list is saved the fleet lists the env printer under ENV_RUNTIME_ID."""
+    updated = [
+        config for config in current
+        if config.printer_id != printer_id
+        and not (printer_id == ENV_RUNTIME_ID and config.env_printer)
+    ]
+    if len(updated) == len(current):
+        raise AuthInputError("That printer is not in the list. Reload the page.")
+    return updated

@@ -48,7 +48,7 @@ Open `http://<docker-host>:9109/auth` (also linked from the status page) and cho
 
 - **Local (LAN):** printer IP, serial number and LAN access code.
 - **Bambu Cloud:** account email, **Send code**, then the emailed code and **Log in**. The
-  serial is optional when the account has a single printer.
+  page then lists the account's printers to choose from; no serial is typed.
 
 The exporter connects right away. Details: [The `/auth` page](#the-auth-page).
 
@@ -69,15 +69,17 @@ Open `http://<docker-host>:9109/auth` (also linked as **Printer Connection** on 
 
 - **Local (LAN):** enter the printer IP, serial number and LAN access code.
 - **Bambu Cloud:** enter your account email, click **Send code**, then enter the emailed code in
-  the same form and click **Log in**. The serial is only needed when the account has more than
-  one printer.
+  the same form and click **Log in**. Then tick the account printers to monitor and save; a
+  single-printer account is added automatically.
+- **Several printers:** one exporter can monitor up to 32 printers (cloud and LAN mixed, one Bambu
+  account). Add LAN printers with the LAN form and remove any printer from the printer table.
 
 Good to know:
 
 - **No restart needed.** The exporter reconnects as soon as you save.
 - **Settings are remembered.** They are stored encrypted in the config volume and survive
-  restarts and updates. This needs `BAMBULAB_SECRET_KEY`; without it, page settings apply until
-  the next restart.
+  restarts and updates. This needs `BAMBULAB_SECRET_KEY`; without it, page settings and extra
+  printers apply until the next restart.
 - **The page wins over env vars.** Page settings override the container's env vars (including
   Unraid template values). **Reset to env vars** on the page removes them.
 - **Expired cloud login.** If the login stops working (expired session, changed password, new

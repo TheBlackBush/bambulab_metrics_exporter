@@ -6,7 +6,7 @@ import os
 import threading
 import time
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -634,3 +634,65 @@ def test_store_retry_during_validation_happens_only_once_in_a_row(tmp_path: Path
         assert attempts["n"] == 2
     finally:
         runtime.stop()
+
+
+def test_env_sync_can_be_disabled(monkeypatch) -> None:
+    calls: list[object] = []
+    monkeypatch.setattr(rt, "sync_env_file", lambda *a, **k: calls.append(a))
+    runtime = rt.ExporterRuntime(
+        settings_factory=_local, validate=lambda s: None, client_factory=lambda s: _Client(),
+        discover=lambda s: None, sync_env=False,
+    )
+    runtime.start()
+    try:
+        _wait_until(lambda: runtime.ready)
+    finally:
+        runtime.stop()
+    assert calls == []
+
+
+def _fail_validation(error: Exception):
+    def validate(_settings: Settings) -> None:
+        raise error
+    return validate
+
+
+def _one_cycle(runtime: rt.ExporterRuntime) -> None:
+    runtime._wake.set()  # The wait at the end of the cycle returns at once.
+    runtime._run_once()
+
+
+def _serial_settings() -> Settings:
+    return Settings(
+        bambulab_transport="local_mqtt", bambulab_host="192.0.2.25",
+        bambulab_serial="FAKE00TEST000001", bambulab_access_code="fake-access-code",
+    )
+
+
+def test_connection_failure_log_names_the_printer_masked(caplog) -> None:
+    runtime = rt.ExporterRuntime(
+        settings_factory=_serial_settings, validate=_fail_validation(RuntimeError("down")),
+        discover=lambda _s: None, retry_seconds=0.0,
+    )
+    _one_cycle(runtime)
+    line = next(m for m in caplog.messages if m.startswith("Connection failed"))
+    assert "FAK*************" in line and "FAKE00TEST" not in caplog.text
+
+
+def test_reauth_banner_names_the_printer_masked(caplog) -> None:
+    caplog.set_level(logging.INFO)
+    runtime = rt.ExporterRuntime(
+        settings_factory=_serial_settings,
+        validate=_fail_validation(ReauthRequiredError("token rejected")),
+        discover=lambda _s: None,
+    )
+    _one_cycle(runtime)
+    assert "FAK*************" in caplog.text and "FAKE00TEST" not in caplog.text
+
+
+def test_stop_warns_when_the_runtime_thread_outlives_its_join(caplog) -> None:
+    runtime = rt.ExporterRuntime(settings_factory=_serial_settings)
+    runtime._thread = MagicMock()
+    runtime._thread.is_alive.return_value = True
+    runtime.stop()
+    assert "FAK*************" in caplog.text and "still running" in caplog.text

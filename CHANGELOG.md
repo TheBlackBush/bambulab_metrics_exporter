@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added
+- Multi-printer support: one exporter can monitor up to 32 printers (cloud and LAN mixed, one
+  Bambu account), chosen on the `/auth` page. After a cloud login the page lists the account
+  printers to tick; LAN printers are added with a form and any printer can be removed. The page
+  updates without a reload. A one-printer cloud account is added automatically at login when a
+  saved list exists. Removing works for a cloud printer that left the account, and saving a
+  selection is refused when the device list is empty or its latest refresh failed. A cloud login
+  reconnects cloud printers only. The list is stored encrypted in
+  `printers.enc.json` (needs `BAMBULAB_SECRET_KEY` to survive restarts) and **Reset to env vars**
+  removes it. A list that cannot be read is reported on `/auth` and in the log, and is kept as
+  `printers.enc.json.bad` before it is replaced. `/auth/status` gains a `printers` list of `{id, name, serial (masked), transport, state, message}`. With several
+  printers `/ready` is ready once any printer has data. Existing metrics and single-printer
+  deployments do not change, and one container per printer remains supported. Two-printer
+  operation is covered by tests with fakes, not validated on real hardware.
 - `bambulab_print_prepare_percent` (job file download progress), `bambulab_print_type_info{type}`
   (job source), `bambulab_print_skipped_objects`, `bambulab_timelapse_enabled`,
   `bambulab_mqtt_signature_required` (Developer Mode off) and `bambulab_axis_homed{axis}`.
@@ -57,6 +70,13 @@ All notable changes to this project are documented in this file.
   obsolete `PRINTER_NAME`, `SITE`, `LOCATION` and unused `RECONNECT_INTERVAL_SECONDS`.
 
 ### Fixed
+- MQTT logs show the masked serial and no longer show the topic or the MQTT user name (the cloud
+  user id). The MQTT library still prints topics when `LOG_LEVEL=DEBUG`.
+- Encrypted credential and settings files are written atomically, so a crash cannot truncate them.
+- `/auth/local` with a saved printer list adds the printer to the list; it used to report success
+  without changing anything.
+- A page login keeps its token after a restart when no cloud printer is saved yet, so the printer
+  picker still appears.
 - `bambulab_print_stage_info` / `bambulab_stg_cur` report `idle` after a cancelled print; the
   printer kept reporting the last stage while `gcode_state` was `FAILED`.
 - Unraid template category is `Tools:Utilities Network:Management`; the previous value

@@ -58,7 +58,8 @@ All other panels use built-in Grafana panel types.
 
 Panels for hardware a printer does not have show a placeholder such as "No heater" or "N/A"
 instead of an error. All queries filter on both `$job` and `$printer`, so one job can scrape
-several exporters without mixing printers.
+several exporters without mixing printers. The **Printer** dropdown lists `printer_name` values,
+so printers with the same name appear as one entry: give each printer a distinct name.
 
 ---
 

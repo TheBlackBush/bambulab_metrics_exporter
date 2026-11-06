@@ -100,6 +100,9 @@
   }
 
   .printer-badge { color: var(--text); }
+  .printer-list { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 1rem; }
+  .printer-row { display: flex; justify-content: space-between; font-size: 0.9rem; }
+  .printer-state { color: var(--text-secondary); }
   .badge svg, .printer-badge svg { width: 0.85rem; height: 0.85rem; flex: none; }
 
   /* ─── Attention banner ───────────────────────────────── */
@@ -312,6 +315,7 @@
   </header>
 
   {{ALERT}}
+  {{PRINTERS}}
 
   <div class="cards">
     <div class="card">

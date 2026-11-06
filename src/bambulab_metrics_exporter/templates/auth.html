@@ -133,6 +133,16 @@
   #page-notice.notice { margin: 0; padding: 0.9rem 1.25rem; border: 1px solid var(--border);
     border-radius: var(--radius); background: var(--surface); }
 
+  /* Printer list and account picker. Their wrappers are always there, so a background
+     refresh can fill them; empty ones must not add a gap to the page. */
+  #cloud-picker:empty { display: none; }
+  .printer-row { display: flex; flex-direction: row; align-items: center; gap: 0.6rem; padding: 0.4rem 0; }
+  .printer-row .step { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .printer-message { display: block; }
+  .device-list { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 1rem; }
+  .device-row { display: flex; align-items: center; gap: 0.6rem; }
+  .small { padding: 0.25rem 0.6rem; font-size: 0.8rem; }
+
   .links { display: flex; justify-content: space-between; font-size: 0.82rem; }
   .links a { color: var(--green); text-decoration: none; }
 </style>
@@ -147,10 +157,11 @@
 
   <div class="card" id="status-card" data-live{{DATA_REFRESH}}>
     <div class="status-row">
-      <span class="label">Status</span>
-      <span class="pill {{STATE_CLASS}}">{{STATE_LABEL}}</span>
+      <span class="label">{{STATUS_TITLE}}</span>
+      {{STATUS_PILL}}
     </div>
-    <div class="detail">{{CURRENT}}</div>
+    {{CURRENT}}
+    {{PRINTERS}}
     {{STATE_MESSAGE}}
     {{FLASH}}
   </div>
@@ -166,7 +177,7 @@
   </div>
 
   <div class="card panel panel-local">
-    <form method="post" action="/auth/local">
+    <form method="post" action="{{LOCAL_ACTION}}">
       <label class="field">Printer IP address or host name
         <input type="text" name="host" required autocomplete="off" placeholder="192.168.1.50">
       </label>
@@ -177,7 +188,14 @@
         <input type="password" name="access_code" required autocomplete="off">
         <span class="hint">On the printer: Settings, Network (LAN Only Mode screen).</span>
       </label>
-      <button type="submit">Connect locally</button>
+      <label class="field">Port (optional)
+        <input type="text" name="port" inputmode="numeric" maxlength="5" autocomplete="off">
+      </label>
+      <label class="field">Name (optional)
+        <input type="text" name="name" maxlength="64" autocomplete="off">
+        <span class="hint">Needed with several printers: unnamed printers of one model share a label.</span>
+      </label>
+      <button type="submit">{{LOCAL_BUTTON}}</button>
     </form>
   </div>
 
@@ -199,15 +217,12 @@
         <input type="text" name="code" autocomplete="one-time-code" inputmode="numeric">
         <span class="hint">Check your inbox after clicking Send code.</span>
       </label>
-      <label class="field">Serial number (optional)
-        <input type="text" name="serial" autocomplete="off" spellcheck="false">
-        <span class="hint">Leave empty when the account has a single printer.</span>
-      </label>
       <button type="submit">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
         Log in
       </button>
     </form>
+    <div id="cloud-picker" data-live>{{CLOUD_PICKER}}</div>
   </div>
 
   <div class="card">
@@ -288,8 +303,9 @@
     notice.appendChild(body);
   }
 
-  // Replace the [data-live] parts (the status card) with the server's current version.
-  // Inputs outside them, the Send code button and the open tab are never touched.
+  // Replace the [data-live] parts with the server's current version. Inputs outside them,
+  // the Send code button and the open tab are never touched, and neither is a part marked
+  // data-dirty (the picker while it has unsaved ticks).
   function refreshLive() {
     var seq = ++refreshSeq;
     return fetch("/auth", {headers: {"Accept": "text/html"}, credentials: "same-origin"})
@@ -305,7 +321,9 @@
         for (var i = 0; i < live.length; i++) {
           var current = live[i];
           var fresh = current.id ? doc.getElementById(current.id) : null;
-          if (fresh && current.parentNode) { current.parentNode.replaceChild(fresh, current); }
+          if (fresh && current.parentNode && !current.hasAttribute("data-dirty")) {
+            current.parentNode.replaceChild(fresh, current);
+          }
         }
       })
       .catch(function () {})
@@ -329,6 +347,12 @@
     for (var i = 0; i < fields.length; i++) { fields[i].value = ""; }
   }
 
+  // Lets the next refresh replace the picker again.
+  function clearPickerEdits() {
+    var picker = document.getElementById("cloud-picker");
+    if (picker) { picker.removeAttribute("data-dirty"); }
+  }
+
   function formBody(form, submitter) {
     try {
       return new URLSearchParams(new FormData(form, submitter));
@@ -336,6 +360,12 @@
       return new URLSearchParams(new FormData(form));
     }
   }
+
+  // On the document, because refreshes replace the picker node.
+  document.addEventListener("change", function (event) {
+    var picker = document.getElementById("cloud-picker");
+    if (picker && picker.contains(event.target)) { picker.setAttribute("data-dirty", ""); }
+  });
 
   // Every post form is sent in the background; without JavaScript the forms still post and
   // the server redirects back here.
@@ -373,6 +403,11 @@
     }).then(function (data) {
       showNotice(!!data.ok, String(data.message), data.note ? String(data.note) : "");
       if (data.ok && !isSend) { clearSecrets(form); }
+      if (data.ok && url.indexOf("/auth/printers/add-local") !== -1) { form.reset(); }
+      // After these the server's list is the truth: a kept picker could belong to another login.
+      if (data.ok && /\/auth\/(printers\/select|cloud\/login|reset)/.test(url)) {
+        clearPickerEdits();
+      }
       var wait = Number(data.wait_seconds);
       if (isSend && wait > 0) { startCountdown(wait); } else { release(); }
       // A successful login reset the send-code limit on the server.

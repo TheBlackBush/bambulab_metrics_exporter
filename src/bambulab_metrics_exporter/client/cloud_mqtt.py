@@ -4,6 +4,7 @@ import logging
 
 from bambulab_metrics_exporter.client.local_mqtt import LocalMqttBambuClient
 from bambulab_metrics_exporter.config import Settings
+from bambulab_metrics_exporter.printers import mask_serial
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,6 @@ class CloudMqttBambuClient(LocalMqttBambuClient):
             "Cloud MQTT client initialized",
             extra={
                 "mqtt_host": settings.bambulab_cloud_mqtt_host,
-                "serial": settings.bambulab_serial,
+                "serial": mask_serial(settings.bambulab_serial),
             },
         )

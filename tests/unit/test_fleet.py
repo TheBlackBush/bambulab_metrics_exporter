@@ -1,0 +1,407 @@
+"""Tests for the multi-printer fleet."""
+from __future__ import annotations
+
+import threading
+import time
+from pathlib import Path
+
+import pytest
+from prometheus_client import CollectorRegistry, Gauge, generate_latest
+
+from bambulab_metrics_exporter.config import Settings
+from bambulab_metrics_exporter.fleet import MergedCollector, PrinterFleet
+from bambulab_metrics_exporter.metrics import ExporterMetrics
+from bambulab_metrics_exporter.models import PrinterSnapshot
+from bambulab_metrics_exporter.printers import PrinterConfig, PrinterStore
+
+A = PrinterConfig(serial="FAKE00TEST000001", transport="local_mqtt", host="192.0.2.1",
+                  access_code="fake-access-code", name="Alpha")
+B = PrinterConfig(serial="FAKE00TEST000002", transport="local_mqtt", host="192.0.2.2",
+                  access_code="fake-access-code", name="Beta")
+C1 = PrinterConfig(serial="FAKE00TEST000003", transport="cloud_mqtt", name="Cloud One")
+C2 = PrinterConfig(serial="FAKE00TEST000004", transport="cloud_mqtt", name="Cloud Two")
+
+
+class _Client:
+    def __init__(self, settings: Settings) -> None:
+        self.serial = settings.bambulab_serial
+        self.connected = False
+
+    def connect(self) -> None:
+        self.connected = True
+
+    def disconnect(self) -> None:
+        self.connected = False
+
+    def fetch_snapshot(self, timeout_seconds: float) -> PrinterSnapshot:
+        return PrinterSnapshot(connected=True, raw={"print": {"mc_percent": 5}})
+
+
+def _wait_until(condition, timeout: float = 3.0) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if condition():
+            return
+        time.sleep(0.01)
+    raise AssertionError("condition not reached in time")
+
+
+def _base() -> Settings:
+    return Settings(polling_interval_seconds=0.05, request_timeout_seconds=0.05)
+
+
+@pytest.fixture(autouse=True)
+def _isolate(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("BAMBULAB_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("BAMBULAB_SECRET_KEY", "fake-development-key-never-use")
+    for key in ("BAMBULAB_SERIAL", "BAMBULAB_HOST", "BAMBULAB_ACCESS_CODE", "BAMBULAB_TRANSPORT"):
+        monkeypatch.delenv(key, raising=False)
+
+
+def _fleet(validate=lambda s: None, configs=None) -> PrinterFleet:
+    store = PrinterStore()
+    if configs is not None:
+        store.save(configs)
+    return PrinterFleet(store, settings_factory=_base, validate=validate, client_factory=_Client)
+
+
+def _running(fleet: PrinterFleet) -> None:
+    _wait_until(lambda: all(p["state"] == "running" for p in fleet.printers_status()))
+
+
+def test_merged_collector_single_registry_is_identical() -> None:
+    source = ExporterMetrics(printer_name="x", serial="y")
+    merged = CollectorRegistry(auto_describe=False)
+    merged.register(MergedCollector(lambda: [source.registry]))
+    assert generate_latest(merged) == generate_latest(source.registry)
+
+
+def test_merged_collector_one_help_per_family() -> None:
+    one, two = ExporterMetrics("a", "1"), ExporterMetrics("b", "2")
+    one.printer_up.labels(printer_name="a", serial="1").set(1)
+    two.printer_up.labels(printer_name="b", serial="2").set(0)
+    merged = CollectorRegistry(auto_describe=False)
+    merged.register(MergedCollector(lambda: [one.registry, two.registry]))
+    text = generate_latest(merged).decode()
+    assert text.count("# HELP bambulab_printer_up ") == 1
+    assert text.count("# TYPE bambulab_printer_up ") == 1
+    assert 'bambulab_printer_up{printer_name="a",serial="1"} 1.0' in text
+    assert 'bambulab_printer_up{printer_name="b",serial="2"} 0.0' in text
+
+
+def test_merged_collector_skips_a_failing_registry(caplog) -> None:
+    class Broken:
+        def collect(self):
+            raise RuntimeError("boom")
+
+    good = CollectorRegistry()
+    Gauge("bambulab_x", "x", registry=good).set(1)
+    merged = CollectorRegistry(auto_describe=False)
+    merged.register(MergedCollector(lambda: [Broken(), good]))  # type: ignore[list-item]
+    assert b"bambulab_x 1.0" in generate_latest(merged)
+
+
+def test_runs_every_printer_and_merges_metrics() -> None:
+    fleet = _fleet(configs=[A, B])
+    fleet.start()
+    try:
+        _running(fleet)
+        text = generate_latest(fleet.scrape_registry).decode()
+        assert 'serial="FAKE00TEST000001"' in text
+        assert 'serial="FAKE00TEST000002"' in text
+        assert fleet.saved is True
+    finally:
+        fleet.stop()
+
+
+def test_one_failing_printer_does_not_stop_the_others() -> None:
+    def validate(settings: Settings) -> None:
+        if settings.bambulab_serial == A.serial:
+            raise RuntimeError("printer offline")
+
+    fleet = _fleet(validate=validate, configs=[A, B])
+    fleet.start()
+    try:
+        _wait_until(lambda: {p["state"] for p in fleet.printers_status()} == {"error", "running"})
+        assert fleet.status()["state"] == "error"
+        _wait_until(lambda: fleet.ready)
+    finally:
+        fleet.stop()
+
+
+def test_update_only_touches_changed_printers() -> None:
+    fleet = _fleet(configs=[A, B])
+    fleet.start()
+    try:
+        _running(fleet)
+        before = fleet._runtimes[A.printer_id]
+        fleet.update([A, C1])
+        assert fleet._runtimes[A.printer_id] is before
+        assert sorted(p["name"] for p in fleet.printers_status()) == ["Alpha", "Cloud One"]
+        assert B.printer_id not in fleet._runtimes
+        _wait_until(lambda: b"FAKE00TEST000002" not in generate_latest(fleet.scrape_registry))
+    finally:
+        fleet.stop()
+
+
+def test_env_mode_runs_the_env_printer(monkeypatch) -> None:
+    monkeypatch.setenv("BAMBULAB_SERIAL", A.serial)
+    monkeypatch.setenv("BAMBULAB_HOST", "192.0.2.1")
+    monkeypatch.setenv("BAMBULAB_ACCESS_CODE", "fake-access-code")
+    fleet = _fleet()
+    fleet.start()
+    try:
+        _running(fleet)
+        assert fleet.saved is False
+        configs = fleet.configs()
+        assert [c.serial for c in configs] == [A.serial]
+        assert configs[0].env_printer is True
+        assert configs[0].access_code == "fake-access-code"
+    finally:
+        fleet.stop()
+
+
+def test_saving_the_env_printer_keeps_its_exposition(monkeypatch) -> None:
+    monkeypatch.setenv("BAMBULAB_SERIAL", A.serial)
+    monkeypatch.setenv("BAMBULAB_HOST", "192.0.2.1")
+    monkeypatch.setenv("BAMBULAB_ACCESS_CODE", "fake-access-code")
+    fleet = _fleet()
+    fleet.start()
+    try:
+        _running(fleet)
+        _wait_until(lambda: fleet.ready)
+        before = fleet.metrics._base_labels
+        saved = fleet.configs()
+        fleet.update(saved)
+        _running(fleet)
+        assert len(fleet._runtimes) == 1
+        assert "env" not in fleet._runtimes
+        assert fleet.configs() == saved
+        assert len(fleet.printers_status()) == 1
+        assert fleet.metrics._base_labels == before
+        _wait_until(
+            lambda: generate_latest(fleet.scrape_registry).decode().count("bambulab_printer_up{")
+            == 1
+        )
+    finally:
+        fleet.stop()
+
+
+def test_update_after_stop_starts_nothing() -> None:
+    fleet = _fleet(configs=[A, B])
+    fleet.start()
+    _running(fleet)
+    fleet.stop()
+    fleet.update([A, C1])
+    fleet.reset_to_env()
+    assert all(rt._thread is None or not rt._thread.is_alive() for rt in fleet._runtimes.values())
+    fleet.stop()
+
+
+def test_reset_returns_to_env_mode(monkeypatch, tmp_path: Path) -> None:
+    # An env runtime without a serial is hidden from the list, so give it one.
+    monkeypatch.setenv("BAMBULAB_SERIAL", A.serial)
+    monkeypatch.setenv("BAMBULAB_HOST", "192.0.2.1")
+    monkeypatch.setenv("BAMBULAB_ACCESS_CODE", "fake-access-code")
+    fleet = _fleet(configs=[A, B])
+    fleet.start()
+    try:
+        _running(fleet)
+        fleet.reset_to_env()
+        assert fleet.saved is False
+        assert not (tmp_path / "printers.enc.json").exists()
+        assert len(fleet.printers_status()) == 1
+    finally:
+        fleet.stop()
+
+
+def test_empty_fleet_serves_setup_state() -> None:
+    fleet = _fleet(configs=[])
+    fleet.start()
+    try:
+        assert fleet.status()["state"] == "setup_required"
+        assert fleet.ready is False
+        assert fleet.printers_status() == []
+        generate_latest(fleet.scrape_registry)
+        assert fleet.metrics is not None and fleet.settings is not None
+    finally:
+        fleet.stop()
+
+
+def test_empty_fleet_settings_come_from_env(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("AUTH_ALLOWED_HOSTS", "exporter.example.invalid")
+    fleet = PrinterFleet(PrinterStore(), validate=lambda _s: None)
+    fleet.update([])
+    assert fleet.settings.auth_allowed_hosts == "exporter.example.invalid"
+    assert fleet.settings.bambulab_config_dir == str(tmp_path)
+
+
+def test_empty_fleet_settings_tolerate_invalid_env(monkeypatch) -> None:
+    fleet = PrinterFleet(PrinterStore(), validate=lambda _s: None)
+    fleet.update([])
+    monkeypatch.setenv("BAMBULAB_TRANSPORT", "carrier_pigeon")
+    assert fleet.settings is not None
+    assert fleet.status()["state"] == "setup_required"
+
+
+def test_concurrent_cloud_validation_reuses_fresh_token(monkeypatch) -> None:
+    monkeypatch.setenv("BAMBULAB_CLOUD_ACCESS_TOKEN", "stale")
+    refreshes: list[str] = []
+    gate = threading.Lock()
+
+    def validate(settings: Settings) -> None:
+        import os
+
+        assert gate.acquire(blocking=False), "cloud validation must be serialized"
+        try:
+            if settings.bambulab_cloud_access_token == "stale":
+                refreshes.append(settings.bambulab_serial)
+                time.sleep(0.02)
+                os.environ["BAMBULAB_CLOUD_ACCESS_TOKEN"] = "fresh"
+                settings.bambulab_cloud_access_token = "fresh"
+        finally:
+            gate.release()
+
+    fleet = _fleet(validate=validate, configs=[C1, C2])
+    fleet.start()
+    try:
+        _running(fleet)
+        assert len(refreshes) == 1
+    finally:
+        fleet.stop()
+
+
+def test_lan_validation_is_not_serialized() -> None:
+    entered = threading.Barrier(2, timeout=2)
+
+    def validate(settings: Settings) -> None:
+        entered.wait()
+
+    fleet = _fleet(validate=validate, configs=[A, B])
+    fleet.start()
+    try:
+        _running(fleet)
+    finally:
+        fleet.stop()
+
+
+def test_status_keeps_single_printer_fields() -> None:
+    fleet = _fleet(configs=[A])
+    fleet.start()
+    try:
+        _running(fleet)
+        assert fleet.status() == {"state": "running", "message": "", "transport": "local_mqtt"}
+    finally:
+        fleet.stop()
+
+
+def test_unreadable_list_falls_back_to_env_and_is_reported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("BAMBULAB_SERIAL", "FAKE00TEST000005")
+    (tmp_path / "printers.enc.json").write_bytes(b"damaged")
+    fleet = _fleet()
+    assert fleet.saved is False and fleet.list_unreadable is True
+    assert [(c.serial, c.env_printer) for c in fleet.configs()] == [("FAKE00TEST000005", True)]
+
+
+def test_saving_over_an_unreadable_list_clears_the_report(tmp_path: Path) -> None:
+    (tmp_path / "printers.enc.json").write_bytes(b"damaged")
+    fleet = _fleet()
+    fleet.update([A])
+    assert fleet.list_unreadable is False
+    assert (tmp_path / "printers.enc.json.bad").read_bytes() == b"damaged"
+
+
+def _reconfigure_counts(fleet: PrinterFleet, monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
+    counts = dict.fromkeys(fleet._runtimes, 0)
+    for key, runtime in fleet._runtimes.items():
+        def count(key: str = key) -> None:
+            counts[key] += 1
+        monkeypatch.setattr(runtime, "reconfigure", count)
+    return counts
+
+
+def test_reconfigure_cloud_leaves_lan_printers_alone(monkeypatch: pytest.MonkeyPatch) -> None:
+    fleet = _fleet(configs=[A, C1, C2])
+    counts = _reconfigure_counts(fleet, monkeypatch)
+    fleet.reconfigure_cloud()
+    assert counts == {A.printer_id: 0, C1.printer_id: 1, C2.printer_id: 1}
+
+
+def test_reconfigure_cloud_wakes_the_env_printer(monkeypatch: pytest.MonkeyPatch) -> None:
+    fleet = _fleet()
+    counts = _reconfigure_counts(fleet, monkeypatch)
+    fleet.reconfigure_cloud()
+    assert counts == {"env": 1}
+
+
+def test_reconfigure_still_reaches_every_printer(monkeypatch: pytest.MonkeyPatch) -> None:
+    fleet = _fleet(configs=[A, C1])
+    counts = _reconfigure_counts(fleet, monkeypatch)
+    fleet.reconfigure()
+    assert counts == {A.printer_id: 1, C1.printer_id: 1}
+
+
+class _Boom(RuntimeError):
+    pass
+
+
+def _raises(*_a: object) -> None:
+    raise _Boom("fake-sensitive-detail")
+
+
+def _counter(calls: list[str], name: str):
+    return lambda: calls.append(name)
+
+
+def _first_fails(fleet: PrinterFleet, monkeypatch: pytest.MonkeyPatch, method: str) -> list[str]:
+    """The first runtime raises, the others record that they were reached."""
+    calls: list[str] = []
+    runtimes = list(fleet._runtimes.items())
+    monkeypatch.setattr(runtimes[0][1], method, _raises)
+    for printer_id, runtime in runtimes[1:]:
+        monkeypatch.setattr(runtime, method, _counter(calls, printer_id))
+    return calls
+
+
+@pytest.mark.parametrize("method", ["stop", "reconfigure", "reconfigure_cloud"])
+def test_one_failing_runtime_does_not_stop_the_others(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, method: str
+) -> None:
+    fleet = _fleet(configs=[C1, C2])
+    calls = _first_fails(fleet, monkeypatch, "stop" if method == "stop" else "reconfigure")
+    getattr(fleet, method)()
+    assert calls == [C2.printer_id]
+    assert "_Boom" in caplog.text and "FAK*************" in caplog.text
+    assert "fake-sensitive-detail" not in caplog.text
+    assert "FAKE00TEST" not in caplog.text
+
+
+def test_retire_thread_logs_a_failing_stop(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    fleet = _fleet(configs=[A])
+    runtime = fleet._runtimes[A.printer_id]
+    monkeypatch.setattr(runtime, "stop", _raises)
+    fleet._retire(runtime)
+    fleet._retiring[0].join(timeout=2)
+    assert "_Boom" in caplog.text and "FAK*************" in caplog.text
+
+
+class _StuckThread:
+    def join(self, timeout: float | None = None) -> None:
+        pass
+
+    def is_alive(self) -> bool:
+        return True
+
+
+def test_stop_warns_about_a_retiring_thread_that_outlives_its_join(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    fleet = _fleet(configs=[])
+    fleet._retiring = [_StuckThread()]
+    fleet.stop()
+    assert "still stopping" in caplog.text
