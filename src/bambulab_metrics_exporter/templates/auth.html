@@ -233,6 +233,7 @@
   var notice = document.getElementById("page-notice");
   var countdown = null;
   var pollTimer = null;
+  var refreshSeq = 0;
 
   // A deadline, not a counter, so a throttled background tab stays correct.
   function startCountdown(seconds) {
@@ -256,8 +257,17 @@
     tick();
   }
 
+  // Back to an active button, e.g. after the server reset the send-code limit.
+  function resetSendButton() {
+    if (countdown) { clearTimeout(countdown); countdown = null; }
+    if (!button || !label) { return; }
+    button.removeAttribute("disabled");
+    button.removeAttribute("data-wait");
+    label.textContent = "Send code";
+  }
+
   // Message text only, never markup.
-  function showNotice(ok, text) {
+  function showNotice(ok, text, note) {
     if (!notice) { return; }
     while (notice.firstChild) { notice.removeChild(notice.firstChild); }
     notice.className = "notice " + (ok ? "ok" : "bad");
@@ -268,25 +278,32 @@
     var body = document.createElement("span");
     body.className = "notice-text";
     body.textContent = text;
+    if (note) {
+      var extra = document.createElement("span");
+      extra.className = "notice-note";
+      extra.textContent = note;
+      body.appendChild(extra);
+    }
     notice.appendChild(icon);
     notice.appendChild(body);
   }
 
   // Replace the [data-live] parts (the status card) with the server's current version.
   // Inputs outside them, the Send code button and the open tab are never touched.
-  function refreshLive(onlyId) {
+  function refreshLive() {
+    var seq = ++refreshSeq;
     return fetch("/auth", {headers: {"Accept": "text/html"}, credentials: "same-origin"})
       .then(function (response) {
         if (!response.ok) { throw new Error("status"); }
         return response.text();
       })
       .then(function (text) {
+        if (seq !== refreshSeq) { return; }  // a newer request is in flight or done
         var doc = new DOMParser().parseFromString(text, "text/html");
         if (doc.querySelector("#send-code[data-wait]")) { return; }
         var live = document.querySelectorAll("[data-live]");
         for (var i = 0; i < live.length; i++) {
           var current = live[i];
-          if (onlyId && current.id !== onlyId) { continue; }
           var fresh = current.id ? doc.getElementById(current.id) : null;
           if (fresh && current.parentNode) { current.parentNode.replaceChild(fresh, current); }
         }
@@ -303,7 +320,7 @@
     if (!card || !card.hasAttribute("data-refresh")) { return; }
     pollTimer = setTimeout(function () {
       pollTimer = null;
-      refreshLive("status-card");
+      refreshLive();
     }, 3000);
   }
 
@@ -326,6 +343,7 @@
     var form = event.target;
     if (!form || !form.matches || !form.matches('form[method="post"]')) { return; }
     event.preventDefault();
+    if (form.busy) { return; }  // the form is already being sent
     var submitter = event.submitter || null;
     var isSend = !!submitter && submitter.id === "send-code";
     var email = form.querySelector('input[name="email"]');
@@ -334,7 +352,9 @@
     } else if (!form.reportValidity()) {
       return;
     }
-    var url = (submitter && submitter.formAction) || form.action;
+    // The formaction attribute only: the formAction property falls back to the page URL.
+    var url = (submitter && submitter.getAttribute("formaction")) || form.action;
+    form.busy = true;
     if (submitter) { submitter.setAttribute("disabled", ""); }
     function release() {
       if (submitter) { submitter.removeAttribute("disabled"); }
@@ -351,14 +371,18 @@
       if (!response.ok) { throw new Error("status"); }
       return response.json();
     }).then(function (data) {
-      showNotice(!!data.ok, String(data.message));
-      if (data.ok) { clearSecrets(form); }
+      showNotice(!!data.ok, String(data.message), data.note ? String(data.note) : "");
+      if (data.ok && !isSend) { clearSecrets(form); }
       var wait = Number(data.wait_seconds);
       if (isSend && wait > 0) { startCountdown(wait); } else { release(); }
+      // A successful login reset the send-code limit on the server.
+      if (data.ok && url.indexOf("/auth/cloud/login") !== -1) { resetSendButton(); }
       return refreshLive();
     }).catch(function () {
       showNotice(false, "Could not complete that. Try again.");
       release();
+    }).then(function () {
+      form.busy = false;
     });
   });
 

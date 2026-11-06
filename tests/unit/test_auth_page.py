@@ -1048,3 +1048,22 @@ def test_auth_page_status_card_is_live_and_refresh_is_noscript_only() -> None:
     assert meta < page.index("</noscript>", meta) < page.index("<style>")
     assert page.count('http-equiv="refresh"') == 1
     assert '<div id="page-notice" role="status" aria-live="polite"></div>' in page
+
+
+def test_json_reply_carries_the_note(monkeypatch) -> None:
+    from bambulab_metrics_exporter import api
+
+    note = "Applies until the next restart. Set BAMBULAB_SECRET_KEY to keep it."
+    monkeypatch.setattr(
+        api, "configure_local", lambda *a, **k: auth_actions.ActionResult(True, "Saved.", note)
+    )
+    client, _ = _client()
+    resp = client.post("/auth/local", data=_LOCAL_FORM, headers=_JSON)
+    assert resp.json() == {"ok": True, "message": "Saved.", "note": note}
+
+
+def test_page_script_reads_the_formaction_attribute() -> None:
+    """The formAction property falls back to the page URL when the attribute is absent."""
+    script = _client()[0].get("/auth").text.split("<script>")[1]
+    assert 'getAttribute("formaction")' in script
+    assert ".formAction" not in script

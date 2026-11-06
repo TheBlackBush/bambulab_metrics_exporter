@@ -191,6 +191,7 @@ class _Flash:
     email: str = ""
     show_send_wait: bool = False
 
+
 # Names that only resolve on a local network. A DNS-rebinding attacker needs a public
 # domain they control, so these (plus IP addresses) are safe to accept without config.
 _LOCAL_HOST_SUFFIXES = (
@@ -501,7 +502,11 @@ def _add_auth_routes(app: FastAPI, runtime: ExporterRuntime) -> None:
         nothing the visitor typed is echoed (only the result message and the wait)."""
         if reconnect and result.ok:
             runtime.reconfigure()
-        body: dict[str, object] = {"ok": result.ok, "message": result.message}
+        body: dict[str, object] = {
+            "ok": result.ok,
+            "message": result.message,
+            "note": result.note,
+        }
         if with_wait:
             body["wait_seconds"] = code_sender.wait_seconds()
         return JSONResponse(body, headers={"Cache-Control": "no-store"})
