@@ -509,7 +509,7 @@
           "refId": "A"
         }
       ],
-      "title": "SD Card",
+      "title": "SD / USB Storage",
       "transformations": [
         {
           "id": "labelsToFields",

@@ -20,6 +20,12 @@ printer over your home network (or through Bambu Cloud), and publishes the data 
 and H2C are recognized. Real-world testing so far is on an **X1C**, and an **H2D** was checked on real hardware while idle and while printing; if you own another model and
 want to help, please open an issue on GitHub.
 
+**Several printers in one exporter:** one exporter can now monitor up to 32 printers on one
+`/metrics` endpoint, with cloud and LAN printers mixed. This is new and has only been tested with
+simulated printers so far, so **feedback is very welcome**. If you run two or more printers, please
+[open an issue](https://github.com/TheBlackBush/bambulab_metrics_exporter/issues/new) and tell us
+what worked and what did not, including your printer models and whether they use cloud or LAN.
+
 ---
 
 ## Contents
@@ -114,7 +120,7 @@ page) and choose one of:
 
 One exporter can monitor up to 32 printers, with cloud and LAN printers mixed (one Bambu account
 per exporter). Add LAN printers with the LAN form, tick cloud printers in the list, and remove any
-printer from the printer table. The picker and table update without a page reload. The list is
+printer from the list at the top of the page. The picker and table update without a page reload. The list is
 stored encrypted in the config volume and needs `BAMBULAB_SECRET_KEY` to survive restarts; without
 it, extra printers exist only until the next restart. With a single printer nothing changes:
 metrics, labels and settings are the same as before. Running one container per printer remains
