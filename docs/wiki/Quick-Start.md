@@ -48,7 +48,7 @@ Open `http://<docker-host>:9109/auth` (also linked from the status page) and cho
 
 - **Local (LAN):** printer IP, serial number and LAN access code.
 - **Bambu Cloud:** account email, **Send code**, then the emailed code and **Log in**. The
-  serial is optional when the account has a single printer.
+  page then lists the account's printers to choose from; no serial is typed.
 
 The exporter connects right away. Details: [The `/auth` page](#the-auth-page).
 

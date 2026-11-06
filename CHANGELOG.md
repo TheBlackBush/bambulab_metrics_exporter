@@ -12,7 +12,7 @@ All notable changes to this project are documented in this file.
   saved list exists. Removing works for a cloud printer that left the account, and saving a
   selection is refused when the device list is empty. The list is stored encrypted in
   `printers.enc.json` (needs `BAMBULAB_SECRET_KEY` to survive restarts) and **Reset to env vars**
-  removes it. `/auth/status` gains a `printers` list of `{id, name, state, message}`. With several
+  removes it. `/auth/status` gains a `printers` list of `{id, name, serial (masked), transport, state, message}`. With several
   printers `/ready` is ready once any printer has data. Existing metrics and single-printer
   deployments do not change, and one container per printer remains supported. Two-printer
   operation is covered by tests with fakes, not validated on real hardware.
