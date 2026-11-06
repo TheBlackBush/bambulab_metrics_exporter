@@ -24,7 +24,7 @@ All notable changes to this project are documented in this file.
 ### Changed
 - The `/auth` page limits verification emails to 5 sends 60 seconds apart, then waits 10
   minutes, then 1 hour after each later round. A successful login resets the limit, and it
-  survives restarts.
+  survives restarts. The Send code button shows the time left and is disabled until then.
 - Setup docs lead with the `/auth` page: the README and wiki Quick Start start the container
   with only `BAMBULAB_SECRET_KEY` and a config volume, then connect the printer in the browser.
   Printer connection and login env vars are documented as optional.

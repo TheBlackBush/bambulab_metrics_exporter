@@ -105,6 +105,7 @@
   }
   button:hover { background: rgba(34, 197, 94, 0.22); border-color: rgba(34, 197, 94, 0.6); }
   button:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+  button:disabled { opacity: 0.55; cursor: not-allowed; }
   button svg { width: 1rem; height: 1rem; flex: none; }
 
   button.tonal { background: #2c2c2c; color: var(--text); border-color: #3d3d3d; }
@@ -183,9 +184,9 @@
         <label class="field-label" for="cloud-email">Bambu account email</label>
         <div class="input-row">
           <input id="cloud-email" type="email" name="email" required autocomplete="email" value="{{CLOUD_EMAIL}}">
-          <button type="submit" class="tonal" formaction="/auth/cloud/send-code">
+          <button type="submit" class="tonal" id="send-code" formaction="/auth/cloud/send-code"{{SEND_ATTRS}}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="3 7 12 13 21 7"/></svg>
-            Send code
+            <span id="send-code-label">{{SEND_LABEL}}</span>
           </button>
         </div>
       </div>
@@ -220,5 +221,27 @@
   </div>
 
 </div>
+<script>
+(function () {
+  var button = document.getElementById("send-code");
+  var label = document.getElementById("send-code-label");
+  if (!button || !label || !button.hasAttribute("data-wait")) { return; }
+  // A deadline, not a counter, so a throttled background tab stays correct.
+  var deadline = Date.now() + parseInt(button.getAttribute("data-wait"), 10) * 1000;
+  function tick() {
+    var left = Math.ceil((deadline - Date.now()) / 1000);
+    if (!(left > 0)) {
+      button.removeAttribute("disabled");
+      button.removeAttribute("data-wait");
+      label.textContent = "Send code";
+      return;
+    }
+    label.textContent = "Send code (" +
+      (left <= 60 ? left + "s" : Math.floor(left / 60) + "m " + (left % 60) + "s") + ")";
+    setTimeout(tick, 1000);
+  }
+  tick();
+})();
+</script>
 </body>
 </html>
