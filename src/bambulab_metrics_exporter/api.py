@@ -8,6 +8,7 @@ import secrets
 import time
 from collections import OrderedDict
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 from urllib.parse import parse_qs, urlsplit
@@ -175,6 +176,19 @@ _MAX_FORM_BYTES = 8192
 _FLASH_COOKIE = "bme_auth"
 _FLASH_TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{16,64}$")
 _FLASH_LIMIT = 64
+
+
+@dataclass(slots=True)
+class _Flash:
+    """What one visitor sees once after a page action.
+
+    The email is held in memory for that single page view only (never on disk), and the
+    store of these is capped by ``_FLASH_LIMIT``.
+    """
+
+    result: ActionResult
+    email: str = ""
+    show_send_wait: bool = False
 
 # Names that only resolve on a local network. A DNS-rebinding attacker needs a public
 # domain they control, so these (plus IP addresses) are safe to accept without config.
@@ -366,7 +380,7 @@ def _add_auth_routes(app: FastAPI, runtime: ExporterRuntime) -> None:
     login_limiter = AttemptLimiter(max_attempts=5, window_seconds=60.0)
     # Last action result per visitor (cookie), shown once. Kept server-side so the page
     # never renders text taken from the URL, and one visitor never sees another's result.
-    flashes: OrderedDict[str, ActionResult] = OrderedDict()
+    flashes: OrderedDict[str, _Flash] = OrderedDict()
 
     def allowed_hosts() -> set[str]:
         raw = getattr(runtime.settings, "auth_allowed_hosts", "") or ""
@@ -383,19 +397,13 @@ def _add_auth_routes(app: FastAPI, runtime: ExporterRuntime) -> None:
         token = request.cookies.get(_FLASH_COOKIE, "")
         return token if _FLASH_TOKEN_RE.match(token) else ""
 
-    def set_flash(token: str, result: ActionResult) -> None:
-        flashes[token] = result
+    def set_flash(token: str, flash: _Flash) -> None:
+        flashes[token] = flash
         flashes.move_to_end(token)
         while len(flashes) > _FLASH_LIMIT:
             flashes.popitem(last=False)
 
-    def render(
-        request: Request,
-        email: str = "",
-        cloud_tab: bool | None = None,
-        allow_refresh: bool = True,
-        result: ActionResult | None = None,
-    ) -> HTMLResponse:
+    def render(request: Request) -> HTMLResponse:
         status = runtime.status()
         label, css = _STATE_LABELS.get(status["state"], (status["state"], "wait"))
         current = runtime.settings
@@ -410,15 +418,24 @@ def _add_auth_routes(app: FastAPI, runtime: ExporterRuntime) -> None:
             else ""
         )
         # While connecting, reload every few seconds so the status updates by itself, and
-        # keep the last result visible until the state settles. Pages answering a post do
-        # not reload, so the email the visitor typed stays in the form.
-        refreshing = status["state"] in _REFRESH_STATES and allow_refresh
+        # keep the last result visible until the state settles. Every post redirects here
+        # (so a refresh cannot submit a form again); the flash carries the email the visitor
+        # typed and whether the Send code wait shows, for this one view.
+        refreshing = status["state"] in _REFRESH_STATES
         token = visitor(request)
-        if result is None and token:
-            result = flashes.get(token) if refreshing else flashes.pop(token, None)
+        flash = None
+        if token:
+            flash = flashes.get(token) if refreshing else flashes.pop(token, None)
+        result = flash.result if flash else None
+        email = flash.email if flash else ""
+        show_send_wait = flash.show_send_wait if flash else False
         flash_html = _notice_html(result) if result else ""
-        cloud = current.bambulab_transport == "cloud_mqtt" if cloud_tab is None else cloud_tab
-        send_attrs, send_label = _send_code_button(code_sender.wait_seconds())
+        cloud = show_send_wait or current.bambulab_transport == "cloud_mqtt"
+        # The wait shows only right after a Send code or login post, never on a plain
+        # load, so the button starts active and the timer follows a press.
+        send_attrs, send_label = _send_code_button(
+            code_sender.wait_seconds() if show_send_wait else 0
+        )
         page = (
             _AUTH_TEMPLATE
             .replace("{{VERSION}}", __version__)
@@ -435,7 +452,7 @@ def _add_auth_routes(app: FastAPI, runtime: ExporterRuntime) -> None:
             .replace("{{CLOUD_CHECKED}}", "checked" if cloud else "")
             .replace("{{SEND_ATTRS}}", send_attrs)
             .replace("{{SEND_LABEL}}", send_label)
-            # Echo only the email the visitor just submitted; it is never stored.
+            # Echo only the email from this visitor's last post, held in memory for one view.
             .replace("{{CLOUD_EMAIL}}", html.escape(email, quote=True))
         )
         return HTMLResponse(content=page, headers={"Cache-Control": "no-store"})
@@ -473,7 +490,7 @@ def _add_auth_routes(app: FastAPI, runtime: ExporterRuntime) -> None:
     ) -> Response:
         _form_data, result = await run_action(request, action)
         token = visitor(request) or secrets.token_urlsafe(16)
-        set_flash(token, result)
+        set_flash(token, _Flash(result))
         if reconnect and result.ok:
             runtime.reconfigure()
         return with_visitor(RedirectResponse("/auth", status_code=303), token)
@@ -481,21 +498,19 @@ def _add_auth_routes(app: FastAPI, runtime: ExporterRuntime) -> None:
     async def cloud_action(
         request: Request, action: Callable[[dict[str, str]], ActionResult], reconnect: bool
     ) -> Response:
-        """Cloud steps answer with the page itself (not a redirect) while the visitor still
-        has to act, so the email they typed stays filled in for the next step."""
+        """Cloud steps redirect like every other post (so a refresh cannot press Send code
+        again); the flash keeps the typed email and the wait for the next page view."""
         form, result = await run_action(request, action)
+        token = visitor(request) or secrets.token_urlsafe(16)
         if reconnect and result.ok:
-            token = visitor(request) or secrets.token_urlsafe(16)
-            set_flash(token, result)
+            set_flash(token, _Flash(result))
             runtime.reconfigure()
-            return with_visitor(RedirectResponse("/auth", status_code=303), token)
-        return render(
-            request,
-            email=form.get("email", "").strip(),
-            cloud_tab=True,
-            allow_refresh=False,
-            result=result,
-        )
+        else:
+            set_flash(
+                token,
+                _Flash(result, email=form.get("email", "").strip(), show_send_wait=True),
+            )
+        return with_visitor(RedirectResponse("/auth", status_code=303), token)
 
     @app.get("/auth", response_class=HTMLResponse)
     def auth_page(request: Request) -> HTMLResponse:

@@ -592,14 +592,15 @@ def test_save_error_shows_notice_instead_of_500(monkeypatch) -> None:
     assert runtime.reconfigured == 0
 
 
-def test_post_response_does_not_auto_refresh(monkeypatch) -> None:
-    """The echoed email must not be wiped by a refresh while the runtime is connecting."""
+def test_connecting_page_keeps_the_typed_email_through_auto_refreshes(monkeypatch) -> None:
+    """The flash survives the auto-reloads while connecting, so the email is not wiped."""
     monkeypatch.setattr(auth_actions, "send_code", lambda email: None)
     client, runtime = _client()
     runtime.status = lambda: {"state": "connecting", "message": "", "transport": "local_mqtt"}
-    page = client.post("/auth/cloud/send-code", data={"email": "operator@example.invalid"}).text
-    assert 'http-equiv="refresh"' not in page
-    assert 'value="operator@example.invalid"' in page
+    client.post("/auth/cloud/send-code", data={"email": "operator@example.invalid"})
+    for _ in range(2):
+        page = client.get("/auth").text
+        assert 'value="operator@example.invalid"' in page
 
 
 def test_streamed_form_without_length_is_capped() -> None:
@@ -753,19 +754,106 @@ def test_send_code_button_is_enabled_without_a_wait() -> None:
     assert '<span id="send-code-label">Send code</span>' in page
 
 
-def test_send_code_post_shows_the_wait_and_keeps_email(monkeypatch) -> None:
+def _send_button(page: str) -> str:
+    start = page.index('id="send-code"')
+    return page[start: page.index(">", start)]
+
+
+def _assert_timer_hidden(page: str) -> None:
+    assert "disabled" not in _send_button(page) and 'data-wait="' not in page
+    assert '<span id="send-code-label">Send code</span>' in page
+
+
+def _assert_timer_shown(page: str) -> None:
+    assert "disabled" in _send_button(page) and 'data-wait="' in page
+    assert "Send code (" in page
+
+
+EMAIL = "operator@example.invalid"
+
+
+def _post_send(client: TestClient):
+    return client.post(
+        "/auth/cloud/send-code", data={"email": EMAIL}, follow_redirects=False
+    )
+
+
+def test_send_code_post_redirects_and_the_next_view_shows_the_wait(monkeypatch) -> None:
     sent: list[str] = []
     monkeypatch.setattr(auth_actions, "send_code", sent.append)
     client, _ = _client()
-    email = "operator@example.invalid"
-    resp = client.post("/auth/cloud/send-code", data={"email": email})
-    assert f'value="{email}"' in resp.text
-    assert " disabled data-wait=" in resp.text
-    assert "Send code (" in resp.text
+    resp = _post_send(client)
+    assert resp.status_code == 303 and resp.headers["location"] == "/auth"
+    page = client.get("/auth").text
+    assert f'value="{EMAIL}"' in page
+    assert "Verification code sent" in page
+    _assert_timer_shown(page)
+    assert sent == [EMAIL]
 
-    page = client.get("/auth").text  # a later view shows the wait, and sends nothing
-    assert " disabled data-wait=" in page and "Send code (" in page
-    assert sent == [email]
+
+def test_refresh_after_a_press_shows_an_active_button_and_sends_nothing(monkeypatch) -> None:
+    sent: list[str] = []
+    monkeypatch.setattr(auth_actions, "send_code", sent.append)
+    client, _ = _client()
+    _assert_timer_hidden(client.get("/auth").text)  # fresh page
+    _post_send(client)
+    client.get("/auth")
+    page = client.get("/auth").text  # a refresh
+    _assert_timer_hidden(page)
+    assert EMAIL not in page
+    assert len(sent) == 1
+
+
+def test_press_after_reload_is_refused_and_shows_the_timer(monkeypatch) -> None:
+    sent: list[str] = []
+    monkeypatch.setattr(auth_actions, "send_code", sent.append)
+    client, _ = _client()
+    _post_send(client)
+    client.get("/auth")
+    resp = _post_send(client)
+    assert resp.status_code == 303
+    page = client.get("/auth").text
+    assert "A code was just sent" in page
+    assert len(sent) == 1
+    _assert_timer_shown(page)
+    assert f'value="{EMAIL}"' in page
+
+
+def test_invalid_send_code_input_redirects(monkeypatch) -> None:
+    monkeypatch.setattr(auth_actions, "send_code", lambda email: None)
+    client, _ = _client()
+    resp = client.post(
+        "/auth/cloud/send-code", data={"email": "not-an-email"}, follow_redirects=False
+    )
+    assert resp.status_code == 303 and resp.headers["location"] == "/auth"
+
+
+def test_another_visitor_never_sees_the_email_or_timer(monkeypatch) -> None:
+    monkeypatch.setattr(auth_actions, "send_code", lambda email: None)
+    client, runtime = _client()
+    _post_send(client)
+    other = TestClient(client.app)
+    page = other.get("/auth").text
+    assert EMAIL not in page
+    _assert_timer_hidden(page)
+
+
+def test_failed_login_redirects_and_keeps_email_and_timer(monkeypatch) -> None:
+    monkeypatch.setattr(auth_actions, "send_code", lambda email: None)
+
+    def reject(email: str, code: str):
+        raise CloudAuthError("code expired")
+
+    monkeypatch.setattr(auth_actions, "login_with_code", reject)
+    client, _ = _client()
+    _post_send(client)
+    resp = client.post(
+        "/auth/cloud/login", data={"email": EMAIL, "code": "000000"}, follow_redirects=False
+    )
+    assert resp.status_code == 303 and resp.headers["location"] == "/auth"
+    page = client.get("/auth").text
+    assert "Login failed" in page and f'value="{EMAIL}"' in page
+    _assert_timer_shown(page)
 
 
 def test_forced_post_during_the_wait_is_still_refused(monkeypatch) -> None:
