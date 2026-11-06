@@ -29,6 +29,7 @@ from bambulab_metrics_exporter.auth_actions import (
     CloudDeviceList,
     CodeSender,
     add_local_printer,
+    add_login_printer,
     configure_cloud,
     configure_local,
     mask_serial,
@@ -709,6 +710,8 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
             if result.ok:
                 code_sender.reset()
                 devices.clear()
+                if fleet and fleet.saved and result.device:
+                    return add_login_printer(fleet.configs(), result.device, fleet.update, result)
             return result
 
         return await cloud_action(request, login, reconnect=True)
@@ -739,6 +742,7 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
     async def auth_printers_select(request: Request) -> Response:
         def select(f: dict[str, str]) -> ActionResult:
             chosen = {k.removeprefix("printer_") for k in f if k.startswith("printer_")}
+            devices.refresh()  # A printer gone from the account must not come back.
             configs = select_cloud_printers(fleet.configs(), devices.peek(), chosen)
             return saved(fleet.update(configs), "Printer selection saved.")
 

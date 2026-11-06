@@ -229,6 +229,22 @@ def test_empty_fleet_serves_setup_state() -> None:
         fleet.stop()
 
 
+def test_empty_fleet_settings_come_from_env(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("AUTH_ALLOWED_HOSTS", "exporter.example.invalid")
+    fleet = PrinterFleet(PrinterStore(), validate=lambda _s: None)
+    fleet.update([])
+    assert fleet.settings.auth_allowed_hosts == "exporter.example.invalid"
+    assert fleet.settings.bambulab_config_dir == str(tmp_path)
+
+
+def test_empty_fleet_settings_tolerate_invalid_env(monkeypatch) -> None:
+    fleet = PrinterFleet(PrinterStore(), validate=lambda _s: None)
+    fleet.update([])
+    monkeypatch.setenv("BAMBULAB_TRANSPORT", "carrier_pigeon")
+    assert fleet.settings is not None
+    assert fleet.status()["state"] == "setup_required"
+
+
 def test_concurrent_cloud_validation_reuses_fresh_token(monkeypatch) -> None:
     monkeypatch.setenv("BAMBULAB_CLOUD_ACCESS_TOKEN", "stale")
     refreshes: list[str] = []

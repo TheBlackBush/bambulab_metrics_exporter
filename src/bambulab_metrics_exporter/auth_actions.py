@@ -22,6 +22,7 @@ from typing import Any
 
 from bambulab_metrics_exporter.cloud_auth import (
     CloudAuthError,
+    fetch_bind_devices,
     get_bind_devices,
     login_with_code,
     send_code,
@@ -73,6 +74,7 @@ class ActionResult:
     ok: bool
     message: str
     note: str = ""
+    device: CloudDevice | None = None  # A login's only printer; never sent to the page.
 
 
 class AuthInputError(ValueError):
@@ -293,10 +295,12 @@ def configure_cloud(email: str, code: str, serial: str = "") -> ActionResult:
 
     login_only = False
     login_only_message = "Signed in. Select your printers below."
+    device: CloudDevice | None = None
     if not serial:
         devices = _devices_after_login(result.access_token)
         if len(devices) == 1:
-            serial = devices[0].serial
+            device = devices[0]
+            serial = device.serial
         else:
             login_only = True  # The page lists the printers; nothing else changes yet.
         if not devices:
@@ -326,7 +330,44 @@ def configure_cloud(email: str, code: str, serial: str = "") -> ActionResult:
         True,
         f"Signed in to Bambu Cloud for printer {mask_serial(serial)}.",
         persist_note(persisted),
+        device,
     )
+
+
+def add_login_printer(
+    current: list[PrinterConfig],
+    device: CloudDevice,
+    update: Callable[[list[PrinterConfig]], bool],
+    signed_in: ActionResult,
+) -> ActionResult:
+    """Monitor the only printer of the account that just signed in, when a saved list decides
+    what runs. The result stays ok whatever happens: the login is done and its code is spent."""
+    masked = mask_serial(device.serial)
+    existing = next((config for config in current if config.serial == device.serial), None)
+    if existing is not None:
+        if existing.transport == TRANSPORT_LOCAL:
+            message = f"Signed in to Bambu Cloud. Printer {masked} stays a LAN printer."
+            return ActionResult(True, message, signed_in.note)
+        return signed_in
+    if len(current) >= MAX_PRINTERS:
+        message = (
+            f"Signed in to Bambu Cloud. Printer {masked} was not added: "
+            f"an exporter can monitor at most {MAX_PRINTERS} printers."
+        )
+        return ActionResult(True, message, signed_in.note)
+    config = PrinterConfig(
+        serial=device.serial, transport=TRANSPORT_CLOUD, name=device.name, model=device.model
+    )
+    try:
+        persisted = update([*current, config])
+    except Exception:  # noqa: BLE001 - a spent code means nothing here may fail the login
+        logger.warning("Could not add the signed-in printer to the saved list")
+        message = (
+            f"Signed in to Bambu Cloud, but printer {masked} could not be added. Select it below."
+        )
+        return ActionResult(True, message, signed_in.note)
+    message = f"Signed in to Bambu Cloud. Printer {masked} was added to the list."
+    return ActionResult(True, message, persist_note(persisted))
 
 
 @dataclass(frozen=True, slots=True)
@@ -371,8 +412,7 @@ class CloudDeviceList:
             with self._lock:
                 # A clear() during the fetch means this answer may be the previous account's.
                 if generation == self._generation:
-                    # Empty also means a failed fetch: keep the last good list until clear().
-                    if devices:
+                    if devices is not None:  # A failed fetch keeps the last good list.
                         self._devices = devices
                     self._expires = self._clock() + self._ttl
 
@@ -400,15 +440,14 @@ def _parse_devices(raw: list[Any]) -> list[CloudDevice]:
     return list(unique.values())
 
 
-def _fetch_devices(token: str) -> list[CloudDevice]:
-    """Never raises for a bad response: this runs on page load. The errors can carry
-    response content, so none of it reaches the log. Empty does not prove the account has
-    no printers: get_bind_devices also answers [] when every API base fails."""
+def _fetch_devices(token: str) -> list[CloudDevice] | None:
+    """None when the list could not be read. Never raises for a bad response: this runs on
+    page load. The errors can carry response content, so none of it reaches the log."""
     try:
-        return _parse_devices(get_bind_devices(token, timeout_seconds=5.0, retries=1))
+        return _parse_devices(fetch_bind_devices(token, timeout_seconds=5.0, retries=1))
     except _DEVICE_LIST_ERRORS:
         logger.warning("Could not read the printer list from Bambu Cloud")
-        return []
+        return None
 
 
 def _devices_after_login(token: str) -> list[CloudDevice]:

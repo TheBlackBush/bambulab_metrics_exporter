@@ -157,7 +157,13 @@ class PrinterFleet:
     @property
     def settings(self) -> Settings:
         runtimes = self._snapshot()
-        return runtimes[0].settings if runtimes else Settings.model_construct()
+        if runtimes:
+            return runtimes[0].settings
+        # An empty list still needs env values: the /auth Host allowlist and the config dir.
+        try:
+            return self._settings_factory()
+        except Exception:  # noqa: BLE001 - invalid env must not stop the web server
+            return Settings.model_construct()
 
     @property
     def metrics(self) -> ExporterMetrics:

@@ -444,12 +444,15 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def get_bind_devices(
+def fetch_bind_devices(
     access_token: str,
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
     retries: int = DEFAULT_RETRIES,
     api_bases: list[str] | None = None,
 ) -> list[dict[str, Any]]:
+    """The account's printers. Raises CloudAuthError when no API base gave a device list,
+    so a failure is not mistaken for an account with no printers. The error is fixed text:
+    none of the responses reach it."""
     bases = api_bases or DEFAULT_API_BASES
     for api_base in bases:
         try:
@@ -465,7 +468,20 @@ def get_bind_devices(
                 return [x for x in devices if isinstance(x, dict)]
         except CloudAuthError:
             continue
-    return []
+    raise CloudAuthError("Could not read the printer list from Bambu Cloud.")
+
+
+def get_bind_devices(
+    access_token: str,
+    timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+    retries: int = DEFAULT_RETRIES,
+    api_bases: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Like ``fetch_bind_devices``, for callers that treat a failure as no printers."""
+    try:
+        return fetch_bind_devices(access_token, timeout_seconds, retries, api_bases)
+    except CloudAuthError:
+        return []
 
 
 def main() -> int:

@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from bambulab_metrics_exporter import auth_actions, overrides
+from bambulab_metrics_exporter import api, auth_actions, overrides
 from bambulab_metrics_exporter.api import _send_code_button, build_app
 from bambulab_metrics_exporter.auth_actions import (
     AuthInputError,
@@ -1193,7 +1193,7 @@ def test_device_list_caches_and_peek_never_fetches(monkeypatch) -> None:
             "garbage",
         ]
 
-    monkeypatch.setattr(auth_actions, "get_bind_devices", fake)
+    monkeypatch.setattr(auth_actions, "fetch_bind_devices", fake)
     monkeypatch.setenv("BAMBULAB_CLOUD_ACCESS_TOKEN", "fake-access-token")
     now = [0.0]
     devices = CloudDeviceList(clock=lambda: now[0])
@@ -1214,7 +1214,7 @@ def test_device_list_without_token_does_nothing(monkeypatch) -> None:
     def fail(*_a: object, **_k: object) -> list[dict]:
         raise AssertionError("must not fetch")
 
-    monkeypatch.setattr(auth_actions, "get_bind_devices", fail)
+    monkeypatch.setattr(auth_actions, "fetch_bind_devices", fail)
     CloudDeviceList().refresh()
 
 
@@ -1225,7 +1225,7 @@ def test_device_list_failure_is_cached_as_empty(monkeypatch) -> None:
         calls.append(1)
         raise CloudAuthError("network down")
 
-    monkeypatch.setattr(auth_actions, "get_bind_devices", boom)
+    monkeypatch.setattr(auth_actions, "fetch_bind_devices", boom)
     monkeypatch.setenv("BAMBULAB_CLOUD_ACCESS_TOKEN", "fake-access-token")
     devices = CloudDeviceList(clock=lambda: 0.0)
     devices.refresh()
@@ -1250,7 +1250,7 @@ def test_device_list_unexpected_error_stays_inside_refresh(monkeypatch, caplog, 
     def boom(*_a: object, **_k: object) -> list[dict]:
         raise error
 
-    monkeypatch.setattr(auth_actions, "get_bind_devices", boom)
+    monkeypatch.setattr(auth_actions, "fetch_bind_devices", boom)
     monkeypatch.setenv("BAMBULAB_CLOUD_ACCESS_TOKEN", "fake-access-token")
     devices = CloudDeviceList()
     with caplog.at_level(logging.WARNING):
@@ -1270,7 +1270,7 @@ def test_device_list_treats_the_payload_as_untrusted(monkeypatch) -> None:
         {"dev_id": S2, "name": "bad\ud800name", "model": "X1C"},
         {"dev_id": S3, "name": "<script>", "dev_product_name": None},
     ]
-    monkeypatch.setattr(auth_actions, "get_bind_devices", lambda token, **_k: payload)
+    monkeypatch.setattr(auth_actions, "fetch_bind_devices", lambda token, **_k: payload)
     monkeypatch.setenv("BAMBULAB_CLOUD_ACCESS_TOKEN", "fake-access-token")
     devices = CloudDeviceList()
     devices.refresh()
@@ -1298,7 +1298,7 @@ def _blocking_fetch(monkeypatch, payloads: list[list[dict]]) -> tuple[threading.
         assert release.wait(5)
         return payloads[len(calls) - 1]
 
-    monkeypatch.setattr(auth_actions, "get_bind_devices", fake)
+    monkeypatch.setattr(auth_actions, "fetch_bind_devices", fake)
     monkeypatch.setenv("BAMBULAB_CLOUD_ACCESS_TOKEN", "fake-access-token")
     return started, release, calls
 
@@ -1453,7 +1453,7 @@ def test_failed_refresh_keeps_the_last_good_list(monkeypatch, failure: Exception
             raise answer
         return answer  # type: ignore[return-value]
 
-    monkeypatch.setattr(auth_actions, "get_bind_devices", fetch)
+    monkeypatch.setattr(auth_actions, "fetch_bind_devices", fetch)
     monkeypatch.setenv("BAMBULAB_CLOUD_ACCESS_TOKEN", "fake-access-token")
     now = [0.0]
     devices = CloudDeviceList(ttl_seconds=60.0, clock=lambda: now[0])
@@ -1465,21 +1465,20 @@ def test_failed_refresh_keeps_the_last_good_list(monkeypatch, failure: Exception
     assert answers == []
 
 
-def test_empty_answer_keeps_the_last_good_list(monkeypatch) -> None:
-    """get_bind_devices answers [] when every API base fails, so [] is not proof of no printers."""
+def test_real_empty_answer_replaces_the_list(monkeypatch) -> None:
     answers = [[{"dev_id": S1}], []]
-    monkeypatch.setattr(auth_actions, "get_bind_devices", lambda *_a, **_k: answers.pop(0))
+    monkeypatch.setattr(auth_actions, "fetch_bind_devices", lambda *_a, **_k: answers.pop(0))
     monkeypatch.setenv("BAMBULAB_CLOUD_ACCESS_TOKEN", "fake-access-token")
     now = [0.0]
     devices = CloudDeviceList(ttl_seconds=60.0, clock=lambda: now[0])
     devices.refresh()
     now[0] = 61.0
     devices.refresh()
-    assert [d.serial for d in devices.peek()] == [S1] and answers == []
+    assert devices.peek() == [] and answers == []
 
 
 def test_clear_still_empties_the_list_after_a_failed_refresh(monkeypatch) -> None:
-    monkeypatch.setattr(auth_actions, "get_bind_devices", lambda *_a, **_k: [{"dev_id": S1}])
+    monkeypatch.setattr(auth_actions, "fetch_bind_devices", lambda *_a, **_k: [{"dev_id": S1}])
     monkeypatch.setenv("BAMBULAB_CLOUD_ACCESS_TOKEN", "fake-access-token")
     devices = CloudDeviceList()
     devices.refresh()
@@ -1499,7 +1498,7 @@ def test_new_lan_printer_with_a_blank_port_uses_the_default() -> None:
 
 
 def test_device_serial_is_uppercased(monkeypatch) -> None:
-    monkeypatch.setattr(auth_actions, "get_bind_devices", lambda *_a, **_k: [{"dev_id": S1.lower()}])
+    monkeypatch.setattr(auth_actions, "fetch_bind_devices", lambda *_a, **_k: [{"dev_id": S1.lower()}])
     monkeypatch.setenv("BAMBULAB_CLOUD_ACCESS_TOKEN", "fake-access-token")
     devices = CloudDeviceList()
     devices.refresh()
@@ -1556,13 +1555,15 @@ class _FleetRuntime(_Runtime):
 def _fleet_client(monkeypatch, devices: list[dict] | None = None):
     runtime = _FleetRuntime(Settings(bambulab_serial=S1))
     monkeypatch.setenv("BAMBULAB_CLOUD_ACCESS_TOKEN", "fake-access-token")
-    monkeypatch.setattr(
-        auth_actions, "get_bind_devices",
-        lambda token, **_k: devices if devices is not None else [
+
+    def bind(token: str, **_k: object) -> list[dict]:
+        return devices if devices is not None else [
             {"dev_id": S1, "name": "One <x>", "dev_product_name": "H2D", "online": True},
             {"dev_id": S2, "name": "Two", "dev_product_name": "X1C", "online": False},
-        ],
-    )
+        ]
+
+    monkeypatch.setattr(auth_actions, "get_bind_devices", bind)
+    monkeypatch.setattr(auth_actions, "fetch_bind_devices", bind)
     return TestClient(build_app(runtime=runtime)), runtime
 
 
@@ -1606,6 +1607,49 @@ def test_select_route_rejects_a_forged_id(monkeypatch) -> None:
     response = client.post("/auth/printers/select", data={"printer_000000000000": "on"})
     assert runtime.updates == []
     assert "no longer on this account" in response.text
+
+
+def test_select_route_needs_no_page_view_first(monkeypatch) -> None:
+    client, runtime = _fleet_client(monkeypatch)
+    client.post("/auth/printers/select", data={f"printer_{printer_id_for(S2)}": "on"})
+    assert [c.serial for c in runtime.list] == [S2]
+
+
+def test_printer_gone_from_the_account_cannot_be_added_again(monkeypatch) -> None:
+    listing = [{"dev_id": S1}, {"dev_id": S2}]
+    monkeypatch.setattr(api, "CloudDeviceList", lambda: CloudDeviceList(ttl_seconds=0.0))
+    client, runtime = _fleet_client(monkeypatch, devices=listing)
+    client.get("/auth")
+    listing[:] = [{"dev_id": S2}]
+    response = client.post(
+        "/auth/printers/select", data={f"printer_{printer_id_for(S1)}": "on"}, headers=_JSON
+    )
+    assert response.json()["ok"] is False
+    assert "no longer on this account" in response.json()["message"]
+    assert runtime.updates == []
+
+
+def test_select_route_uses_the_last_good_list_when_the_refresh_fails(monkeypatch) -> None:
+    monkeypatch.setattr(api, "CloudDeviceList", lambda: CloudDeviceList(ttl_seconds=0.0))
+    client, runtime = _fleet_client(monkeypatch)
+    client.get("/auth")
+
+    def down(*_a: object, **_k: object) -> list[dict]:
+        raise CloudAuthError("network down")
+
+    monkeypatch.setattr(auth_actions, "fetch_bind_devices", down)
+    client.post("/auth/printers/select", data={f"printer_{printer_id_for(S2)}": "on"})
+    assert [c.serial for c in runtime.list] == [S2]
+
+
+def test_select_route_refuses_when_the_account_became_empty(monkeypatch) -> None:
+    listing = [{"dev_id": S1}]
+    monkeypatch.setattr(api, "CloudDeviceList", lambda: CloudDeviceList(ttl_seconds=0.0))
+    client, runtime = _fleet_client(monkeypatch, devices=listing)
+    client.get("/auth")
+    listing.clear()
+    response = client.post("/auth/printers/select", headers=_JSON)
+    assert "not available" in response.json()["message"] and runtime.updates == []
 
 
 def test_select_route_refuses_an_empty_device_list(monkeypatch) -> None:
@@ -1833,9 +1877,9 @@ def test_failed_login_keeps_the_device_list(monkeypatch) -> None:
 
     calls: list[int] = []
     client, _runtime = _fleet_client(monkeypatch)
-    real = auth_actions.get_bind_devices
+    real = auth_actions.fetch_bind_devices
     monkeypatch.setattr(
-        auth_actions, "get_bind_devices", lambda token, **k: (calls.append(1), real(token, **k))[1]
+        auth_actions, "fetch_bind_devices", lambda token, **k: (calls.append(1), real(token, **k))[1]
     )
     monkeypatch.setattr(auth_actions, "login_with_code", reject)
     client.get("/auth")
@@ -1960,3 +2004,130 @@ def test_page_on_an_empty_real_fleet(monkeypatch) -> None:
     page = client.get("/auth")
     assert page.status_code == 200 and "No printers selected." in page.text
     assert '<div id="printers-live" data-live></div>' in page.text
+
+
+def test_empty_real_fleet_keeps_the_allowed_hosts(monkeypatch) -> None:
+    monkeypatch.setenv("AUTH_ALLOWED_HOSTS", "exporter.example.invalid")
+    client, fleet = _real_fleet(monkeypatch)
+    fleet.update([])
+    assert client.get("/auth", headers={"Host": "exporter.example.invalid"}).status_code == 200
+    assert client.get("/auth", headers={"Host": "other.example.invalid"}).status_code == 403
+
+
+def test_reset_on_an_empty_real_fleet_uses_the_configured_config_dir(monkeypatch, tmp_path) -> None:
+    client, fleet = _real_fleet(monkeypatch)
+    fleet.update([])
+    credentials = tmp_path / "credentials.enc.json"
+    credentials.write_bytes(b"from the container")
+    overrides.backup_credentials(credentials)
+    credentials.write_bytes(b"from the page login")
+    assert client.post("/auth/reset", headers=_JSON).json()["ok"] is True
+    assert credentials.read_bytes() == b"from the container"
+
+
+# ---------------------------------------------------------------------------
+# one-printer login with a saved list
+# ---------------------------------------------------------------------------
+
+_LOGIN = {"email": EMAIL, "code": "123456"}
+
+
+def _login_client(monkeypatch, serial: str = S1):
+    client, runtime = _fleet_client(
+        monkeypatch, devices=[{"dev_id": serial, "name": "Solo", "dev_product_name": "H2D"}]
+    )
+    monkeypatch.setattr(auth_actions, "login_with_code", lambda email, code: _login())
+    return client, runtime
+
+
+def test_one_printer_login_adds_it_to_the_saved_list(monkeypatch) -> None:
+    client, runtime = _login_client(monkeypatch)
+    runtime.list = [LAN3]
+    response = client.post("/auth/cloud/login", data=_LOGIN, headers=_JSON)
+    body = response.json()
+    assert body["ok"] is True and "added" in body["message"]
+    assert mask_serial_of(S1) in body["message"] and S1 not in response.text
+    assert "Kept after restarts" in body["note"]
+    assert runtime.list[0] == LAN3
+    assert [(c.serial, c.transport, c.name, c.model) for c in runtime.list[1:]] == [
+        (S1, "cloud_mqtt", "Solo", "H2D")
+    ]
+    assert runtime.reconfigured == 1
+
+
+def test_one_printer_login_note_says_when_the_list_is_session_only(monkeypatch) -> None:
+    client, runtime = _login_client(monkeypatch)
+    runtime.update = lambda configs: False
+    body = client.post("/auth/cloud/login", data=_LOGIN, headers=_JSON).json()
+    assert body["ok"] is True and "until the next restart" in body["note"]
+
+
+def test_one_printer_login_leaves_a_lan_printer_on_lan(monkeypatch) -> None:
+    client, runtime = _login_client(monkeypatch, serial=S3)
+    runtime.list = [LAN3]
+    body = client.post("/auth/cloud/login", data=_LOGIN, headers=_JSON).json()
+    assert body["ok"] is True and runtime.updates == []
+    assert "added" not in body["message"].replace("already added", "")
+    assert "LAN" in body["message"]
+    assert os.environ["BAMBULAB_CLOUD_ACCESS_TOKEN"] == "fresh_token"
+
+
+def test_one_printer_login_with_the_printer_already_listed_changes_nothing(monkeypatch) -> None:
+    client, runtime = _login_client(monkeypatch)
+    runtime.list = [PrinterConfig(serial=S1, transport="cloud_mqtt", name="Mine")]
+    body = client.post("/auth/cloud/login", data=_LOGIN, headers=_JSON).json()
+    assert body["ok"] is True and runtime.updates == []
+    assert "added" not in body["message"]
+
+
+def test_one_printer_login_with_a_full_list_keeps_the_login(monkeypatch) -> None:
+    client, runtime = _login_client(monkeypatch)
+    runtime.list = [
+        PrinterConfig(serial=f"FAKE00LAN{i:07d}", transport="local_mqtt", host="192.0.2.9")
+        for i in range(MAX_PRINTERS)
+    ]
+    body = client.post("/auth/cloud/login", data=_LOGIN, headers=_JSON).json()
+    assert body["ok"] is True and str(MAX_PRINTERS) in body["message"]
+    assert "not added" in body["message"] and runtime.updates == []
+    assert os.environ["BAMBULAB_CLOUD_ACCESS_TOKEN"] == "fresh_token"
+
+
+@pytest.mark.parametrize("error", [PermissionError(13, "Permission denied"), RuntimeError("x")])
+def test_one_printer_login_survives_a_failed_list_save(monkeypatch, error: Exception) -> None:
+    client, runtime = _login_client(monkeypatch)
+
+    def unwritable(_configs: list[PrinterConfig]) -> bool:
+        raise error
+
+    runtime.update = unwritable
+    response = client.post("/auth/cloud/login", data=_LOGIN, headers=_JSON)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True and "could not be added" in body["message"]
+    assert S1 not in response.text and runtime.reconfigured == 1
+
+
+def test_one_printer_login_in_env_mode_stays_as_today(monkeypatch) -> None:
+    client, runtime = _login_client(monkeypatch)
+    runtime.saved = False
+    body = client.post("/auth/cloud/login", data=_LOGIN, headers=_JSON).json()
+    assert body["ok"] is True and "Signed in to Bambu Cloud for printer" in body["message"]
+    assert runtime.updates == [] and os.environ["BAMBULAB_SERIAL"] == S1
+
+
+def test_several_printers_login_with_a_saved_list_adds_nothing(monkeypatch) -> None:
+    client, runtime = _fleet_client(monkeypatch)
+    monkeypatch.setattr(auth_actions, "login_with_code", lambda email, code: _login())
+    body = client.post("/auth/cloud/login", data=_LOGIN, headers=_JSON).json()
+    assert body["ok"] is True and runtime.updates == []
+
+
+def test_one_printer_login_on_a_real_fleet(monkeypatch) -> None:
+    client, fleet = _real_fleet(monkeypatch)
+    fleet.update([LAN3])
+    monkeypatch.setattr(auth_actions, "login_with_code", lambda email, code: _login())
+    monkeypatch.setattr(auth_actions, "get_bind_devices", lambda token: [{"dev_id": S1}])
+    monkeypatch.setattr(auth_actions, "fetch_bind_devices", lambda token, **_k: [{"dev_id": S1}])
+    assert client.post("/auth/cloud/login", data=_LOGIN, headers=_JSON).json()["ok"] is True
+    assert [c.serial for c in fleet.configs()] == [S3, S1]
+    assert f'name="printer_{printer_id_for(S1)}" checked' in client.get("/auth").text
