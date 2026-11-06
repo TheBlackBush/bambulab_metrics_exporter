@@ -203,6 +203,18 @@ class PrinterFleet:
         for runtime in self._snapshot():
             runtime.reconfigure()
 
+    def reconfigure_cloud(self) -> None:
+        """After a cloud login: only printers on the account, and the env printer, which may
+        have just changed to it. LAN printers keep running."""
+        with self._lock:
+            runtimes = [
+                runtime for printer_id, runtime in self._runtimes.items()
+                if printer_id == ENV_RUNTIME_ID
+                or self._configs[printer_id].transport == TRANSPORT_CLOUD
+            ]
+        for runtime in runtimes:
+            runtime.reconfigure()
+
     def status(self) -> dict[str, str]:
         statuses = [runtime.status() for runtime in self._snapshot()]
         if not statuses:

@@ -68,6 +68,8 @@ _STATE_LABELS: dict[str, tuple[str, str]] = {
 
 _REFRESH_STATES = {"starting", "connecting"}
 
+Reconnect = Callable[[], None]
+
 _UNREADABLE_NOTE = (
     "The saved printer list could not be read, so it is not in use. Check BAMBULAB_SECRET_KEY."
 )
@@ -195,6 +197,8 @@ class _Fleet(_Backend, Protocol):
     def configs(self) -> list[PrinterConfig]: ...
 
     def printers_status(self) -> list[dict[str, str]]: ...
+
+    def reconfigure_cloud(self) -> None: ...
 
     def update(self, configs: list[PrinterConfig]) -> bool: ...
 
@@ -631,11 +635,16 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
     def wants_json(request: Request) -> bool:
         return "application/json" in request.headers.get("accept", "")
 
-    def json_reply(result: ActionResult, reconnect: bool, with_wait: bool) -> Response:
+    def apply_change(result: ActionResult, reconnect: Reconnect | None) -> None:
+        if reconnect and result.ok and not result.applied:
+            reconnect()
+
+    def json_reply(
+        result: ActionResult, reconnect: Reconnect | None, with_wait: bool
+    ) -> Response:
         """Answer a background request from the page script: no redirect and no flash, and
         nothing the visitor typed is echoed (only the result message and the wait)."""
-        if reconnect and result.ok:
-            runtime.reconfigure()
+        apply_change(result, reconnect)
         body: dict[str, object] = {
             "ok": result.ok,
             "message": result.message,
@@ -646,21 +655,22 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
         return JSONResponse(body, headers={"Cache-Control": "no-store"})
 
     async def handle(
-        request: Request, action: Callable[[dict[str, str]], ActionResult], reconnect: bool
+        request: Request,
+        action: Callable[[dict[str, str]], ActionResult],
+        reconnect: Reconnect | None,
     ) -> Response:
         _form_data, result = await run_action(request, action)
         if wants_json(request):
             return json_reply(result, reconnect, with_wait=False)
         token = visitor(request) or secrets.token_urlsafe(16)
         set_flash(token, _Flash(result))
-        if reconnect and result.ok:
-            runtime.reconfigure()
+        apply_change(result, reconnect)
         return with_visitor(RedirectResponse("/auth", status_code=303), token)
 
     async def cloud_action(
         request: Request,
         action: Callable[[dict[str, str]], ActionResult],
-        reconnect: bool,
+        reconnect: Reconnect | None,
         with_wait: bool = False,
     ) -> Response:
         """Cloud steps redirect like every other post (so a refresh cannot press Send code
@@ -671,7 +681,7 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
         token = visitor(request) or secrets.token_urlsafe(16)
         if reconnect and result.ok:
             set_flash(token, _Flash(result))
-            runtime.reconfigure()
+            apply_change(result, reconnect)
         else:
             set_flash(
                 token,
@@ -695,20 +705,26 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
             status["printers"] = lister()
         return status
 
+    def saved(persisted: bool, message: str) -> ActionResult:
+        return ActionResult(True, message, persist_note(persisted), applied=True)
+
     @app.post("/auth/local")
     async def auth_local(request: Request) -> Response:
-        return await handle(
-            request,
-            lambda f: configure_local(
-                f.get("host", ""), f.get("serial", ""), f.get("access_code", ""), f.get("port", "")
-            ),
-            reconnect=True,
-        )
+        def connect(f: dict[str, str]) -> ActionResult:
+            host, serial = f.get("host", ""), f.get("serial", "")
+            code, port = f.get("access_code", ""), f.get("port", "")
+            if fleet and fleet.saved:
+                # A saved list decides what runs, so the env printer would change nothing.
+                configs = add_local_printer(fleet.configs(), host, serial, code, port)
+                return saved(fleet.update(configs), "LAN printer saved.")
+            return configure_local(host, serial, code, port)
+
+        return await handle(request, connect, reconnect=runtime.reconfigure)
 
     @app.post("/auth/cloud/send-code")
     async def auth_send_code(request: Request) -> Response:
         return await cloud_action(
-            request, lambda f: code_sender.send(f.get("email", "")), reconnect=False, with_wait=True
+            request, lambda f: code_sender.send(f.get("email", "")), reconnect=None, with_wait=True
         )
 
     @app.post("/auth/cloud/login")
@@ -723,7 +739,9 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
                     return add_login_printer(fleet.configs(), result.device, fleet.update, result)
             return result
 
-        return await cloud_action(request, login, reconnect=True)
+        # LAN printers do not use the account, so a login must not restart them.
+        reconnect = fleet.reconfigure_cloud if fleet else runtime.reconfigure
+        return await cloud_action(request, login, reconnect=reconnect)
 
     @app.post("/auth/reset")
     async def auth_reset(request: Request) -> Response:
@@ -739,13 +757,10 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
                 return ActionResult(True, "Page settings removed; using the container's env vars.")
             return ActionResult(True, "No saved page settings; already using env vars.")
 
-        return await handle(request, reset, reconnect=True)
+        return await handle(request, reset, reconnect=runtime.reconfigure)
 
     if fleet is None:
         return
-
-    def saved(persisted: bool, message: str) -> ActionResult:
-        return ActionResult(True, message, persist_note(persisted))
 
     @app.post("/auth/printers/select")
     async def auth_printers_select(request: Request) -> Response:
@@ -755,7 +770,7 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
             configs = select_cloud_printers(fleet.configs(), devices.peek(), chosen)
             return saved(fleet.update(configs), "Printer selection saved.")
 
-        return await handle(request, select, reconnect=False)
+        return await handle(request, select, reconnect=None)
 
     @app.post("/auth/printers/add-local")
     async def auth_printers_add_local(request: Request) -> Response:
@@ -766,7 +781,7 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
             )
             return saved(fleet.update(configs), "LAN printer saved.")
 
-        return await handle(request, add, reconnect=False)
+        return await handle(request, add, reconnect=None)
 
     @app.post("/auth/printers/remove")
     async def auth_printers_remove(request: Request) -> Response:
@@ -774,4 +789,4 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
             configs = remove_printer(fleet.configs(), f.get("printer_id", ""))
             return saved(fleet.update(configs), "Printer removed.")
 
-        return await handle(request, remove, reconnect=False)
+        return await handle(request, remove, reconnect=None)

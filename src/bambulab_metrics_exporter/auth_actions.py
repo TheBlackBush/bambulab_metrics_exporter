@@ -75,6 +75,7 @@ class ActionResult:
     message: str
     note: str = ""
     device: CloudDevice | None = None  # A login's only printer; never sent to the page.
+    applied: bool = False  # The fleet already runs the change: nothing to reconnect.
 
 
 class AuthInputError(ValueError):

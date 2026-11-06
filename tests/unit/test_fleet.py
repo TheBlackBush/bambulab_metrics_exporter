@@ -312,3 +312,33 @@ def test_saving_over_an_unreadable_list_clears_the_report(tmp_path: Path) -> Non
     fleet.update([A])
     assert fleet.list_unreadable is False
     assert (tmp_path / "printers.enc.json.bad").read_bytes() == b"damaged"
+
+
+def _reconfigure_counts(fleet: PrinterFleet, monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
+    counts = dict.fromkeys(fleet._runtimes, 0)
+    for key, runtime in fleet._runtimes.items():
+        def count(key: str = key) -> None:
+            counts[key] += 1
+        monkeypatch.setattr(runtime, "reconfigure", count)
+    return counts
+
+
+def test_reconfigure_cloud_leaves_lan_printers_alone(monkeypatch: pytest.MonkeyPatch) -> None:
+    fleet = _fleet(configs=[A, C1, C2])
+    counts = _reconfigure_counts(fleet, monkeypatch)
+    fleet.reconfigure_cloud()
+    assert counts == {A.printer_id: 0, C1.printer_id: 1, C2.printer_id: 1}
+
+
+def test_reconfigure_cloud_wakes_the_env_printer(monkeypatch: pytest.MonkeyPatch) -> None:
+    fleet = _fleet()
+    counts = _reconfigure_counts(fleet, monkeypatch)
+    fleet.reconfigure_cloud()
+    assert counts == {"env": 1}
+
+
+def test_reconfigure_still_reaches_every_printer(monkeypatch: pytest.MonkeyPatch) -> None:
+    fleet = _fleet(configs=[A, C1])
+    counts = _reconfigure_counts(fleet, monkeypatch)
+    fleet.reconfigure()
+    assert counts == {A.printer_id: 1, C1.printer_id: 1}

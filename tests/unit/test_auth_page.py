@@ -1530,6 +1530,7 @@ class _FleetRuntime(_Runtime):
         self.list: list[PrinterConfig] = []
         self.updates: list[list[PrinterConfig]] = []
         self.reset_called = False
+        self.cloud_reconfigured = 0
         self.saved = True
         self.list_unreadable = False
         self.message = ""
@@ -1541,6 +1542,9 @@ class _FleetRuntime(_Runtime):
         self.list = list(configs)
         self.updates.append(list(configs))
         return True
+
+    def reconfigure_cloud(self) -> None:
+        self.cloud_reconfigured += 1
 
     def reset_to_env(self) -> None:
         self.reset_called = True
@@ -1896,7 +1900,7 @@ def test_login_with_no_printers_succeeds_on_the_page(monkeypatch) -> None:
         "/auth/cloud/login", data={"email": EMAIL, "code": "123456"}, headers=_JSON
     )
     assert response.json()["ok"] is True and "Refresh the page" in response.json()["message"]
-    assert runtime.reconfigured == 1
+    assert runtime.cloud_reconfigured == 1
 
 
 def test_reset_clears_the_printer_list(monkeypatch) -> None:
@@ -2053,7 +2057,7 @@ def test_one_printer_login_adds_it_to_the_saved_list(monkeypatch) -> None:
     assert [(c.serial, c.transport, c.name, c.model) for c in runtime.list[1:]] == [
         (S1, "cloud_mqtt", "Solo", "H2D")
     ]
-    assert runtime.reconfigured == 1
+    assert runtime.cloud_reconfigured == 1
 
 
 def test_one_printer_login_note_says_when_the_list_is_session_only(monkeypatch) -> None:
@@ -2105,7 +2109,7 @@ def test_one_printer_login_survives_a_failed_list_save(monkeypatch, error: Excep
     assert response.status_code == 200
     body = response.json()
     assert body["ok"] is True and "could not be added" in body["message"]
-    assert S1 not in response.text and runtime.reconfigured == 1
+    assert S1 not in response.text and runtime.cloud_reconfigured == 1
 
 
 def test_one_printer_login_in_env_mode_stays_as_today(monkeypatch) -> None:
@@ -2139,3 +2143,57 @@ def test_page_says_when_the_saved_list_could_not_be_read(monkeypatch) -> None:
     assert "saved printer list could not be read" not in client.get("/auth").text
     runtime.list_unreadable = True
     assert "saved printer list could not be read" in client.get("/auth").text
+
+
+def test_login_reconnects_only_the_cloud_side(monkeypatch) -> None:
+    client, runtime = _fleet_client(monkeypatch)
+    monkeypatch.setattr(auth_actions, "login_with_code", lambda email, code: _login())
+    client.post("/auth/cloud/login", data={"email": EMAIL, "code": "123456"})
+    assert runtime.cloud_reconfigured == 1 and runtime.reconfigured == 0
+
+
+def test_login_answering_json_reconnects_only_the_cloud_side(monkeypatch) -> None:
+    client, runtime = _fleet_client(monkeypatch)
+    monkeypatch.setattr(auth_actions, "login_with_code", lambda email, code: _login())
+    client.post("/auth/cloud/login", data={"email": EMAIL, "code": "123456"}, headers=_JSON)
+    assert runtime.cloud_reconfigured == 1 and runtime.reconfigured == 0
+
+
+_LOCAL = {"host": "192.0.2.25", "serial": S2, "access_code": "fake-access-code"}
+
+
+@pytest.mark.parametrize("headers", [{}, _JSON])
+def test_post_local_with_a_saved_list_adds_the_printer(monkeypatch, headers) -> None:
+    client, runtime = _fleet_client(monkeypatch)
+    keep = PrinterConfig(serial=S1, transport="cloud_mqtt", name="Keep")
+    runtime.list = [keep]
+    client.post("/auth/local", data=_LOCAL, headers=headers)
+    assert runtime.list[0] == keep
+    assert [(c.serial, c.transport, c.host) for c in runtime.list[1:]] == [
+        (S2, "local_mqtt", "192.0.2.25")
+    ]
+    assert "BAMBULAB_HOST" not in os.environ
+    assert runtime.reconfigured == 0  # The update applied it; other printers stay connected.
+
+
+def test_post_local_with_a_saved_list_reports_a_saved_printer(monkeypatch) -> None:
+    client, runtime = _fleet_client(monkeypatch)
+    runtime.list = [PrinterConfig(serial=S1, transport="cloud_mqtt")]
+    body = client.post("/auth/local", data=_LOCAL, headers=_JSON).json()
+    assert body["ok"] is True and body["message"] == "LAN printer saved."
+
+
+def test_post_local_with_a_saved_list_refuses_a_cloud_printer(monkeypatch) -> None:
+    client, runtime = _fleet_client(monkeypatch)
+    runtime.list = [PrinterConfig(serial=S2, transport="cloud_mqtt")]
+    body = client.post("/auth/local", data=_LOCAL, headers=_JSON).json()
+    assert body["ok"] is False and "already added through the cloud" in body["message"]
+    assert runtime.updates == [] and runtime.reconfigured == 0
+
+
+def test_post_local_without_a_saved_list_keeps_configuring_the_env_printer(monkeypatch) -> None:
+    client, runtime = _fleet_client(monkeypatch)
+    runtime.saved = False
+    client.post("/auth/local", data=_LOCAL)
+    assert os.environ["BAMBULAB_HOST"] == "192.0.2.25"
+    assert runtime.updates == [] and runtime.reconfigured == 1
