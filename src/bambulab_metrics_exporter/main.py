@@ -10,9 +10,10 @@ from dotenv import load_dotenv
 from bambulab_metrics_exporter.api import build_app
 from bambulab_metrics_exporter.config import Settings
 from bambulab_metrics_exporter.credentials_store import load_encrypted_credentials
+from bambulab_metrics_exporter.fleet import PrinterFleet
 from bambulab_metrics_exporter.logging_utils import configure_logging, log_banner
 from bambulab_metrics_exporter.overrides import apply_overrides_to_env, page_login_active, set_env
-from bambulab_metrics_exporter.runtime import ExporterRuntime
+from bambulab_metrics_exporter.printers import TRANSPORT_CLOUD, PrinterStore
 
 logger = logging.getLogger(__name__)
 
@@ -27,9 +28,15 @@ def _safe_load_dotenv() -> None:
         logger.warning("Skipping .env load due to permission error", extra={"path": str(dotenv_path)})
 
 
-def _bootstrap_cloud_credentials() -> None:
+def _has_cloud_printer(store: PrinterStore) -> bool:
+    return any(config.transport == TRANSPORT_CLOUD for config in store.load() or [])
+
+
+def _bootstrap_cloud_credentials(force: bool = False) -> None:
+    """``force``: the saved printer list has cloud printers even if the env transport is
+    local, so the account tokens are needed anyway."""
     transport = os.getenv("BAMBULAB_TRANSPORT", "local_mqtt")
-    if transport != "cloud_mqtt":
+    if transport != "cloud_mqtt" and not force:
         return
 
     # A page cloud login wins over env tokens (they are the container's own), recorded
@@ -109,7 +116,8 @@ def run() -> None:
     # Configure logging before anything else logs (overrides, bootstrap).
     configure_logging(os.getenv("LOG_LEVEL", "INFO"))
     apply_overrides_to_env()
-    _bootstrap_cloud_credentials()
+    store = PrinterStore()
+    _bootstrap_cloud_credentials(force=_has_cloud_printer(store))
     try:
         settings = Settings()
     except Exception as exc:  # noqa: BLE001 - serve /auth even with invalid env values
@@ -118,7 +126,7 @@ def run() -> None:
 
     # The web server starts immediately; connecting, waiting for credentials and retries
     # happen in the background so /health and /auth stay reachable.
-    runtime = ExporterRuntime()
+    runtime = PrinterFleet(store)
     runtime.start()
 
     app = build_app(runtime=runtime)

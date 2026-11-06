@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import pytest
 from fastapi.testclient import TestClient
+from prometheus_client import CollectorRegistry, Gauge
 
 from bambulab_metrics_exporter.api import build_app
+from bambulab_metrics_exporter.config import Settings
 from bambulab_metrics_exporter.metrics import ExporterMetrics
 
 
@@ -217,3 +219,47 @@ def test_metrics_last_success_timestamp() -> None:
     assert metrics.last_success_timestamp() is None
     metrics.mark_scrape(duration_seconds=0.1, success=True, now_ts=123.0)
     assert metrics.last_success_timestamp() == 123.0
+
+
+class _Fleet:
+    """The surface build_app needs from a fleet."""
+
+    def __init__(self) -> None:
+        registry = CollectorRegistry()
+        Gauge("bambulab_merged", "merged", registry=registry).set(1)
+        self.scrape_registry = registry
+        self.metrics = ExporterMetrics(printer_name="x", serial="y")
+        self.settings = Settings(bambulab_serial="FAKE00TEST000001")
+        self.ready = True
+
+    def status(self) -> dict[str, str]:
+        return {"state": "running", "message": "", "transport": "mixed"}
+
+    def printers_status(self) -> list[dict[str, str]]:
+        return [
+            {"id": "aaa", "name": "<b>Alpha</b>", "serial": "FAK***", "transport": "local_mqtt",
+             "state": "running", "message": ""},
+            {"id": "bbb", "name": "Beta", "serial": "FAK***", "transport": "cloud_mqtt",
+             "state": "error", "message": "offline"},
+        ]
+
+    def reconfigure(self) -> None:
+        pass
+
+
+def test_metrics_uses_the_scrape_registry() -> None:
+    client = TestClient(build_app(runtime=_Fleet()))
+    assert "bambulab_merged 1.0" in client.get("/metrics").text
+
+
+def test_landing_page_lists_printers_escaped() -> None:
+    client = TestClient(build_app(runtime=_Fleet()))
+    page = client.get("/").text
+    assert "2 printers" in page
+    assert "&lt;b&gt;Alpha&lt;/b&gt;" in page and "<b>Alpha</b>" not in page
+
+
+def test_auth_status_lists_printers() -> None:
+    client = TestClient(build_app(runtime=_Fleet()))
+    body = client.get("/auth/status").json()
+    assert body["state"] == "running" and len(body["printers"]) == 2

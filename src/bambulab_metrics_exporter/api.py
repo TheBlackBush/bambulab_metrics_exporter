@@ -10,7 +10,7 @@ from collections import OrderedDict
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
+from typing import Protocol
 from urllib.parse import parse_qs, urlsplit
 
 from fastapi import FastAPI, HTTPException, Request, Response
@@ -39,8 +39,6 @@ from bambulab_metrics_exporter.overrides import (
 from bambulab_metrics_exporter.overrides import lock as overrides_lock
 from bambulab_metrics_exporter.reauth import credentials_path
 
-if TYPE_CHECKING:
-    from bambulab_metrics_exporter.runtime import ExporterRuntime
 
 logger = logging.getLogger(__name__)
 
@@ -157,6 +155,23 @@ class _ReadyFlag(Protocol):
     def ready(self) -> bool: ...
 
 
+class _Backend(Protocol):
+    """What the app needs from an ExporterRuntime or a PrinterFleet."""
+
+    @property
+    def settings(self) -> Settings: ...
+
+    @property
+    def metrics(self) -> ExporterMetrics: ...
+
+    @property
+    def ready(self) -> bool: ...
+
+    def status(self) -> dict[str, str]: ...
+
+    def reconfigure(self) -> None: ...
+
+
 def _check_health(metrics: ExporterMetrics) -> tuple[bool, str]:
     """Return (is_healthy, status_string) based on exporter health checks.
 
@@ -262,11 +277,24 @@ async def _form(request: Request) -> dict[str, str]:
     return {k: v[0] for k, v in parse_qs(body, keep_blank_values=True).items()}
 
 
+def _printers_html(printers: list[dict[str, str]]) -> str:
+    """Per-printer rows for the landing page; names can come from the cloud account."""
+    if len(printers) < 2:
+        return ""
+    rows = "".join(
+        f'<div class="printer-row"><span>{html.escape(p["name"])}</span>'
+        f'<span class="printer-state">'
+        f'{html.escape(_STATE_LABELS.get(p["state"], (p["state"], ""))[0])}</span></div>'
+        for p in printers
+    )
+    return f'<div class="printer-list">{rows}</div>'
+
+
 def build_app(
     metrics: ExporterMetrics | None = None,
     collector: _ReadyFlag | None = None,
     settings: Settings | None = None,
-    runtime: ExporterRuntime | None = None,
+    runtime: _Backend | None = None,
 ) -> FastAPI:
     """Build the HTTP app. Pass ``runtime`` in production; the /auth page needs it to
     reconnect. ``metrics``/``collector``/``settings`` remain for static wiring in tests."""
@@ -287,6 +315,10 @@ def build_app(
 
     def get_settings() -> Settings | None:
         return runtime.settings if runtime is not None else settings
+
+    def printers() -> list[dict[str, str]]:
+        lister = getattr(runtime, "printers_status", None)
+        return lister() if lister is not None else []
 
     app = FastAPI(title="bambulab-metrics-exporter", version=__version__)
 
@@ -325,6 +357,10 @@ def build_app(
         raw_printer_name = ""
         if current is not None:
             raw_printer_name = current.printer_name_label or current.bambulab_printer_name or ""
+        listed = printers()
+        if len(listed) > 1:
+            raw_printer_name = f"{len(listed)} printers"
+            mode = ""
         printer_badge = (
             f'<span class="printer-badge">{_PRINTER_ICON}{html.escape(raw_printer_name)}</span>'
             if raw_printer_name
@@ -342,6 +378,7 @@ def build_app(
             .replace("{{PRINTER_BADGE}}", printer_badge)
             .replace("{{MODE_BADGE}}", mode_badge)
             .replace("{{ALERT}}", _ALERTS.get(state, ""))
+            .replace("{{PRINTERS}}", _printers_html(listed))
             .replace("{{HEALTH_STATUS}}", health_status)
             .replace("{{HEALTH_CLASS}}", health_class)
             .replace("{{READY_STATUS}}", ready_status)
@@ -357,7 +394,8 @@ def build_app(
 
     @app.get("/metrics")
     def metrics_handler() -> Response:
-        data = generate_latest(get_metrics().registry)
+        registry = getattr(runtime, "scrape_registry", None) or get_metrics().registry
+        data = generate_latest(registry)
         return Response(content=data, media_type=CONTENT_TYPE_LATEST)
 
     @app.get("/health")
@@ -377,7 +415,7 @@ def build_app(
     return app
 
 
-def _add_auth_routes(app: FastAPI, runtime: ExporterRuntime) -> None:
+def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
     code_sender = CodeSender()
     login_limiter = AttemptLimiter(max_attempts=5, window_seconds=60.0)
     # Last action result per visitor (cookie), shown once. Kept server-side so the page
@@ -551,9 +589,13 @@ def _add_auth_routes(app: FastAPI, runtime: ExporterRuntime) -> None:
         return render(request)
 
     @app.get("/auth/status")
-    def auth_status(request: Request) -> dict[str, str]:
+    def auth_status(request: Request) -> dict[str, object]:
         guard(request)
-        return runtime.status()
+        status: dict[str, object] = dict(runtime.status())
+        lister = getattr(runtime, "printers_status", None)
+        if lister is not None:
+            status["printers"] = lister()
+        return status
 
     @app.post("/auth/local")
     async def auth_local(request: Request) -> Response:
