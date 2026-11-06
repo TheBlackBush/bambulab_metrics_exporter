@@ -3,6 +3,7 @@ from __future__ import annotations
 import html
 import ipaddress
 import logging
+import os
 import re
 import secrets
 import time
@@ -10,7 +11,7 @@ from collections import OrderedDict
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, cast
 from urllib.parse import parse_qs, urlsplit
 
 from fastapi import FastAPI, HTTPException, Request, Response
@@ -24,10 +25,16 @@ from bambulab_metrics_exporter.auth_actions import (
     ActionResult,
     AttemptLimiter,
     AuthInputError,
+    CloudDevice,
+    CloudDeviceList,
     CodeSender,
+    add_local_printer,
     configure_cloud,
     configure_local,
     mask_serial,
+    persist_note,
+    remove_printer,
+    select_cloud_printers,
 )
 from bambulab_metrics_exporter.config import Settings
 from bambulab_metrics_exporter.metrics import ExporterMetrics
@@ -37,6 +44,7 @@ from bambulab_metrics_exporter.overrides import (
     restore_original_env,
 )
 from bambulab_metrics_exporter.overrides import lock as overrides_lock
+from bambulab_metrics_exporter.printers import TRANSPORT_LOCAL, PrinterConfig
 from bambulab_metrics_exporter.reauth import credentials_path
 
 
@@ -172,6 +180,19 @@ class _Backend(Protocol):
     def reconfigure(self) -> None: ...
 
 
+class _Fleet(_Backend, Protocol):
+    @property
+    def saved(self) -> bool: ...
+
+    def configs(self) -> list[PrinterConfig]: ...
+
+    def printers_status(self) -> list[dict[str, str]]: ...
+
+    def update(self, configs: list[PrinterConfig]) -> bool: ...
+
+    def reset_to_env(self) -> None: ...
+
+
 def _check_health(metrics: ExporterMetrics) -> tuple[bool, str]:
     """Return (is_healthy, status_string) based on exporter health checks.
 
@@ -288,6 +309,59 @@ def _printers_html(printers: list[dict[str, str]]) -> str:
         for p in printers
     )
     return f'<div class="printer-list">{rows}</div>'
+
+
+def _page_text(text: str) -> str:
+    """Escape untrusted text. The page is filled by a chain of replaces, so braces are
+    escaped too: a printer name must not be able to expand a later placeholder."""
+    return html.escape(text, quote=True).replace("{", "&#123;")
+
+
+def _printer_table(printers: list[dict[str, str]]) -> str:
+    """Monitored printers; only masked serials reach this unauthenticated page."""
+    if not printers:
+        return ""
+    rows = []
+    for printer in printers:
+        label, css = _STATE_LABELS.get(printer["state"], (printer["state"], "wait"))
+        where = "LAN" if printer["transport"] == TRANSPORT_LOCAL else "Cloud"
+        message = (
+            f'<span class="hint printer-message">{_page_text(printer["message"])}</span>'
+            if printer["message"]
+            else ""
+        )
+        rows.append(
+            '<form method="post" action="/auth/printers/remove" class="printer-row">'
+            f'<input type="hidden" name="printer_id" value="{_page_text(printer["id"])}">'
+            f'<span class="step">{_page_text(printer["name"])} '
+            f'<span class="hint">{_page_text(printer["serial"])}, {where}</span>{message}</span>'
+            f'<span class="pill {css}">{_page_text(label)}</span>'
+            '<button type="submit" class="danger small">Remove</button></form>'
+        )
+    return '<div class="card"><span class="label">Printers</span>' + "".join(rows) + "</div>"
+
+
+def _cloud_picker(devices: list[CloudDevice], selected: set[str]) -> str:
+    """Checkbox names carry the opaque id; the form parser keeps one value per key."""
+    if not devices:
+        return ""
+    rows = []
+    for device in devices:
+        checked = " checked" if device.serial in selected else ""
+        state = "Online" if device.online else "Offline"
+        rows.append(
+            '<label class="device-row">'
+            f'<input type="checkbox" name="printer_{device.printer_id}"{checked}>'
+            f'<span>{_page_text(device.name or "Printer")} '
+            f'<span class="hint">{_page_text(device.model)}, '
+            f'{_page_text(mask_serial(device.serial))}, {state}</span></span></label>'
+        )
+    return (
+        '<form method="post" action="/auth/printers/select" class="device-list">'
+        '<span class="label">Printers on this account</span>'
+        + "".join(rows)
+        + '<button type="submit">Save selection</button></form>'
+    )
 
 
 def build_app(
@@ -416,6 +490,8 @@ def build_app(
 
 
 def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
+    fleet = cast("_Fleet", runtime) if hasattr(runtime, "update") else None
+    devices = CloudDeviceList()
     code_sender = CodeSender()
     login_limiter = AttemptLimiter(max_attempts=5, window_seconds=60.0)
     # Last action result per visitor (cookie), shown once. Kept server-side so the page
@@ -482,6 +558,12 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
         send_attrs, send_label = _send_code_button(
             code_sender.wait_seconds() if show_send_wait else 0
         )
+        picker = ""
+        if fleet and os.getenv("BAMBULAB_CLOUD_ACCESS_TOKEN"):
+            selected = {
+                config.serial for config in fleet.configs() if config.transport != TRANSPORT_LOCAL
+            }
+            picker = _cloud_picker(devices.peek(), selected)
         page = (
             _AUTH_TEMPLATE
             .replace("{{VERSION}}", __version__)
@@ -499,6 +581,10 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
             .replace("{{CLOUD_CHECKED}}", "checked" if cloud else "")
             .replace("{{SEND_ATTRS}}", send_attrs)
             .replace("{{SEND_LABEL}}", send_label)
+            .replace("{{PRINTERS}}", _printer_table(fleet.printers_status()) if fleet else "")
+            .replace("{{CLOUD_PICKER}}", picker)
+            .replace("{{LOCAL_ACTION}}", "/auth/printers/add-local" if fleet else "/auth/local")
+            .replace("{{LOCAL_BUTTON}}", "Add printer" if fleet else "Connect locally")
             # Echo only the email from this visitor's last post, held in memory for one view.
             .replace("{{CLOUD_EMAIL}}", html.escape(email, quote=True))
         )
@@ -586,6 +672,8 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
     @app.get("/auth", response_class=HTMLResponse)
     def auth_page(request: Request) -> HTMLResponse:
         guard(request)
+        if fleet:
+            devices.refresh()
         return render(request)
 
     @app.get("/auth/status")
@@ -620,6 +708,7 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
             result = configure_cloud(f.get("email", ""), f.get("code", ""), f.get("serial", ""))
             if result.ok:
                 code_sender.reset()
+                devices.clear()
             return result
 
         return await cloud_action(request, login, reconnect=True)
@@ -627,11 +716,49 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
     @app.post("/auth/reset")
     async def auth_reset(request: Request) -> Response:
         def reset(_form: dict[str, str]) -> ActionResult:
+            had_list = fleet.saved if fleet else False
             removed = clear_overrides()
             restored = restore_credentials_backup(credentials_path(runtime.settings))
             restore_original_env()
-            if removed or restored:
+            if fleet:
+                devices.clear()  # It belongs to the page login, which is gone now.
+                fleet.reset_to_env()
+            if removed or restored or had_list:
                 return ActionResult(True, "Page settings removed; using the container's env vars.")
             return ActionResult(True, "No saved page settings; already using env vars.")
 
         return await handle(request, reset, reconnect=True)
+
+    if fleet is None:
+        return
+
+    def saved(persisted: bool, message: str) -> ActionResult:
+        return ActionResult(True, message, persist_note(persisted))
+
+    @app.post("/auth/printers/select")
+    async def auth_printers_select(request: Request) -> Response:
+        def select(f: dict[str, str]) -> ActionResult:
+            chosen = {k.removeprefix("printer_") for k in f if k.startswith("printer_")}
+            configs = select_cloud_printers(fleet.configs(), devices.peek(), chosen)
+            return saved(fleet.update(configs), "Printer selection saved.")
+
+        return await handle(request, select, reconnect=False)
+
+    @app.post("/auth/printers/add-local")
+    async def auth_printers_add_local(request: Request) -> Response:
+        def add(f: dict[str, str]) -> ActionResult:
+            configs = add_local_printer(
+                fleet.configs(), f.get("host", ""), f.get("serial", ""),
+                f.get("access_code", ""), f.get("port", ""), f.get("name", ""),
+            )
+            return saved(fleet.update(configs), "LAN printer saved.")
+
+        return await handle(request, add, reconnect=False)
+
+    @app.post("/auth/printers/remove")
+    async def auth_printers_remove(request: Request) -> Response:
+        def remove(f: dict[str, str]) -> ActionResult:
+            configs = remove_printer(fleet.configs(), f.get("printer_id", ""))
+            return saved(fleet.update(configs), "Printer removed.")
+
+        return await handle(request, remove, reconnect=False)
