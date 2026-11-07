@@ -180,7 +180,7 @@ Fan values: raw levels 0–15 → nearest-10 percent normalization.
 | `bambulab_active_nozzle_info{nozzle_type,nozzle_diameter}` | Info Gauge | Active nozzle metadata (also from top-level `nozzle_type` on A1, P1 and older X1 firmware) |
 | `bambulab_extruder_loaded_slot_info{extruder_id,ams_id,slot_id}` | Info Gauge | Filament loaded in each extruder (`device.extruder.info[].snow`): AMS unit and slot, or `external`. Extruders with nothing loaded are omitted |
 | `bambulab_nozzle_wear_ratio{extruder_id}` | Gauge | Wear value of the nozzle mounted on each extruder (`device.nozzle.info[].wear`, passed through unscaled; the unit is not confirmed) |
-| `bambulab_nozzle_print_time_seconds{extruder_id}` | Gauge | Total print time of the mounted nozzle (`p_t`). Only on firmware that sends the field (seen on H2D and X2D). So far it has only been seen as 0, including on an H2D during a print, so 0 can mean the printer is not counting |
+| `bambulab_nozzle_print_time_seconds{extruder_id}` | Gauge | Total print time of the mounted nozzle (`p_t`), for hotends that keep their own usage record. Bambu added this for the H2C hotend rack; Bambu support said it needs H2C firmware V01.02.00.00. H2D and X2D firmware also send the field, but report 0: on an H2D it stayed 0 through about 12 hours of printing. The metric shows whatever the printer reports, so 0 here usually means "not counted", not "unused" |
 
 ---
 
