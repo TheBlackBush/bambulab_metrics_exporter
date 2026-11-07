@@ -199,6 +199,21 @@ FIRMWARE_UPGRADE_STATUSES: frozenset[str] = frozenset(
         "upgrade_success",
     }
 )
+# job.job_state codes 0-11, in order.
+JOB_STATES: tuple[str, ...] = (
+    "idle", "slicing", "prepare", "starting", "running", "pause",
+    "pausing", "resuming", "finish", "failed", "finishing", "stopping",
+)
+# device.extruder.info[].stat bits 0-7: filament change step codes 0x00-0x11, in order.
+FILAMENT_CHANGE_STEPS: tuple[str, ...] = (
+    "idle", "pause", "heat_nozzle", "cut_filament", "pull_current_filament",
+    "push_new_filament", "grab_new_filament", "purge_old_filament", "check_position",
+    "switch_extruder", "switch_hotend", "ams_filament_cooling", "push_switcher_filament",
+    "pull_switcher_filament", "switcher_switch", "batch_pull_filament", "nesting_print_tool",
+    "purge_filament",
+)
+# device.extruder.info[].info bits 11-12; code 3 is reported as "unknown".
+EXTRUSION_DIRECTIONS: tuple[str, ...] = ("idle", "extruding", "retracting")
 _NET_INTERFACES: tuple[str, ...] = ("wlan", "wired")
 # `fun` bit set when the printer requires signed MQTT commands (Developer Mode off).
 _FUN_MQTT_SIGNATURE_REQUIRED = 0x20000000
@@ -1363,6 +1378,92 @@ class PrinterSnapshot:
         return out
 
     @property
+    def job_state(self) -> str | None:
+        """`job.job_state` as a name, `unknown` for a code past the known list; None when
+        the field is missing, negative or not a number."""
+        job = self.print_block.get("job")
+        raw = job.get("job_state") if isinstance(job, dict) else None
+        if isinstance(raw, bool):
+            return None
+        code = to_int(raw)
+        if code is None or code < 0:
+            return None
+        return JOB_STATES[code] if code < len(JOB_STATES) else "unknown"
+
+    @property
+    def stage_countdown_seconds(self) -> float | None:
+        """Seconds left in the current stage (`stg_cd`), used for example by thermal
+        preconditioning. Negative means no countdown, reported as missing."""
+        raw = self.print_block.get("stg_cd")
+        if isinstance(raw, bool):
+            return None
+        value = to_int(raw)
+        return float(value) if value is not None and value >= 0 else None
+
+    @property
+    def extruder_states(self) -> dict[str, dict[str, float | str]]:
+        """Per extruder from `device.extruder.info[]`: `info` bit 2 filament in the buffer,
+        bit 3 nozzle fitted, bits 11-12 extrusion direction; `stat` bits 0-7 filament
+        change step. A key is left out when its source field is missing or negative."""
+        out: dict[str, dict[str, float | str]] = {}
+        for entry in self.extruder_entries:
+            state: dict[str, float | str] = {}
+            info = entry.get("info")
+            if isinstance(info, int) and not isinstance(info, bool) and info >= 0:
+                state["buffer_filament"] = float(info >> 2 & 1)
+                state["nozzle"] = float(info >> 3 & 1)
+                direction = info >> 11 & 0x3
+                state["direction"] = (
+                    EXTRUSION_DIRECTIONS[direction]
+                    if direction < len(EXTRUSION_DIRECTIONS)
+                    else "unknown"
+                )
+            stat = entry.get("stat")
+            if isinstance(stat, int) and not isinstance(stat, bool) and stat >= 0:
+                step = stat & 0xFF
+                state["step"] = (
+                    FILAMENT_CHANGE_STEPS[step] if step < len(FILAMENT_CHANGE_STEPS) else "unknown"
+                )
+            if state:
+                out[entry["id"]] = state
+        return out
+
+    @property
+    def ams_slots_present(self) -> dict[tuple[str, str], float]:
+        """(ams_id, slot_id) to 1 when a spool sits in the slot, from the hex bitmask
+        `ams.tray_exist_bits`. AMS, AMS lite and AMS 2 Pro (ids 0-3) use bit
+        ams_id * 4 + slot; AMS HT (ids 128-135, one slot) uses bit 16 + (ams_id - 128).
+        Units with any other id are left out rather than given a guessed bit."""
+        ams = self.print_block.get("ams")
+        raw = ams.get("tray_exist_bits") if isinstance(ams, dict) else None
+        if not isinstance(raw, str) or not raw.strip():
+            return {}
+        try:
+            bits = int(raw.strip(), 16)
+        except ValueError:
+            return {}
+        out: dict[tuple[str, str], float] = {}
+        for unit in self.ams_units:
+            ams_id = to_int(unit.get("id"))
+            trays = unit.get("tray")
+            if ams_id is None or not isinstance(trays, list):
+                continue
+            for tray in trays:
+                if not isinstance(tray, dict):
+                    continue
+                slot = to_int(tray.get("id"))
+                if slot is None or slot < 0:
+                    continue
+                if 0 <= ams_id <= 3 and slot <= 3:
+                    bit = ams_id * 4 + slot
+                elif 128 <= ams_id <= 135 and slot == 0:
+                    bit = 16 + ams_id - 128
+                else:
+                    continue
+                out[(str(ams_id), str(slot))] = float(bits >> bit & 1)
+        return out
+
+    @property
     def print_prepare_percent(self) -> float | None:
         """Download progress of the job file before a print starts (0-100)."""
         value = _to_float(self.print_block.get("gcode_file_prepare_percent"))
@@ -1543,6 +1644,11 @@ class PrinterSnapshot:
                     # Loaded slot: (ams_id << 8) | slot, see active_filament_source.
                     "snow": to_int(item.get("snow")),
                     "info": to_int(item.get("info")),
+                    # Bits 0-7: filament change step (FILAMENT_CHANGE_STEPS). to_int turns a
+                    # bool into 1, which would read as a real step, so a bool is dropped.
+                    "stat": (
+                        None if isinstance(item.get("stat"), bool) else to_int(item.get("stat"))
+                    ),
                 }
             )
         return out
