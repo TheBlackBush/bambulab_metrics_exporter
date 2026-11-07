@@ -174,7 +174,7 @@ Fan values: raw levels 0–15 → nearest-10 percent normalization.
 
 ## Extruders (H2D, H2D Pro, H2C, X2D, and new firmware on other models)
 
-The four metrics above come from the per-extruder block, which the A1, P1P and older X1 firmware do not send.
+The `bambulab_filament_change_step_info`, `bambulab_extruder_buffer_filament_present`, `bambulab_extruder_nozzle_present` and `bambulab_extruder_extrusion_direction_info` metrics below come from the per-extruder block, which the A1, P1P and older X1 firmware do not send.
 
 | Metric | Type | Description |
 |--------|------|-------------|
