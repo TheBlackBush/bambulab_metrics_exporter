@@ -58,6 +58,8 @@ Unknown models export whatever the payload carries.
 | `bambulab_fail_reason_info{fail_reason}` | Info Gauge | Current fail reason |
 | `bambulab_stg_cur` | Gauge | Current stage numeric ID |
 | `bambulab_print_stage_info{stage}` | Info Gauge | Current stage name (stages 0-84 and 88; unlisted codes are `unknown_<n>`). Reports `idle` after a cancelled (`FAILED`) print |
+| `bambulab_job_state_info{state}` | Info Gauge | Job phase from `job.job_state`, finer than the gcode state: `idle`, `slicing`, `prepare`, `starting`, `running`, `pause`, `pausing`, `resuming`, `finish`, `failed`, `finishing`, `stopping`, else `unknown`. Recent firmware only (seen on H2D 01.04.20 and X2D) |
+| `bambulab_print_stage_countdown_seconds` | Gauge | Seconds left in the current stage (`stg_cd`), for example thermal preconditioning; 0 when no countdown runs. Recent firmware only (seen on H2D, X2D, P2S); `NaN` when not sent |
 | `bambulab_print_prepare_percent` | Gauge | Download progress of the job file before a print starts (`gcode_file_prepare_percent`, 0-100) |
 | `bambulab_print_type_info{type}` | Info Gauge | Job source (`print_type`): `cloud`, `local`, `idle`, `system`, `unknown` |
 | `bambulab_print_skipped_objects` | Gauge | Number of objects skipped in the current print (length of `s_obj`; object IDs are never labels) |
@@ -143,6 +145,7 @@ Fan values: raw levels 0–15 → nearest-10 percent normalization.
 | Metric | Type | Description |
 |--------|------|-------------|
 | `bambulab_ams_slot_active{ams_id,slot_id}` | Gauge | 1 for the slot loaded in the active extruder (per-extruder `snow` on new firmware, `tray_now` on older firmware; AMS HT units use ids 128+) |
+| `bambulab_ams_slot_present{ams_id,slot_id}` | Gauge | 1 when a spool sits in the slot, with or without an RFID tag (`ams.tray_exist_bits`). AMS, AMS lite and AMS 2 Pro (ids 0-3) and AMS HT (ids 128-135) only; units with other ids, such as the A2L's, are left out |
 | `bambulab_ams_slot_remaining_percent{ams_id,slot_id}` | Gauge | Remaining filament %. NaN when unknown (the printer reports -1 for spools without an estimate) |
 | `bambulab_ams_slot_tray_info{ams_id,slot_id,tray_type,tray_color}` | Info Gauge | Filament type and color |
 
@@ -171,6 +174,8 @@ Fan values: raw levels 0–15 → nearest-10 percent normalization.
 
 ## Extruders (H2D, H2D Pro, H2C, X2D, and new firmware on other models)
 
+The four metrics above come from the per-extruder block, which the A1, P1P and older X1 firmware do not send.
+
 | Metric | Type | Description |
 |--------|------|-------------|
 | `bambulab_active_extruder_index` | Gauge | Active extruder index |
@@ -179,6 +184,10 @@ Fan values: raw levels 0–15 → nearest-10 percent normalization.
 | `bambulab_extruder_nozzle_info{extruder_id,nozzle_type,nozzle_diameter}` | Info Gauge | Per-extruder nozzle metadata |
 | `bambulab_active_nozzle_info{nozzle_type,nozzle_diameter}` | Info Gauge | Active nozzle metadata (also from top-level `nozzle_type` on A1, P1 and older X1 firmware) |
 | `bambulab_extruder_loaded_slot_info{extruder_id,ams_id,slot_id}` | Info Gauge | Filament loaded in each extruder (`device.extruder.info[].snow`): AMS unit and slot, or `external`. Extruders with nothing loaded are omitted |
+| `bambulab_filament_change_step_info{extruder_id,step}` | Info Gauge | Filament change step per extruder (`device.extruder.info[].stat` bits 0-7): `idle`, `pause`, `heat_nozzle`, `cut_filament`, `pull_current_filament`, `push_new_filament`, `grab_new_filament`, `purge_old_filament`, `check_position`, `switch_extruder`, `switch_hotend`, `ams_filament_cooling`, `push_switcher_filament`, `pull_switcher_filament`, `switcher_switch`, `batch_pull_filament`, `nesting_print_tool`, `purge_filament`, else `unknown` |
+| `bambulab_extruder_buffer_filament_present{extruder_id}` | Gauge | 1 when filament is in the extruder's buffer (`info` bit 2) |
+| `bambulab_extruder_nozzle_present{extruder_id}` | Gauge | 1 when a nozzle is fitted (`info` bit 3) |
+| `bambulab_extruder_extrusion_direction_info{extruder_id,direction}` | Info Gauge | `idle`, `extruding` or `retracting` (`info` bits 11-12), else `unknown` |
 | `bambulab_nozzle_wear_ratio{extruder_id}` | Gauge | Wear value of the nozzle mounted on each extruder (`device.nozzle.info[].wear`, passed through unscaled; the unit is not confirmed) |
 | `bambulab_nozzle_print_time_seconds{extruder_id}` | Gauge | Total print time of the mounted nozzle (`p_t`), for hotends that keep their own usage record. Bambu added this for the H2C hotend rack; Bambu support said it needs H2C firmware V01.02.00.00. H2D and X2D firmware also send the field, but report 0: on an H2D it stayed 0 through about 12 hours of printing. The metric shows whatever the printer reports, so 0 here usually means "not counted", not "unused" |
 

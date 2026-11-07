@@ -33,6 +33,12 @@ All notable changes to this project are documented in this file.
   GHCR. The release workflow syncs the README to the Docker Hub description and can be run
   manually to re-publish an existing release tag. Docker Hub publishing is skipped when its
   credentials are not set. Earlier releases (0.1.0 to 0.2.1) were copied to Docker Hub.
+- New metrics from data recent printers already send: `bambulab_job_state_info` (job phase),
+  `bambulab_print_stage_countdown_seconds`, `bambulab_filament_change_step_info`,
+  `bambulab_extruder_buffer_filament_present`, `bambulab_extruder_nozzle_present`,
+  `bambulab_extruder_extrusion_direction_info` and `bambulab_ams_slot_present` (spool in slot,
+  with or without a tag). Printers that do not send a field get no series. No existing metric
+  changes.
 
 ### Changed
 - Grafana: the SD Card panel is now "SD / USB Storage", because an H2D reports a USB drive through
