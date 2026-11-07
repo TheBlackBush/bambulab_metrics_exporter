@@ -486,7 +486,7 @@ def test_extruder_entries_unpack_temp() -> None:
         connected=True,
         raw={"print": {"device": {"extruder": {"info": [{"id": 0, "temp": packed, "hnow": 1}]}}}},
     )
-    assert snap.extruder_entries == [{"id": "0", "actual_temp": 210.0, "target_temp": 220.0, "hnow": 1, "snow": None, "info": None, "stat": None}]
+    assert snap.extruder_entries == [{"id": "0", "actual_temp": 210.0, "target_temp": 220.0, "hnow": 1, "snow": None, "info": None, "stat": None, "info_is_bool": False}]
 
 
 def test_extruder_nozzle_info_entries_map_via_hnow() -> None:
@@ -1920,9 +1920,21 @@ def test_ams_slots_present_layout() -> None:
     }
 
 
-@pytest.mark.parametrize("bits", ["", "zz", None, 7, ["f"]])
+@pytest.mark.parametrize("bits", ["", "zz", None, 7, ["f"], "-1", "+f", "f_f"])
 def test_ams_slots_present_ignores_bad_bits(bits: object) -> None:
     assert _snap_print(_ams(bits, [(0, [0])])).ams_slots_present == {}
+
+
+def test_ams_slots_present_accepts_hex_prefix() -> None:
+    assert _snap_print(_ams("0x1", [(0, [0, 1])])).ams_slots_present == {
+        ("0", "0"): 1.0, ("0", "1"): 0.0,
+    }
+
+
+def test_extruder_states_ignore_bool_info() -> None:
+    for value in (True, False):
+        states = _snap_print(_extruder(info=value, stat=0x02)).extruder_states
+        assert states == {"0": {"step": "heat_nozzle"}}
 
 
 def test_ams_slots_present_omits_unknown_layouts() -> None:

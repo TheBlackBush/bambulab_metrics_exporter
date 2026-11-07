@@ -1409,7 +1409,11 @@ class PrinterSnapshot:
         for entry in self.extruder_entries:
             state: dict[str, float | str] = {}
             info = entry.get("info")
-            if isinstance(info, int) and not isinstance(info, bool) and info >= 0:
+            if (
+                isinstance(info, int)
+                and not entry.get("info_is_bool")
+                and info >= 0
+            ):
                 state["buffer_filament"] = float(info >> 2 & 1)
                 state["nozzle"] = float(info >> 3 & 1)
                 direction = info >> 11 & 0x3
@@ -1438,10 +1442,11 @@ class PrinterSnapshot:
         raw = ams.get("tray_exist_bits") if isinstance(ams, dict) else None
         if not isinstance(raw, str) or not raw.strip():
             return {}
-        try:
-            bits = int(raw.strip(), 16)
-        except ValueError:
+        text = raw.strip()
+        # int(..., 16) would also accept a sign or underscores ("-1" would mark every slot).
+        if not re.fullmatch(r"(?:0[xX])?[0-9a-fA-F]+", text):
             return {}
+        bits = int(text, 16)
         out: dict[tuple[str, str], float] = {}
         for unit in self.ams_units:
             ams_id = to_int(unit.get("id"))
@@ -1644,6 +1649,8 @@ class PrinterSnapshot:
                     # Loaded slot: (ams_id << 8) | slot, see active_filament_source.
                     "snow": to_int(item.get("snow")),
                     "info": to_int(item.get("info")),
+                    # to_int turns a bool into 1; extruder_states must not decode that as bits.
+                    "info_is_bool": isinstance(item.get("info"), bool),
                     # Bits 0-7: filament change step (FILAMENT_CHANGE_STEPS). to_int turns a
                     # bool into 1, which would read as a real step, so a bool is dropped.
                     "stat": (

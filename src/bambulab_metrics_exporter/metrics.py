@@ -228,7 +228,7 @@ class ExporterMetrics:
         )
         self.extruder_extrusion_direction_info = Gauge(
             "bambulab_extruder_extrusion_direction_info",
-            "Whether each extruder is idle, extruding or retracting",
+            "Filament feed direction reported by each extruder (idle, extruding, retracting)",
             [*label_names, "extruder_id", "direction"],
             registry=self.registry,
         )

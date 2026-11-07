@@ -1960,7 +1960,7 @@ class TestNetworkAndUpgradeMetrics:
         ),
         (
             "bambulab_extruder_extrusion_direction_info",
-            "Whether each extruder is idle, extruding or retracting",
+            "Filament feed direction reported by each extruder (idle, extruding, retracting)",
             ["printer_name", "serial", "extruder_id", "direction"],
         ),
         (

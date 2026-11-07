@@ -142,7 +142,7 @@ bambulab_extruder_buffer_filament_present{extruder_id="0",printer_name="my-x1c",
 # HELP bambulab_extruder_nozzle_present 1 if a nozzle is fitted on the extruder
 # TYPE bambulab_extruder_nozzle_present gauge
 bambulab_extruder_nozzle_present{extruder_id="0",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 1.0
-# HELP bambulab_extruder_extrusion_direction_info Whether each extruder is idle, extruding or retracting
+# HELP bambulab_extruder_extrusion_direction_info Filament feed direction reported by each extruder (idle, extruding, retracting)
 # TYPE bambulab_extruder_extrusion_direction_info gauge
 bambulab_extruder_extrusion_direction_info{direction="extruding",extruder_id="0",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 1.0
 # HELP bambulab_ams_slot_present 1 if a spool is in the AMS slot (tray_exist_bits), with or without a tag
