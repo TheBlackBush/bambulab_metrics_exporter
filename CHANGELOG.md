@@ -43,6 +43,12 @@ All notable changes to this project are documented in this file.
 ### Changed
 - Grafana: the SD Card panel is now "SD / USB Storage", because an H2D reports a USB drive through
   the same field. Re-import the sample dashboard to get the new title. No metric changes.
+- Grafana: new **Job & Filament Change** row with job state, stage countdown, an Extruder Status
+  table (filament change step shown in plain words, feed direction, nozzle, buffer) and spools
+  per AMS unit, built on the new metrics above. Re-import the sample dashboard to get it.
+- Grafana: Printer Status shows the live printer connection and exporter health (poll result,
+  time since the last successful poll, poll duration); Temperatures shows the active nozzle, its
+  type and per-extruder nozzle temperatures on dual-nozzle printers. These use existing metrics.
 - The `/auth` page limits verification emails to 5 sends 60 seconds apart, then waits 10
   minutes, then 1 hour after each later round. A successful login resets the limit, and it
   survives restarts. After a Send code press the button shows the time left and is

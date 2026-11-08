@@ -40,10 +40,14 @@ All other panels use built-in Grafana panel types.
 ## Rows
 
 - **Printer Status**: online state, model, gcode state, error flag, SD / USB storage, chamber light, door,
-  nozzle diameter, XCam AI features
+  nozzle diameter, XCam AI features, live printer connection, and exporter health (last poll
+  result, time since the last successful poll, poll duration). Other panels keep the last values
+  received while the connection reads Disconnected
 - **Print Progress**: stage, time remaining, progress, layers, speed profile, job name
 - **Temperatures**: nozzle, bed and chamber gauges, fan gauges (aux, chamber, part cooling,
-  heatbreak), temperature and fan trends
+  heatbreak), temperature and fan trends, and on dual-nozzle printers the active nozzle (right or
+  left), its type, and current and target temperature per extruder (extruder 0 is the right
+  nozzle)
 - **AMS Status**: AMS model and status, auto refill, tangle detection setting, filament
   inventory (Business Text spool cards), AMS temperature and humidity per unit
 - **Health & Firmware**: active HMS errors by severity and module, firmware update available,
@@ -52,6 +56,10 @@ All other panels use built-in Grafana panel types.
   speeds, mounted tool head, installed accessories, light states, timelapse storage
 - **Extruders & Nozzles**: filament sensor and loaded AMS slot per extruder, nozzle print time
   and wear
+- **Job & Filament Change**: job state, stage countdown, a per-extruder table with the filament
+  change step (in plain words), feed direction, nozzle and buffer, and spools per AMS unit.
+  These panels need recent firmware and show "Not reported" or no rows on printers that do not
+  send the fields
 - **AMS Drying**: drying time left, target temperature and dryer state per unit
 - **Trending Metrics**: online history, Wi-Fi signal, remaining time, HMS errors, nozzle
   temperature, machine stage, print errors, airduct fans
