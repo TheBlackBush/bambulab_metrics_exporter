@@ -46,6 +46,9 @@ All notable changes to this project are documented in this file.
   percentage, skipped objects and fail reason (Print Progress); drying phase, drying duration and
   why drying cannot start (AMS); firmware upgrade progress (Health & Firmware); and a Nozzle Type
   column in the Extruder Status table. Empty cells in that table show "-". No metric changes.
+- Grafana: the Nozzle Temperature gauge uses a fixed scale that ends at the model's nozzle limit
+  (350 °C on the H2 family, 320 °C on the X1E, 300 °C on other models), so its fill and colors no
+  longer shift with the data. It shows only the active nozzle's temperature.
 - Grafana: the sample dashboard is reorganized into fewer, clearer rows (Printer Status, Print
   Progress, Temperatures, Extruders & Nozzles, AMS, Airduct, Lights & Storage, Health & Firmware,
   Trending Metrics, Exporter Health). Duplicate panels are removed: the Up stat (replaced by

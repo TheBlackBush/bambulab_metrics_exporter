@@ -2727,7 +2727,8 @@
               }
             ]
           },
-          "unit": "celsius"
+          "unit": "celsius",
+          "min": 0
         },
         "overrides": []
       },
@@ -2772,12 +2773,12 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "editorMode": "builder",
-          "expr": "max(bambulab_nozzle_target_temperature_celsius{job=\"$job\", printer_name=\"$printer\"})",
-          "instant": false,
-          "legendFormat": "Nozzle Target Temperature",
-          "range": true,
-          "refId": "B"
+          "editorMode": "code",
+          "expr": "(max(bambulab_printer_model_info{job=\"$job\", printer_name=\"$printer\", model=~\"H2D|H2DPRO|H2S|H2C\"} == 1) * 350) or (max(bambulab_printer_model_info{job=\"$job\", printer_name=\"$printer\", model=\"X1E\"} == 1) * 320) or (max(bambulab_printer_model_info{job=\"$job\", printer_name=\"$printer\"} == 1) * 300)",
+          "instant": true,
+          "range": false,
+          "legendFormat": "Max",
+          "refId": "Max"
         }
       ],
       "title": "Nozzle Temperature (C) ",
@@ -2785,21 +2786,19 @@
         {
           "id": "configFromData",
           "options": {
-            "applyTo": {
-              "id": "byName",
-              "options": "Nozzle Temperature"
-            },
-            "configRefId": "B",
+            "configRefId": "Max",
             "mappings": [
               {
-                "fieldName": "Nozzle Target Temperature",
-                "handlerKey": "max"
+                "fieldName": "Max",
+                "handlerKey": "max",
+                "reducerId": "lastNotNull"
               }
             ]
           }
         }
       ],
-      "type": "gauge"
+      "type": "gauge",
+      "description": "Active nozzle temperature. The scale ends at the model's nozzle limit: 350 °C on the H2 family, 320 °C on the X1E, 300 °C on other models."
     },
     {
       "datasource": {
