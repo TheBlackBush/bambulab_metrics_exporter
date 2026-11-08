@@ -1961,6 +1961,9 @@
       },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
           "fieldMinMax": false,
           "mappings": [],
           "thresholds": {
@@ -1997,10 +2000,9 @@
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
-            "last"
+            "lastNotNull"
           ],
           "fields": "",
-          "limit": 1,
           "values": false
         },
         "showThresholdLabels": false,
