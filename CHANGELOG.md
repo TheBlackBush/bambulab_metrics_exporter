@@ -92,6 +92,8 @@ All notable changes to this project are documented in this file.
   obsolete `PRINTER_NAME`, `SITE`, `LOCATION` and unused `RECONNECT_INTERVAL_SECONDS`.
 
 ### Fixed
+- Grafana: the Nozzle Temperature gauge now uses the same green, orange and red threshold colors
+  as the Bed and Chamber gauges, and keeps its last value through a missed sample.
 - MQTT logs show the masked serial and no longer show the topic or the MQTT user name (the cloud
   user id). The MQTT library still prints topics when `LOG_LEVEL=DEBUG`.
 - Encrypted credential and settings files are written atomically, so a crash cannot truncate them.
