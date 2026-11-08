@@ -41,6 +41,11 @@ All notable changes to this project are documented in this file.
   changes.
 
 ### Changed
+- Grafana: new panels for metrics the exporter already sent: camera recording, timelapse, top lid
+  and wired or Wi-Fi network (Printer Status); file download progress, job source, speed
+  percentage, skipped objects and fail reason (Print Progress); drying phase, drying duration and
+  why drying cannot start (AMS); firmware upgrade progress (Health & Firmware); and a Nozzle Type
+  column in the Extruder Status table. Empty cells in that table show "-". No metric changes.
 - Grafana: the sample dashboard is reorganized into fewer, clearer rows (Printer Status, Print
   Progress, Temperatures, Extruders & Nozzles, AMS, Airduct, Lights & Storage, Health & Firmware,
   Trending Metrics, Exporter Health). Duplicate panels are removed: the Up stat (replaced by
