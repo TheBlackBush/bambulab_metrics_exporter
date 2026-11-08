@@ -39,30 +39,29 @@ All other panels use built-in Grafana panel types.
 
 ## Rows
 
-- **Printer Status**: online state, model, gcode state, error flag, SD / USB storage, chamber light, door,
-  nozzle diameter, XCam AI features, live printer connection, and exporter health (last poll
-  result, time since the last successful poll, poll duration). Other panels keep the last values
-  received while the connection reads Disconnected
-- **Print Progress**: stage, time remaining, progress, layers, speed profile, job name
-- **Temperatures**: nozzle, bed and chamber gauges, fan gauges (aux, chamber, part cooling,
-  heatbreak), temperature and fan trends, and on dual-nozzle printers the active nozzle (right or
-  left), its type, and current and target temperature per extruder (extruder 0 is the right
-  nozzle)
-- **AMS Status**: AMS model and status, auto refill, tangle detection setting, filament
-  inventory (Business Text spool cards), AMS temperature and humidity per unit
+- **Printer Status**: live printer connection, model, gcode state, job state (recent firmware),
+  error flag, SD / USB storage, door, chamber light, XCam AI features, mounted tool head and
+  installed accessories. Other panels keep the last values received while the connection reads
+  Disconnected
+- **Print Progress**: stage, time remaining, progress, layers, stage countdown (recent firmware),
+  speed profile, job name
+- **Temperatures**: nozzle, bed and chamber gauges, chamber target and heater state, fan gauges
+  (aux, chamber, part cooling, heatbreak), and trends for nozzle, bed and chamber, for each
+  extruder's current and target temperature (extruder 0 is the right nozzle), and for fan speeds
+- **Extruders & Nozzles**: an Extruder Status table with one row per extruder (filament change
+  step in plain words, feed direction, filament sensor, loaded AMS slot, nozzle fitted, filament
+  in the buffer), the active nozzle (right or left) on dual-nozzle printers, its type and
+  diameter, nozzle print time and wear. Older
+  printers show only the columns they report
+- **AMS**: AMS model and status, auto refill, tangle detection setting, spools per unit, dryer
+  state, filament inventory (Business Text spool cards), AMS temperature and humidity, drying
+  time left and target, AMS temperature trend
+- **Airduct, Lights & Storage**: airduct mode and fan speeds, light states, timelapse storage
 - **Health & Firmware**: active HMS errors by severity and module, firmware update available,
   printer and module firmware versions
-- **Chamber, Airduct & Accessories**: chamber heater state and target, airduct mode and fan
-  speeds, mounted tool head, installed accessories, light states, timelapse storage
-- **Extruders & Nozzles**: filament sensor and loaded AMS slot per extruder, nozzle print time
-  and wear
-- **Job & Filament Change**: job state, stage countdown, a per-extruder table with the filament
-  change step (in plain words), feed direction, nozzle and buffer, and spools per AMS unit.
-  These panels need recent firmware and show "Not reported" or no rows on printers that do not
-  send the fields
-- **AMS Drying**: drying time left, target temperature and dryer state per unit
-- **Trending Metrics**: online history, Wi-Fi signal, remaining time, HMS errors, nozzle
-  temperature, machine stage, print errors, airduct fans
+- **Trending Metrics**: printer connection history, Wi-Fi signal, remaining time, HMS errors,
+  machine stage, print errors, airduct fans
+- **Exporter Health**: last poll result, time since the last successful poll, poll duration
 
 Panels for hardware a printer does not have show a placeholder such as "No heater" or "N/A"
 instead of an error. All queries filter on both `$job` and `$printer`, so one job can scrape
