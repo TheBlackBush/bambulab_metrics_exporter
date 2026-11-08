@@ -2774,7 +2774,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "(max(bambulab_printer_model_info{job=\"$job\", printer_name=\"$printer\", model=~\"H2D|H2DPRO|H2S|H2C\"} == 1) * 350) or (max(bambulab_printer_model_info{job=\"$job\", printer_name=\"$printer\", model=\"X1E\"} == 1) * 320) or (max(bambulab_printer_model_info{job=\"$job\", printer_name=\"$printer\"} == 1) * 300)",
+          "expr": "(max(bambulab_printer_model_info{job=\"$job\", printer_name=\"$printer\", model=~\"H2D|H2DPRO|H2S|H2C|H3C\"} == 1) * 350) or (max(bambulab_printer_model_info{job=\"$job\", printer_name=\"$printer\", model=\"X1E\"} == 1) * 320) or (max(bambulab_printer_model_info{job=\"$job\", printer_name=\"$printer\"} == 1) * 300)",
           "instant": true,
           "range": false,
           "legendFormat": "Max",
@@ -2798,7 +2798,7 @@
         }
       ],
       "type": "gauge",
-      "description": "Active nozzle temperature. The scale ends at the model's nozzle limit: 350 °C on the H2 family, 320 °C on the X1E, 300 °C on other models."
+      "description": "Active nozzle temperature. The scale ends at the model's nozzle limit: 350 °C on the H2 family and H3C, 320 °C on the X1E, 300 °C on other models."
     },
     {
       "datasource": {
