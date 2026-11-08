@@ -41,6 +41,14 @@ All notable changes to this project are documented in this file.
   changes.
 
 ### Changed
+- Grafana: the sample dashboard is reorganized into fewer, clearer rows (Printer Status, Print
+  Progress, Temperatures, Extruders & Nozzles, AMS, Airduct, Lights & Storage, Health & Firmware,
+  Trending Metrics, Exporter Health). Duplicate panels are removed: the Up stat (replaced by
+  Printer Connection, since Up stays 1 on cached data), Nozzle Diameter (shown by Active Nozzle
+  Type), the Nozzle Temperature trend (covered by the temperature charts), and Filament at
+  Extruder and Loaded Slot (now columns of the Extruder Status table). The Up trend now shows
+  the printer connection as a timeline, and Accessories shows "None detected" when nothing is
+  found. No metric changes. Re-import the sample dashboard to get the new layout.
 - Grafana: the SD Card panel is now "SD / USB Storage", because an H2D reports a USB drive through
   the same field. Re-import the sample dashboard to get the new title. No metric changes.
 - Grafana: new **Job & Filament Change** row with job state, stage countdown, an Extruder Status
