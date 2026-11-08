@@ -191,6 +191,32 @@ The `bambulab_filament_change_step_info`, `bambulab_extruder_buffer_filament_pre
 | `bambulab_nozzle_wear_ratio{extruder_id}` | Gauge | Wear value of the nozzle mounted on each extruder (`device.nozzle.info[].wear`, passed through unscaled; the unit is not confirmed) |
 | `bambulab_nozzle_print_time_seconds{extruder_id}` | Gauge | Total print time of the mounted nozzle (`p_t`), for hotends that keep their own usage record. Bambu added this for the H2C hotend rack; Bambu support said it needs H2C firmware V01.02.00.00. H2D and X2D firmware also send the field, but report 0: on an H2D it stayed 0 through about 12 hours of printing. The metric shows whatever the printer reports, so 0 here usually means "not counted", not "unused" |
 
+### Filament change steps
+
+Values of the `step` label on `bambulab_filament_change_step_info`, with what each one means. Loading and unloading filament use the steps from `heat_nozzle` to `check_position`; the order and which steps run depend on the printer and the change. The steps after that cover extruder and hotend switches and the Filament Track Switch.
+
+| `step` | Meaning |
+|---|---|
+| `idle` | Idle, no filament change running |
+| `pause` | Paused |
+| `heat_nozzle` | Heating the nozzle |
+| `cut_filament` | Cutting the filament |
+| `pull_current_filament` | Pulling back the current filament |
+| `push_new_filament` | Pushing the new filament into the extruder |
+| `grab_new_filament` | Grabbing the new filament |
+| `purge_old_filament` | Purging the old filament |
+| `check_position` | Checking the filament position |
+| `switch_extruder` | Switching extruder |
+| `switch_hotend` | Switching hotend |
+| `ams_filament_cooling` | Waiting for the AMS to cool the filament |
+| `push_switcher_filament` | Feeding the current filament at the Filament Track Switch |
+| `pull_switcher_filament` | Pulling back the current filament at the Filament Track Switch |
+| `switcher_switch` | Switching track at the Filament Track Switch |
+| `batch_pull_filament` | Pulling back several filaments |
+| `nesting_print_tool` | Tool change step; no description available |
+| `purge_filament` | Purge step; no description available |
+| `unknown` | A step code this exporter does not know yet |
+
 ---
 
 ## Hotend Rack
