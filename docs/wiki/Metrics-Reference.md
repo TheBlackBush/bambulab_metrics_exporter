@@ -185,15 +185,17 @@ The `bambulab_filament_change_step_info`, `bambulab_extruder_buffer_filament_pre
 | `bambulab_active_nozzle_info{nozzle_type,nozzle_diameter}` | Info Gauge | Active nozzle metadata (also from top-level `nozzle_type` on A1, P1 and older X1 firmware) |
 | `bambulab_extruder_loaded_slot_info{extruder_id,ams_id,slot_id}` | Info Gauge | Filament loaded in each extruder (`device.extruder.info[].snow`): AMS unit and slot, or `external`. Extruders with nothing loaded are omitted |
 | `bambulab_filament_change_step_info{extruder_id,step}` | Info Gauge | Filament change step per extruder (`device.extruder.info[].stat` bits 0-7): `idle`, `pause`, `heat_nozzle`, `cut_filament`, `pull_current_filament`, `push_new_filament`, `grab_new_filament`, `purge_old_filament`, `check_position`, `switch_extruder`, `switch_hotend`, `ams_filament_cooling`, `push_switcher_filament`, `pull_switcher_filament`, `switcher_switch`, `batch_pull_filament`, `nesting_print_tool`, `purge_filament`, else `unknown` |
-| `bambulab_extruder_buffer_filament_present{extruder_id}` | Gauge | 1 when filament is in the extruder's buffer (`info` bit 2). Bambu Studio parses this bit but does not use it, so treat it as informational |
+| `bambulab_extruder_buffer_filament_present{extruder_id}` | Gauge | 1 when filament is in the extruder's buffer (`info` bit 2). Bambu Studio parses this bit but does not use it, so treat it as informational. On an H2D it dropped to 0 while the old filament was pulled back and returned to 1 when the new one was pushed in |
 | `bambulab_extruder_nozzle_present{extruder_id}` | Gauge | 1 when a nozzle is fitted (`info` bit 3). Some models do not support nozzle detection and may always report 1 |
-| `bambulab_extruder_extrusion_direction_info{extruder_id,direction}` | Info Gauge | Filament feed or retract motion as reported by the firmware: `idle`, `extruding` or `retracting` (`info` bits 11-12), else `unknown`. Ordinary printing reads `idle` on the H2D, H2S, P2S and X2D samples |
+| `bambulab_extruder_extrusion_direction_info{extruder_id,direction}` | Info Gauge | Filament feed or retract motion as reported by the firmware: `idle`, `extruding` or `retracting` (`info` bits 11-12), else `unknown`. Ordinary printing reads `idle` on the H2D, H2S, P2S and X2D samples, and an H2D also read `idle` throughout a filament change |
 | `bambulab_nozzle_wear_ratio{extruder_id}` | Gauge | Wear value of the nozzle mounted on each extruder (`device.nozzle.info[].wear`, passed through unscaled; the unit is not confirmed) |
 | `bambulab_nozzle_print_time_seconds{extruder_id}` | Gauge | Total print time of the mounted nozzle (`p_t`), for hotends that keep their own usage record. Bambu added this for the H2C hotend rack; Bambu support said it needs H2C firmware V01.02.00.00. H2D and X2D firmware also send the field, but report 0: on an H2D it stayed 0 through about 12 hours of printing. The metric shows whatever the printer reports, so 0 here usually means "not counted", not "unused" |
 
 ### Filament change steps
 
 Values of the `step` label on `bambulab_filament_change_step_info`, with what each one means. Loading and unloading filament use the steps from `heat_nozzle` to `check_position`; the order and which steps run depend on the printer and the change. The steps after that cover extruder and hotend switches and the Filament Track Switch.
+
+For example, a color change on one nozzle of an H2D went `switch_extruder`, `cut_filament`, `pull_current_filament`, `push_new_filament`, `grab_new_filament`, `heat_nozzle`, `purge_old_filament` and back to `idle`, taking about 100 seconds. The step can repeat, such as `heat_nozzle` and `purge_old_filament` alternating during a long purge.
 
 | `step` | Meaning |
 |---|---|
