@@ -196,6 +196,48 @@ class ExporterMetrics:
             [*label_names, "extruder_id"],
             registry=self.registry,
         )
+        self.job_state_info = Gauge(
+            "bambulab_job_state_info",
+            "Job phase (job.job_state), finer than the gcode state",
+            [*label_names, "state"],
+            registry=self.registry,
+        )
+        self.print_stage_countdown_seconds = Gauge(
+            "bambulab_print_stage_countdown_seconds",
+            "Seconds left in the current stage, such as thermal preconditioning",
+            label_names,
+            registry=self.registry,
+        )
+        self.filament_change_step_info = Gauge(
+            "bambulab_filament_change_step_info",
+            "Filament change step of each extruder (idle when no change runs)",
+            [*label_names, "extruder_id", "step"],
+            registry=self.registry,
+        )
+        self.extruder_buffer_filament_present = Gauge(
+            "bambulab_extruder_buffer_filament_present",
+            "1 if filament is in the extruder's buffer",
+            [*label_names, "extruder_id"],
+            registry=self.registry,
+        )
+        self.extruder_nozzle_present = Gauge(
+            "bambulab_extruder_nozzle_present",
+            "1 if a nozzle is fitted on the extruder",
+            [*label_names, "extruder_id"],
+            registry=self.registry,
+        )
+        self.extruder_extrusion_direction_info = Gauge(
+            "bambulab_extruder_extrusion_direction_info",
+            "Filament feed direction reported by each extruder (idle, extruding, retracting)",
+            [*label_names, "extruder_id", "direction"],
+            registry=self.registry,
+        )
+        self.ams_slot_present = Gauge(
+            "bambulab_ams_slot_present",
+            "1 if a spool is in the AMS slot (tray_exist_bits), with or without a tag",
+            [*label_names, "ams_id", "slot_id"],
+            registry=self.registry,
+        )
         self.fan_big_1_speed = Gauge("bambulab_fan_big_1_speed_percent", "Big fan 1 speed percent", label_names, registry=self.registry)
         self.fan_big_2_speed = Gauge("bambulab_fan_big_2_speed_percent", "Big fan 2 speed percent", label_names, registry=self.registry)
         self.fan_cooling_speed = Gauge("bambulab_fan_cooling_speed_percent", "Cooling fan speed percent", label_names, registry=self.registry)
@@ -583,6 +625,44 @@ class ExporterMetrics:
         self.toolhead_filament_present.clear()
         for extruder, present in snapshot.toolhead_filament_present.items():
             self.toolhead_filament_present.labels(**labels, extruder_id=extruder).set(present)
+
+        self.job_state_info.clear()
+        if snapshot.job_state is not None:
+            self.job_state_info.labels(**labels, state=snapshot.job_state).set(1.0)
+        self._set_optional(
+            self.print_stage_countdown_seconds, snapshot.stage_countdown_seconds
+        )
+        for gauge in (
+            self.filament_change_step_info,
+            self.extruder_buffer_filament_present,
+            self.extruder_nozzle_present,
+            self.extruder_extrusion_direction_info,
+        ):
+            gauge.clear()
+        for extruder, extruder_state in snapshot.extruder_states.items():
+            step = extruder_state.get("step")
+            if isinstance(step, str):
+                self.filament_change_step_info.labels(
+                    **labels, extruder_id=extruder, step=step
+                ).set(1.0)
+            buffer_filament = extruder_state.get("buffer_filament")
+            if isinstance(buffer_filament, float):
+                self.extruder_buffer_filament_present.labels(
+                    **labels, extruder_id=extruder
+                ).set(buffer_filament)
+            nozzle_fitted = extruder_state.get("nozzle")
+            if isinstance(nozzle_fitted, float):
+                self.extruder_nozzle_present.labels(**labels, extruder_id=extruder).set(
+                    nozzle_fitted
+                )
+            direction = extruder_state.get("direction")
+            if isinstance(direction, str):
+                self.extruder_extrusion_direction_info.labels(
+                    **labels, extruder_id=extruder, direction=direction
+                ).set(1.0)
+        self.ams_slot_present.clear()
+        for (ams_id, slot_id), present in snapshot.ams_slots_present.items():
+            self.ams_slot_present.labels(**labels, ams_id=ams_id, slot_id=slot_id).set(present)
 
         self.nozzle_wear.clear()
         self.nozzle_print_time_seconds.clear()

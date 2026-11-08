@@ -127,6 +127,27 @@ bambulab_light_mode_info{light="chamber_light",mode="off",printer_name="my-x1c",
 # HELP bambulab_toolhead_filament_present 1 if the extruder filament sensor detects filament
 # TYPE bambulab_toolhead_filament_present gauge
 bambulab_toolhead_filament_present{extruder_id="0",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_job_state_info Job phase (job.job_state), finer than the gcode state
+# TYPE bambulab_job_state_info gauge
+bambulab_job_state_info{printer_name="my-x1c",serial="00MFAKE0TEST0001",state="running"} 1.0
+# HELP bambulab_print_stage_countdown_seconds Seconds left in the current stage, such as thermal preconditioning
+# TYPE bambulab_print_stage_countdown_seconds gauge
+bambulab_print_stage_countdown_seconds{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_filament_change_step_info Filament change step of each extruder (idle when no change runs)
+# TYPE bambulab_filament_change_step_info gauge
+bambulab_filament_change_step_info{extruder_id="0",printer_name="my-x1c",serial="00MFAKE0TEST0001",step="idle"} 1.0
+# HELP bambulab_extruder_buffer_filament_present 1 if filament is in the extruder's buffer
+# TYPE bambulab_extruder_buffer_filament_present gauge
+bambulab_extruder_buffer_filament_present{extruder_id="0",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+# HELP bambulab_extruder_nozzle_present 1 if a nozzle is fitted on the extruder
+# TYPE bambulab_extruder_nozzle_present gauge
+bambulab_extruder_nozzle_present{extruder_id="0",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 1.0
+# HELP bambulab_extruder_extrusion_direction_info Filament feed direction reported by each extruder (idle, extruding, retracting)
+# TYPE bambulab_extruder_extrusion_direction_info gauge
+bambulab_extruder_extrusion_direction_info{direction="extruding",extruder_id="0",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 1.0
+# HELP bambulab_ams_slot_present 1 if a spool is in the AMS slot (tray_exist_bits), with or without a tag
+# TYPE bambulab_ams_slot_present gauge
+bambulab_ams_slot_present{ams_id="0",printer_name="my-x1c",serial="00MFAKE0TEST0001",slot_id="0"} 1.0
 # HELP bambulab_fan_big_1_speed_percent Big fan 1 speed percent
 # TYPE bambulab_fan_big_1_speed_percent gauge
 bambulab_fan_big_1_speed_percent{printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0

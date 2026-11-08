@@ -127,6 +127,15 @@
   ],
   "type": "gauge"
  },
+ "bambulab_ams_slot_present": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "ams_id",
+   "slot_id"
+  ],
+  "type": "gauge"
+ },
  "bambulab_ams_slot_remaining_percent": {
   "labels": [
    "printer_name",
@@ -306,6 +315,23 @@
   ],
   "type": "gauge"
  },
+ "bambulab_extruder_buffer_filament_present": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "extruder_id"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_extruder_extrusion_direction_info": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "extruder_id",
+   "direction"
+  ],
+  "type": "gauge"
+ },
  "bambulab_extruder_loaded_slot_info": {
   "labels": [
    "printer_name",
@@ -323,6 +349,14 @@
    "extruder_id",
    "nozzle_type",
    "nozzle_diameter"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_extruder_nozzle_present": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "extruder_id"
   ],
   "type": "gauge"
  },
@@ -382,6 +416,15 @@
   "labels": [
    "printer_name",
    "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_filament_change_step_info": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "extruder_id",
+   "step"
   ],
   "type": "gauge"
  },
@@ -492,6 +535,14 @@
    "printer_name",
    "serial",
    "slot_id",
+   "state"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_job_state_info": {
+  "labels": [
+   "printer_name",
+   "serial",
    "state"
   ],
   "type": "gauge"
@@ -664,6 +715,13 @@
   "type": "gauge"
  },
  "bambulab_print_skipped_objects": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_print_stage_countdown_seconds": {
   "labels": [
    "printer_name",
    "serial"

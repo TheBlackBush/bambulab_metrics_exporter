@@ -1933,6 +1933,41 @@ class TestNetworkAndUpgradeMetrics:
             "Retransmissions reported per network interface (meaning not confirmed)",
             ["printer_name", "serial", "interface"],
         ),
+        (
+            "bambulab_job_state_info",
+            "Job phase (job.job_state), finer than the gcode state",
+            ["printer_name", "serial", "state"],
+        ),
+        (
+            "bambulab_print_stage_countdown_seconds",
+            "Seconds left in the current stage, such as thermal preconditioning",
+            ["printer_name", "serial"],
+        ),
+        (
+            "bambulab_filament_change_step_info",
+            "Filament change step of each extruder (idle when no change runs)",
+            ["printer_name", "serial", "extruder_id", "step"],
+        ),
+        (
+            "bambulab_extruder_buffer_filament_present",
+            "1 if filament is in the extruder's buffer",
+            ["printer_name", "serial", "extruder_id"],
+        ),
+        (
+            "bambulab_extruder_nozzle_present",
+            "1 if a nozzle is fitted on the extruder",
+            ["printer_name", "serial", "extruder_id"],
+        ),
+        (
+            "bambulab_extruder_extrusion_direction_info",
+            "Filament feed direction reported by each extruder (idle, extruding, retracting)",
+            ["printer_name", "serial", "extruder_id", "direction"],
+        ),
+        (
+            "bambulab_ams_slot_present",
+            "1 if a spool is in the AMS slot (tray_exist_bits), with or without a tag",
+            ["printer_name", "serial", "ams_id", "slot_id"],
+        ),
     ],
 )
 def test_new_metric_contract(name: str, help_text: str, labels: list[str]) -> None:
@@ -1966,3 +2001,103 @@ def test_active_nozzle_temperature_nan_when_absent() -> None:
     m = _metrics()
     m.update_from_snapshot(_snap({}))
     assert math.isnan(_gauge_value(m, "active_nozzle_temp"))
+
+
+class TestJobExtruderAndSpoolState:
+    @staticmethod
+    def _series(m: ExporterMetrics, name: str) -> list[tuple[dict[str, str], float]]:
+        return sorted(
+            (
+                (
+                    {k: v for k, v in s.labels.items() if k not in ("printer_name", "serial")},
+                    s.value,
+                )
+                for metric in m.registry.collect()
+                for s in metric.samples
+                if s.name == name
+            ),
+            key=lambda item: sorted(item[0].items()),
+        )
+
+    def test_job_state_is_one_hot_and_clears(self) -> None:
+        m = _metrics()
+        m.update_from_snapshot(_snap({"job": {"job_state": 2}}))
+        m.update_from_snapshot(_snap({"job": {"job_state": 4}}))
+        assert self._series(m, "bambulab_job_state_info") == [({"state": "running"}, 1.0)]
+        m.update_from_snapshot(_snap({"job": {"job_state": 40}}))
+        assert self._series(m, "bambulab_job_state_info") == [({"state": "unknown"}, 1.0)]
+        m.update_from_snapshot(_snap({}))
+        assert self._series(m, "bambulab_job_state_info") == []
+
+    def test_stage_countdown(self) -> None:
+        m = _metrics()
+        m.update_from_snapshot(_snap({"stg_cd": 42}))
+        assert self._series(m, "bambulab_print_stage_countdown_seconds") == [({}, 42.0)]
+        m.update_from_snapshot(_snap({}))
+        [(labels, value)] = self._series(m, "bambulab_print_stage_countdown_seconds")
+        assert labels == {} and math.isnan(value)
+
+    def test_extruder_series_and_clearing(self) -> None:
+        m = _metrics()
+        info = (1 << 2) | (1 << 3) | (2 << 11)
+        block = {"device": {"extruder": {"info": [
+            {"id": 0, "temp": 0, "info": info, "stat": 0x09},
+            {"id": 1, "temp": 0, "info": 0, "stat": 0},
+        ]}}}
+        m.update_from_snapshot(_snap(block))
+        assert self._series(m, "bambulab_extruder_buffer_filament_present") == [
+            ({"extruder_id": "0"}, 1.0), ({"extruder_id": "1"}, 0.0)
+        ]
+        assert self._series(m, "bambulab_extruder_nozzle_present") == [
+            ({"extruder_id": "0"}, 1.0), ({"extruder_id": "1"}, 0.0)
+        ]
+        assert self._series(m, "bambulab_extruder_extrusion_direction_info") == [
+            ({"direction": "idle", "extruder_id": "1"}, 1.0),
+            ({"direction": "retracting", "extruder_id": "0"}, 1.0),
+        ]
+        assert self._series(m, "bambulab_filament_change_step_info") == [
+            ({"extruder_id": "0", "step": "switch_extruder"}, 1.0),
+            ({"extruder_id": "1", "step": "idle"}, 1.0),
+        ]
+        m.update_from_snapshot(_snap({}))
+        for name in (
+            "bambulab_extruder_buffer_filament_present",
+            "bambulab_extruder_nozzle_present",
+            "bambulab_extruder_extrusion_direction_info",
+            "bambulab_filament_change_step_info",
+        ):
+            assert self._series(m, name) == []
+
+    def test_step_change_replaces_the_old_series(self) -> None:
+        m = _metrics()
+        for stat in (0x02, 0x05):
+            m.update_from_snapshot(_snap({"device": {"extruder": {"info": [
+                {"id": 0, "temp": 0, "stat": stat}
+            ]}}}))
+        assert self._series(m, "bambulab_filament_change_step_info") == [
+            ({"extruder_id": "0", "step": "push_new_filament"}, 1.0)
+        ]
+
+    def test_ams_slot_present_series_and_clearing(self) -> None:
+        m = _metrics()
+        block = {"ams": {"tray_exist_bits": "1", "ams": [
+            {"id": "0", "tray": [{"id": "0"}, {"id": "1"}]}
+        ]}}
+        m.update_from_snapshot(_snap(block))
+        assert self._series(m, "bambulab_ams_slot_present") == [
+            ({"ams_id": "0", "slot_id": "0"}, 1.0), ({"ams_id": "0", "slot_id": "1"}, 0.0)
+        ]
+        m.update_from_snapshot(_snap({}))
+        assert self._series(m, "bambulab_ams_slot_present") == []
+
+    def test_exposition_has_one_help_and_type_per_new_family(self) -> None:
+        from prometheus_client import generate_latest
+
+        m = _metrics()
+        m.update_from_snapshot(_snap({"job": {"job_state": 4}, "stg_cd": 5}))
+        text = generate_latest(m.registry).decode()
+        for name in ("bambulab_job_state_info", "bambulab_print_stage_countdown_seconds"):
+            assert text.count(f"# HELP {name} ") == 1
+            assert text.count(f"# TYPE {name} gauge") == 1
+        expected = 'bambulab_job_state_info{printer_name="test",serial="SN123",state="running"}'
+        assert f"{expected} 1.0" in text
