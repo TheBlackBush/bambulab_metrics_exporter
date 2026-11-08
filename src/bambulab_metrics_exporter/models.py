@@ -173,6 +173,12 @@ ACCESSORY_PRODUCT_NAMES: dict[str, str] = {
     "filament_switch": "Filament Track",
     "air_pump": "Air Pump",
 }
+# get_version module names that identify an accessory even without a product name. The
+# external buffer reports as "ahbc". The H2 series' built-in buffer board reports as plain
+# "ahb" and is part of the printer, so it is deliberately not matched.
+ACCESSORY_MODULE_NAMES: dict[str, str] = {
+    "filament_buffer": "ahbc",
+}
 _AUX_FILAMENT_SWITCH_BIT = 29
 
 _FIRMWARE_VERSION_RE = re.compile(r"^\d{2}\.\d{2}\.\d{2}\.\d{2}$")
@@ -1294,6 +1300,10 @@ class PrinterSnapshot:
             mod["product_name"] for mod in self.modules
             if isinstance(mod.get("product_name"), str)
         ]
+        module_names = {
+            mod["name"].strip().lower().partition("/")[0] for mod in self.modules
+            if isinstance(mod.get("name"), str)
+        }
         have_modules = bool(self.modules)
         device = self.print_block.get("device")
         device = device if isinstance(device, dict) else {}
@@ -1314,7 +1324,9 @@ class PrinterSnapshot:
                 pass
         out: dict[str, float] = {}
         for accessory, product in ACCESSORY_PRODUCT_NAMES.items():
-            in_modules = any(product in name for name in names)
+            in_modules = any(product in name for name in names) or (
+                ACCESSORY_MODULE_NAMES.get(accessory) in module_names
+            )
             if accessory in flags:
                 out[accessory] = 1.0 if flags[accessory] or in_modules else 0.0
             elif have_modules:

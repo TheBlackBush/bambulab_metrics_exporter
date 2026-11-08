@@ -5,6 +5,9 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added
+- `bambulab_accessory_present{accessory="filament_buffer"}` also detects an external filament
+  buffer by its `ahbc` module name when the module has no product name. The buffer built into
+  the H2 series is part of the printer and still reads 0, now documented in the metrics reference.
 - Multi-printer support: one exporter can monitor up to 32 printers (cloud and LAN mixed, one
   Bambu account), chosen on the `/auth` page. After a cloud login the page lists the account
   printers to tick; LAN printers are added with a form and any printer can be removed. The page
