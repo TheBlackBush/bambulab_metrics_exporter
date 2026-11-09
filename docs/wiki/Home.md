@@ -36,6 +36,36 @@ then connect the printer in your browser.
 
 ---
 
+## How it works
+
+- The exporter connects to the printer's MQTT service, either on the LAN (`local_mqtt`) or through
+  Bambu Cloud (`cloud_mqtt`), and listens to the printer's status reports
+  (`device/<serial>/report`).
+- It only reads. The only messages it sends are two read-only requests: `pushall` (a full status
+  report, every poll) and `get_version` (the module list, once per connection). Set
+  `BAMBULAB_REQUEST_PUSHALL=false` to turn both off.
+- The printer model is detected from the module list, the serial number prefix, or
+  `BAMBULAB_PRINTER_MODEL`. Each model has a hardware profile, so metrics for parts a printer does
+  not have (for example a chamber heater) are left empty instead of showing placeholder values.
+- One exporter serves every printer it monitors on one `/metrics` endpoint. Each series carries
+  `printer_name` and `serial` labels.
+
+---
+
+## Known limitations
+
+1. Only the X1C has been fully tested on real hardware (an H2D was checked while idle and while
+   printing). Other models are recognized from their data and may report some values differently.
+2. One exporter monitors up to 32 printers (one Bambu account for the cloud ones). Running several
+   printers in one exporter has not been validated on real hardware; separate containers remain
+   supported.
+3. The MQTT connection is encrypted, but the printer's certificate is not verified (the printers
+   use self-signed certificates).
+4. Some values depend on the printer model and firmware. Missing values are left empty rather than
+   shown as zero.
+
+---
+
 ## Endpoints
 
 Once running, the exporter exposes:
