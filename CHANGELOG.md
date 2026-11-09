@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- New project logo. The README and wiki home page show it, the status and `/auth` pages use it
+  as their logo and favicon, and the Unraid template and Community Applications profile use it
+  as the app icon. The Bambu Lab logo is no longer shipped; the README states the project is not
+  affiliated with Bambu Lab. The brand kit and usage guide are in `docs/brand/`.
+- Grafana screenshots in `examples/grafana/images/` are rendered wider, so all AMS spool cards
+  fit on one row.
+- `tmp/` is ignored by git.
+
 ## [0.3.0] - 2026-11-09
 
 ### Added

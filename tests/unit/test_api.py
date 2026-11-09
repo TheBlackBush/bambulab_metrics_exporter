@@ -263,3 +263,16 @@ def test_auth_status_lists_printers() -> None:
     client = TestClient(build_app(runtime=_Fleet()))
     body = client.get("/auth/status").json()
     assert body["state"] == "running" and len(body["printers"]) == 2
+
+
+def test_root_shows_project_logo_and_favicons() -> None:
+    metrics = ExporterMetrics(printer_name="x1c", serial="SN001")
+    client = TestClient(build_app(metrics=metrics, collector=_CollectorStub(ready=False)))
+    page = client.get("/").text
+    assert 'src="/static/icon-192.png"' in page
+    assert 'href="/static/favicon-32.png"' in page and 'href="/static/icon-180.png"' in page
+    assert "bambulablogo" not in page
+    for asset in ("icon-192.png", "favicon-32.png", "icon-180.png"):
+        resp = client.get(f"/static/{asset}")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"] == "image/png"
