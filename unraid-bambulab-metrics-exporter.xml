@@ -16,7 +16,7 @@
   <TemplateURL>https://raw.githubusercontent.com/TheBlackBush/bambulab_metrics_exporter/main/unraid-bambulab-metrics-exporter.xml</TemplateURL>
   <Icon>https://raw.githubusercontent.com/TheBlackBush/bambulab_metrics_exporter/main/docs/brand/png/icon-512.png</Icon>
   <Screenshot>https://raw.githubusercontent.com/TheBlackBush/bambulab_metrics_exporter/main/examples/grafana/images/bambulab-dashboard-0-full.png</Screenshot>
-  <Requires>Prometheus to collect the metrics, and Grafana to chart them (ready-made dashboard: grafana.com ID 25033).</Requires>
+  <Requires>A Bambu Lab printer reachable on your LAN (IP, serial, LAN access code) or linked to a Bambu Cloud account.&#10;A Secret Key (generate once: openssl rand -hex 32) to keep the saved connection across restarts.&#10;Prometheus scraping port 9109 (keep bambulab in the job name for the dashboard).&#10;Grafana with the ready-made dashboard (grafana.com ID 25033); its AMS filament panel needs the free Business Text plugin.</Requires>
   <License>GPL-3.0</License>
   <Changes>Release notes: https://github.com/TheBlackBush/bambulab_metrics_exporter/blob/main/CHANGELOG.md</Changes>
   <DonateText>Support the project on Ko-fi</DonateText>
