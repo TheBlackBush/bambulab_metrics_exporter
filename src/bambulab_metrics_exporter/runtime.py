@@ -23,6 +23,7 @@ from bambulab_metrics_exporter.config import Settings
 from bambulab_metrics_exporter.env_sync import sync_env_file
 from bambulab_metrics_exporter.metrics import ExporterMetrics
 from bambulab_metrics_exporter.overrides import overridden_keys
+from bambulab_metrics_exporter.printers import mask_serial
 from bambulab_metrics_exporter.reauth import (
     apply_credentials,
     credentials_path,
@@ -116,6 +117,7 @@ class ExporterRuntime:
         retry_seconds: float = RETRY_SECONDS,
         store_poll_seconds: float = STORE_POLL_SECONDS,
         auth_retry_seconds: float = AUTH_RETRY_SECONDS,
+        sync_env: bool = True,
     ) -> None:
         self._settings_factory = settings_factory
         self._validate = validate
@@ -124,6 +126,7 @@ class ExporterRuntime:
         self._retry_seconds = retry_seconds
         self._store_poll_seconds = store_poll_seconds
         self._auth_retry_seconds = auth_retry_seconds
+        self._sync_env = sync_env
 
         self._lock = threading.Lock()
         self._wake = threading.Event()
@@ -166,6 +169,10 @@ class ExporterRuntime:
         self._wake.set()
         if self._thread:
             self._thread.join(timeout=10)
+            if self._thread.is_alive():
+                logger.warning(
+                    "Printer %s: the runtime thread is still running after 10 s", self._masked()
+                )
         self._stop_collector()
 
     def reconfigure(self) -> None:
@@ -190,6 +197,9 @@ class ExporterRuntime:
             }
 
     # -- lifecycle --------------------------------------------------------
+
+    def _masked(self) -> str:
+        return mask_serial(str(self.settings.bambulab_serial))
 
     def _set_state(self, state: str, message: str = "") -> None:
         with self._lock:
@@ -295,7 +305,7 @@ class ExporterRuntime:
         except ReauthRequiredError as exc:
             if self._stop.is_set():
                 return
-            log_reauth_banner(str(exc), port=settings.listen_port)
+            log_reauth_banner(f"Printer {self._masked()}: {exc}", port=settings.listen_port)
             self._set_state(STATE_AUTH_REQUIRED, f"Re-authentication required: {exc}")
             if _store_fingerprint(store) != store_before and not self._store_retry_used:
                 # `bambulab-reauth` wrote new credentials while validation ran; use them
@@ -311,7 +321,12 @@ class ExporterRuntime:
             return
         except Exception as exc:  # noqa: BLE001 - retry later instead of exiting
             self._set_state(STATE_ERROR, str(exc))
-            logger.error("Connection failed: %s. Retrying in %.0fs", exc, self._retry_seconds)
+            logger.error(
+                "Connection failed for printer %s: %s. Retrying in %.0fs",
+                self._masked(),
+                exc,
+                self._retry_seconds,
+            )
             self._wait(self._retry_seconds)
             return
 
@@ -319,12 +334,13 @@ class ExporterRuntime:
             return
         # Validation may have refreshed tokens or discovered metadata.
         self._ensure_metrics(settings)
-        try:
-            # Values saved on the /auth page stay out of .env, so "Reset to env vars" is
-            # not undone by the next restart.
-            sync_env_file(Path(".env"), exclude=overridden_keys())
-        except (OSError, UnicodeError):
-            logger.warning("Skipping .env sync (not writable or not UTF-8)")
+        if self._sync_env:
+            try:
+                # Values saved on the /auth page stay out of .env, so "Reset to env vars" is
+                # not undone by the next restart.
+                sync_env_file(Path(".env"), exclude=overridden_keys())
+            except (OSError, UnicodeError):
+                logger.warning("Skipping .env sync (not writable or not UTF-8)")
 
         if self._stop.is_set():
             return

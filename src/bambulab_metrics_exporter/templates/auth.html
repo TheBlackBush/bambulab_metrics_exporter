@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Printer Connection</title>
-{{REFRESH}}
+<noscript>{{REFRESH}}</noscript>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -105,6 +105,7 @@
   }
   button:hover { background: rgba(34, 197, 94, 0.22); border-color: rgba(34, 197, 94, 0.6); }
   button:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+  button:disabled { opacity: 0.55; cursor: not-allowed; }
   button svg { width: 1rem; height: 1rem; flex: none; }
 
   button.tonal { background: #2c2c2c; color: var(--text); border-color: #3d3d3d; }
@@ -128,6 +129,20 @@
     overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
   }
 
+  /* Result of a background action, filled in by the page script. */
+  #page-notice.notice { margin: 0; padding: 0.9rem 1.25rem; border: 1px solid var(--border);
+    border-radius: var(--radius); background: var(--surface); }
+
+  /* Printer list and account picker. Their wrappers are always there, so a background
+     refresh can fill them; empty ones must not add a gap to the page. */
+  #cloud-picker:empty { display: none; }
+  .printer-row { display: flex; flex-direction: row; align-items: center; gap: 0.6rem; padding: 0.4rem 0; }
+  .printer-row .step { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .printer-message { display: block; }
+  .device-list { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 1rem; }
+  .device-row { display: flex; align-items: center; gap: 0.6rem; }
+  .small { padding: 0.25rem 0.6rem; font-size: 0.8rem; }
+
   .links { display: flex; justify-content: space-between; font-size: 0.82rem; }
   .links a { color: var(--green); text-decoration: none; }
 </style>
@@ -140,15 +155,17 @@
     <p>Bambu Lab Metrics Exporter v{{VERSION}}</p>
   </header>
 
-  <div class="card">
+  <div class="card" id="status-card" data-live{{DATA_REFRESH}}>
     <div class="status-row">
-      <span class="label">Status</span>
-      <span class="pill {{STATE_CLASS}}">{{STATE_LABEL}}</span>
+      <span class="label">{{STATUS_TITLE}}</span>
+      {{STATUS_PILL}}
     </div>
-    <div class="detail">{{CURRENT}}</div>
+    {{CURRENT}}
+    {{PRINTERS}}
     {{STATE_MESSAGE}}
     {{FLASH}}
   </div>
+  <div id="page-notice" role="status" aria-live="polite"></div>
 
   <div class="card">
     <div class="tabs" role="radiogroup" aria-label="Connection mode">
@@ -160,7 +177,7 @@
   </div>
 
   <div class="card panel panel-local">
-    <form method="post" action="/auth/local">
+    <form method="post" action="{{LOCAL_ACTION}}">
       <label class="field">Printer IP address or host name
         <input type="text" name="host" required autocomplete="off" placeholder="192.168.1.50">
       </label>
@@ -171,7 +188,14 @@
         <input type="password" name="access_code" required autocomplete="off">
         <span class="hint">On the printer: Settings, Network (LAN Only Mode screen).</span>
       </label>
-      <button type="submit">Connect locally</button>
+      <label class="field">Port (optional)
+        <input type="text" name="port" inputmode="numeric" maxlength="5" autocomplete="off">
+      </label>
+      <label class="field">Name (optional)
+        <input type="text" name="name" maxlength="64" autocomplete="off">
+        <span class="hint">Needed with several printers: unnamed printers of one model share a label.</span>
+      </label>
+      <button type="submit">{{LOCAL_BUTTON}}</button>
     </form>
   </div>
 
@@ -183,9 +207,9 @@
         <label class="field-label" for="cloud-email">Bambu account email</label>
         <div class="input-row">
           <input id="cloud-email" type="email" name="email" required autocomplete="email" value="{{CLOUD_EMAIL}}">
-          <button type="submit" class="tonal" formaction="/auth/cloud/send-code">
+          <button type="submit" class="tonal" id="send-code" formaction="/auth/cloud/send-code"{{SEND_ATTRS}}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="3 7 12 13 21 7"/></svg>
-            Send code
+            <span id="send-code-label">{{SEND_LABEL}}</span>
           </button>
         </div>
       </div>
@@ -193,15 +217,12 @@
         <input type="text" name="code" autocomplete="one-time-code" inputmode="numeric">
         <span class="hint">Check your inbox after clicking Send code.</span>
       </label>
-      <label class="field">Serial number (optional)
-        <input type="text" name="serial" autocomplete="off" spellcheck="false">
-        <span class="hint">Leave empty when the account has a single printer.</span>
-      </label>
       <button type="submit">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
         Log in
       </button>
     </form>
+    <div id="cloud-picker" data-live>{{CLOUD_PICKER}}</div>
   </div>
 
   <div class="card">
@@ -220,5 +241,191 @@
   </div>
 
 </div>
+<script>
+(function () {
+  var button = document.getElementById("send-code");
+  var label = document.getElementById("send-code-label");
+  var notice = document.getElementById("page-notice");
+  var countdown = null;
+  var pollTimer = null;
+  var refreshSeq = 0;
+
+  // A deadline, not a counter, so a throttled background tab stays correct.
+  function startCountdown(seconds) {
+    if (!button || !label) { return; }
+    var deadline = Date.now() + seconds * 1000;
+    button.setAttribute("disabled", "");
+    button.setAttribute("data-wait", String(seconds));
+    function tick() {
+      var left = Math.ceil((deadline - Date.now()) / 1000);
+      if (!(left > 0)) {
+        button.removeAttribute("disabled");
+        button.removeAttribute("data-wait");
+        label.textContent = "Send code";
+        return;
+      }
+      label.textContent = "Send code (" +
+        (left <= 60 ? left + "s" : Math.floor(left / 60) + "m " + (left % 60) + "s") + ")";
+      countdown = setTimeout(tick, 1000);
+    }
+    if (countdown) { clearTimeout(countdown); }
+    tick();
+  }
+
+  // Back to an active button, e.g. after the server reset the send-code limit.
+  function resetSendButton() {
+    if (countdown) { clearTimeout(countdown); countdown = null; }
+    if (!button || !label) { return; }
+    button.removeAttribute("disabled");
+    button.removeAttribute("data-wait");
+    label.textContent = "Send code";
+  }
+
+  // Message text only, never markup.
+  function showNotice(ok, text, note) {
+    if (!notice) { return; }
+    while (notice.firstChild) { notice.removeChild(notice.firstChild); }
+    notice.className = "notice " + (ok ? "ok" : "bad");
+    var icon = document.createElement("span");
+    icon.className = "notice-icon";
+    icon.setAttribute("aria-hidden", "true");
+    icon.textContent = ok ? "✓" : "!";
+    var body = document.createElement("span");
+    body.className = "notice-text";
+    body.textContent = text;
+    if (note) {
+      var extra = document.createElement("span");
+      extra.className = "notice-note";
+      extra.textContent = note;
+      body.appendChild(extra);
+    }
+    notice.appendChild(icon);
+    notice.appendChild(body);
+  }
+
+  // Replace the [data-live] parts with the server's current version. Inputs outside them,
+  // the Send code button and the open tab are never touched, and neither is a part marked
+  // data-dirty (the picker while it has unsaved ticks).
+  function refreshLive() {
+    var seq = ++refreshSeq;
+    return fetch("/auth", {headers: {"Accept": "text/html"}, credentials: "same-origin"})
+      .then(function (response) {
+        if (!response.ok) { throw new Error("status"); }
+        return response.text();
+      })
+      .then(function (text) {
+        if (seq !== refreshSeq) { return; }  // a newer request is in flight or done
+        var doc = new DOMParser().parseFromString(text, "text/html");
+        if (doc.querySelector("#send-code[data-wait]")) { return; }
+        var live = document.querySelectorAll("[data-live]");
+        for (var i = 0; i < live.length; i++) {
+          var current = live[i];
+          var fresh = current.id ? doc.getElementById(current.id) : null;
+          if (fresh && current.parentNode && !current.hasAttribute("data-dirty")) {
+            current.parentNode.replaceChild(fresh, current);
+          }
+        }
+      })
+      .catch(function () {})
+      .then(schedulePoll);
+  }
+
+  // While the status card says the exporter is still connecting, poll it. One timer only,
+  // and it stops by itself once the card no longer carries data-refresh.
+  function schedulePoll() {
+    if (pollTimer) { return; }
+    var card = document.getElementById("status-card");
+    if (!card || !card.hasAttribute("data-refresh")) { return; }
+    pollTimer = setTimeout(function () {
+      pollTimer = null;
+      refreshLive();
+    }, 3000);
+  }
+
+  function clearSecrets(form) {
+    var fields = form.querySelectorAll('input[type="password"], input[name="code"]');
+    for (var i = 0; i < fields.length; i++) { fields[i].value = ""; }
+  }
+
+  // Lets the next refresh replace the picker again.
+  function clearPickerEdits() {
+    var picker = document.getElementById("cloud-picker");
+    if (picker) { picker.removeAttribute("data-dirty"); }
+  }
+
+  function formBody(form, submitter) {
+    try {
+      return new URLSearchParams(new FormData(form, submitter));
+    } catch (error) {
+      return new URLSearchParams(new FormData(form));
+    }
+  }
+
+  // On the document, because refreshes replace the picker node.
+  document.addEventListener("change", function (event) {
+    var picker = document.getElementById("cloud-picker");
+    if (picker && picker.contains(event.target)) { picker.setAttribute("data-dirty", ""); }
+  });
+
+  // Every post form is sent in the background; without JavaScript the forms still post and
+  // the server redirects back here.
+  document.addEventListener("submit", function (event) {
+    var form = event.target;
+    if (!form || !form.matches || !form.matches('form[method="post"]')) { return; }
+    event.preventDefault();
+    if (form.busy) { return; }  // the form is already being sent
+    var submitter = event.submitter || null;
+    var isSend = !!submitter && submitter.id === "send-code";
+    var email = form.querySelector('input[name="email"]');
+    if (isSend && email) {
+      if (!email.checkValidity()) { email.reportValidity(); return; }
+    } else if (!form.reportValidity()) {
+      return;
+    }
+    // The formaction attribute only: the formAction property falls back to the page URL.
+    var url = (submitter && submitter.getAttribute("formaction")) || form.action;
+    form.busy = true;
+    if (submitter) { submitter.setAttribute("disabled", ""); }
+    function release() {
+      if (submitter) { submitter.removeAttribute("disabled"); }
+    }
+    fetch(url, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Accept": "application/json",
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: formBody(form, submitter)
+    }).then(function (response) {
+      if (!response.ok) { throw new Error("status"); }
+      return response.json();
+    }).then(function (data) {
+      showNotice(!!data.ok, String(data.message), data.note ? String(data.note) : "");
+      if (data.ok && !isSend) { clearSecrets(form); }
+      if (data.ok && url.indexOf("/auth/printers/add-local") !== -1) { form.reset(); }
+      // After these the server's list is the truth: a kept picker could belong to another login.
+      if (data.ok && /\/auth\/(printers\/select|cloud\/login|reset)/.test(url)) {
+        clearPickerEdits();
+      }
+      var wait = Number(data.wait_seconds);
+      if (isSend && wait > 0) { startCountdown(wait); } else { release(); }
+      // A successful login reset the send-code limit on the server.
+      if (data.ok && url.indexOf("/auth/cloud/login") !== -1) { resetSendButton(); }
+      return refreshLive();
+    }).catch(function () {
+      showNotice(false, "Could not complete that. Try again.");
+      release();
+    }).then(function () {
+      form.busy = false;
+    });
+  });
+
+  if (button && button.hasAttribute("data-wait")) {
+    startCountdown(parseInt(button.getAttribute("data-wait"), 10));
+  }
+  schedulePoll();
+})();
+</script>
 </body>
 </html>

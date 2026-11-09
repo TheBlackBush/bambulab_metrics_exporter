@@ -89,22 +89,23 @@ def _validate_local(settings: Settings) -> None:
     missing = [
         key
         for key, val in {
-            "BAMBULAB_HOST": settings.bambulab_host,
-            "BAMBULAB_SERIAL": settings.bambulab_serial,
-            "BAMBULAB_ACCESS_CODE": settings.bambulab_access_code,
+            "host": settings.bambulab_host,
+            "serial": settings.bambulab_serial,
+            "access code": settings.bambulab_access_code,
         }.items()
         if not val
     ]
     if missing:
         raise RuntimeError(
-            "Local MQTT selected but required env vars are missing: "
+            "Local MQTT selected but settings are missing: "
             + ", ".join(missing)
+            + ". Set them on the /auth page."
         )
 
     if not _probe_connection(settings):
         raise RuntimeError(
-            "Local MQTT connection test failed. Check BAMBULAB_HOST/BAMBULAB_SERIAL/"
-            "BAMBULAB_ACCESS_CODE and LAN mode in printer settings."
+            "Local MQTT connection test failed. Check the host, serial and access code on "
+            "the /auth page, and LAN mode in the printer settings."
         )
 
 

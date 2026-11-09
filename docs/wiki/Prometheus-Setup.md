@@ -25,7 +25,7 @@ scrape_configs:
     static_configs:
       - targets: ["bambulab-metrics-exporter:9109"]   # or <docker-host-ip>:9109
         labels:
-          instance: my-printer   # optional, for multi-printer setups
+          instance: my-printer   # optional, for setups with several exporters
 ```
 
 A ready-to-use snippet is available at `examples/prometheus/prometheus.scrape.yml`.
@@ -56,7 +56,7 @@ It contains:
 | `BambuHmsSeriousError` | A serious or fatal HMS error is active |
 | `BambuNozzleTooHot` | The nozzle is above 320 °C |
 | `BambuDoorOpenWhilePrinting` | The door is open during a print (models with a door sensor) |
-| `BambuSdCardAbnormal` | The SD card reports a problem |
+| `BambuSdCardAbnormal` | The SD card reports a problem (not yet confirmed for USB drives on printers with no SD slot) |
 
 The file is the reference for exact expressions and thresholds; adjust them there.
 
@@ -70,8 +70,14 @@ Pre-computed aggregations are available in `examples/prometheus/prometheus.recor
 
 ## Multiple Printers
 
-Run one exporter container per printer, each on its own host port (and its own config volume).
-Use `PRINTER_NAME_LABEL` to set a stable label, and add each target to your scrape config:
+One exporter can monitor up to 32 printers chosen on the `/auth` page, so a single scrape target
+serves all of them. `/metrics` carries every printer's series, told apart by the `printer_name` and
+`serial` labels. `/ready` is ready once any printer has data. `PRINTER_NAME_LABEL` applies only to
+the printer configured through env vars; other printers use their cloud name, the name typed for a
+LAN printer, or a masked serial.
+
+You can still run one exporter container per printer, each on its own host port (and its own config
+volume), and add each target to your scrape config:
 
 ```yaml
 static_configs:

@@ -1,6 +1,9 @@
 """Tests for bambulab_metrics_exporter.models."""
 from __future__ import annotations
 
+import json as _json
+from pathlib import Path as _Path
+
 import pytest
 
 from bambulab_metrics_exporter import models
@@ -13,6 +16,7 @@ from bambulab_metrics_exporter.models import (
     AMS_SERIAL_PREFIX_TO_MODEL,
     AMS_MODEL_TO_SERIES,
     AMS_TYPE_TO_MODEL,
+    parse_ams_dry_block_reasons,
 )
 
 
@@ -482,7 +486,7 @@ def test_extruder_entries_unpack_temp() -> None:
         connected=True,
         raw={"print": {"device": {"extruder": {"info": [{"id": 0, "temp": packed, "hnow": 1}]}}}},
     )
-    assert snap.extruder_entries == [{"id": "0", "actual_temp": 210.0, "target_temp": 220.0, "hnow": 1, "snow": None, "info": None}]
+    assert snap.extruder_entries == [{"id": "0", "actual_temp": 210.0, "target_temp": 220.0, "hnow": 1, "snow": None, "info": None, "stat": None, "info_is_bool": False}]
 
 
 def test_extruder_nozzle_info_entries_map_via_hnow() -> None:
@@ -1677,3 +1681,272 @@ def test_xcam_halt_print_sensitivity_non_string_value() -> None:
     """Returns None when halt_print_sensitivity is not a string (e.g. int)."""
     snap = _snap({"print": {"xcam": {"halt_print_sensitivity": 1}}})
     assert snap.xcam_halt_print_sensitivity is None
+
+
+def test_dry_block_reasons_named_and_unknown() -> None:
+    assert parse_ams_dry_block_reasons({"dry_sf_reason": [6, 0, 99]}) == [
+        "drying_in_progress", "task_occupied", "unknown",
+    ]
+
+
+def test_dry_block_reasons_dedupes() -> None:
+    assert parse_ams_dry_block_reasons({"dry_sf_reason": [1, 1, 42, 43]}) == [
+        "insufficient_power", "unknown",
+    ]
+
+
+@pytest.mark.parametrize("value", [None, "6", {}, 6])
+def test_dry_block_reasons_malformed_container(value: object) -> None:
+    assert parse_ams_dry_block_reasons({"dry_sf_reason": value}) == []
+
+
+def test_dry_block_reasons_malformed() -> None:
+    assert parse_ams_dry_block_reasons({"dry_sf_reason": [True, None, "x", {}, 2]}) == ["ams_busy"]
+
+
+def _block(print_block: dict) -> PrinterSnapshot:
+    return PrinterSnapshot(connected=True, raw={"print": print_block})
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("UPGRADE_SUCCESS", "upgrade_success"),
+        ("idle", "idle"),
+        ("DOWNLOAD_FAIL", "download_fail"),
+        ("SOMETHING_NEW", "unknown"),
+        ("", None),
+        (5, None),
+    ],
+)
+def test_firmware_upgrade_status(raw: object, expected: str | None) -> None:
+    assert _block({"upgrade_state": {"status": raw}}).firmware_upgrade_status == expected
+
+
+def test_firmware_upgrade_status_absent() -> None:
+    assert _block({}).firmware_upgrade_status is None
+    assert _block({"upgrade_state": "bad"}).firmware_upgrade_status is None
+
+
+def test_network_stats() -> None:
+    snap = _block({"net": {"info": [{"rtt": "206.35", "retrans": 36}, {"rtt": "", "retrans": 0}]}})
+    assert snap.network_stats == {
+        "wlan": {"rtt": 206.35, "retrans": 36.0},
+        "wired": {"retrans": 0.0},
+    }
+
+
+@pytest.mark.parametrize(
+    "net",
+    [
+        None,
+        "bad",
+        {},
+        {"info": "bad"},
+        {"info": ["bad"]},
+        {"info": [{"rtt": "x", "retrans": "y"}]},
+        {"info": [{"rtt": None}]},
+        {"info": [{"retrans": True}]},
+        {"info": [{"rtt": "-5"}]},
+        {"info": [{"rtt": "inf"}]},
+        {"info": [{"rtt": "1e999"}]},
+        {"info": [{"rtt": True}]},
+        {"info": [{"rtt": 10**400}]},
+        {"info": [{"retrans": 10**400}]},
+    ],
+)
+def test_network_stats_malformed(net: object) -> None:
+    assert _block({"net": net}).network_stats == {}
+
+
+def test_network_stats_ignores_extra_interfaces() -> None:
+    info = [{"retrans": 1}, {"retrans": 2}, {"retrans": 3}]
+    assert sorted(_block({"net": {"info": info}}).network_stats) == ["wired", "wlan"]
+
+
+def _dual(state: object, temps: dict[int, object], top: object = 43) -> PrinterSnapshot:
+    return _block({
+        "nozzle_temper": top,
+        "device": {"extruder": {"state": state, "info": [
+            {"id": i, "temp": t} for i, t in temps.items()
+        ]}},
+    })
+
+
+def test_active_nozzle_uses_the_active_extruder() -> None:
+    assert _dual(1 << 4, {0: 43, 1: (245 << 16) | 245}).active_nozzle_temp == 245.0
+    assert _dual(0, {0: 43, 1: (245 << 16) | 245}).active_nozzle_temp == 43.0
+
+
+def test_active_nozzle_keeps_the_old_metric_value_unchanged() -> None:
+    assert _dual(1 << 4, {0: 43, 1: (245 << 16) | 245}).nozzle_temp == 43.0
+
+
+def test_active_nozzle_falls_back_to_the_top_level_value() -> None:
+    assert _block({"nozzle_temper": 210}).active_nozzle_temp == 210.0
+    assert _dual(15 << 4, {0: 43, 1: 245}, top=210).active_nozzle_temp == 210.0  # no such extruder
+    assert _dual("bad", {0: 43}, top=210).active_nozzle_temp == 210.0
+    assert _dual(1 << 4, {1: "bad"}, top=210).active_nozzle_temp == 210.0
+
+
+def test_active_nozzle_absent() -> None:
+    assert _block({}).active_nozzle_temp is None
+
+
+def test_active_nozzle_none_on_laser_only_printer() -> None:
+    snap = PrinterSnapshot(
+        connected=True,
+        raw={"print": {"nozzle_temper": 200.0}},
+        configured_serial="35FFAKE0000001",
+    )
+    assert snap.model_name == "R1"
+    assert snap.active_nozzle_temp is None
+
+# ---------------------------------------------------------------------------
+# job state, stage countdown, extruder states, spool present
+# ---------------------------------------------------------------------------
+
+_PRINTERS = _Path(__file__).resolve().parents[1] / "fixtures" / "printers"
+
+
+def _fixture_snapshot(name: str) -> PrinterSnapshot:
+    fixture = _json.loads((_PRINTERS / f"{name}.json").read_text(encoding="utf-8"))
+    raw = {**fixture["pushall"], **(fixture.get("get_version") or {})}
+    return PrinterSnapshot(connected=True, raw=raw)
+
+
+def _snap_print(print_block: dict) -> PrinterSnapshot:
+    return PrinterSnapshot(connected=True, raw={"print": print_block})
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        (0, "idle"), (1, "slicing"), (2, "prepare"), (3, "starting"), (4, "running"),
+        (5, "pause"), (6, "pausing"), (7, "resuming"), (8, "finish"), (9, "failed"),
+        (10, "finishing"), (11, "stopping"), (12, "unknown"), (99, "unknown"),
+        ("4", "running"), (-1, None), (True, None), ("x", None), (None, None),
+    ],
+)
+def test_job_state(raw: object, expected: str | None) -> None:
+    assert _snap_print({"job": {"job_state": raw}}).job_state == expected
+
+
+def test_job_state_absent() -> None:
+    assert _snap_print({}).job_state is None
+    assert _snap_print({"job": "nope"}).job_state is None
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [(0, 0.0), (35, 35.0), ("12", 12.0), (-1, None), ("", None), (None, None), (True, None)],
+)
+def test_stage_countdown_seconds(raw: object, expected: float | None) -> None:
+    assert _snap_print({"stg_cd": raw}).stage_countdown_seconds == expected
+
+
+def _extruder(info: object = None, stat: object = None, extruder_id: int = 0) -> dict:
+    entry: dict = {"id": extruder_id, "temp": 0}
+    if info is not None:
+        entry["info"] = info
+    if stat is not None:
+        entry["stat"] = stat
+    return {"device": {"extruder": {"info": [entry]}}}
+
+
+def test_extruder_states_decode_info_bits() -> None:
+    # bit 2 buffer, bit 3 nozzle, bits 11-12 direction (1 = extruding)
+    info = (1 << 2) | (1 << 3) | (1 << 11)
+    states = _snap_print(_extruder(info=info, stat=0x0305)).extruder_states
+    assert states == {
+        "0": {"buffer_filament": 1.0, "nozzle": 1.0, "direction": "extruding",
+              "step": "push_new_filament"}
+    }
+
+
+@pytest.mark.parametrize(
+    ("bits", "direction"), [(0, "idle"), (1, "extruding"), (2, "retracting"), (3, "unknown")]
+)
+def test_extruder_direction_values(bits: int, direction: str) -> None:
+    states = _snap_print(_extruder(info=bits << 11)).extruder_states
+    assert states["0"]["direction"] == direction
+
+
+@pytest.mark.parametrize(
+    ("stat", "step"),
+    [(0, "idle"), (0x02, "heat_nozzle"), (0x09, "switch_extruder"), (0x11, "purge_filament"),
+     (0x12, "unknown"), (0xFF, "unknown"), (0x1200 | 0x03, "cut_filament")],
+)
+def test_filament_change_step_uses_low_eight_bits(stat: int, step: str) -> None:
+    assert _snap_print(_extruder(stat=stat)).extruder_states["0"]["step"] == step
+
+
+def test_extruder_states_skip_missing_and_bad_fields() -> None:
+    assert _snap_print(_extruder()).extruder_states == {}
+    assert _snap_print(_extruder(info=-4, stat=-1)).extruder_states == {}
+    assert _snap_print(_extruder(info="x", stat=True)).extruder_states == {}
+    only_stat = _snap_print(_extruder(stat=0)).extruder_states
+    assert only_stat == {"0": {"step": "idle"}}
+    assert _snap_print({}).extruder_states == {}
+
+
+def test_extruder_states_on_real_fixtures() -> None:
+    assert _fixture_snapshot("h2d").extruder_states == {
+        "0": {"buffer_filament": 1.0, "nozzle": 1.0, "direction": "idle", "step": "idle"},
+        "1": {"buffer_filament": 0.0, "nozzle": 1.0, "direction": "idle", "step": "idle"},
+    }
+    assert _fixture_snapshot("a1").extruder_states == {}
+    assert _fixture_snapshot("x1c_fw0112_ams1").extruder_states["0"]["nozzle"] == 1.0
+
+
+def _ams(bits: object, units: list[tuple[int, list[int]]]) -> dict:
+    return {
+        "ams": {
+            "tray_exist_bits": bits,
+            "ams": [
+                {"id": str(unit_id), "tray": [{"id": str(slot)} for slot in slots]}
+                for unit_id, slots in units
+            ],
+        }
+    }
+
+
+def test_ams_slots_present_layout() -> None:
+    present = _snap_print(_ams("10021", [(0, [0, 1, 2, 3]), (1, [0, 1]), (128, [0])]))
+    assert present.ams_slots_present == {
+        ("0", "0"): 1.0, ("0", "1"): 0.0, ("0", "2"): 0.0, ("0", "3"): 0.0,
+        ("1", "0"): 0.0, ("1", "1"): 1.0,
+        ("128", "0"): 1.0,
+    }
+
+
+@pytest.mark.parametrize("bits", ["", "zz", None, 7, ["f"], "-1", "+f", "f_f"])
+def test_ams_slots_present_ignores_bad_bits(bits: object) -> None:
+    assert _snap_print(_ams(bits, [(0, [0])])).ams_slots_present == {}
+
+
+def test_ams_slots_present_accepts_hex_prefix() -> None:
+    assert _snap_print(_ams("0x1", [(0, [0, 1])])).ams_slots_present == {
+        ("0", "0"): 1.0, ("0", "1"): 0.0,
+    }
+
+
+def test_extruder_states_ignore_bool_info() -> None:
+    for value in (True, False):
+        states = _snap_print(_extruder(info=value, stat=0x02)).extruder_states
+        assert states == {"0": {"step": "heat_nozzle"}}
+
+
+def test_ams_slots_present_omits_unknown_layouts() -> None:
+    present = _snap_print(_ams("ffffffff", [(16, [0, 1]), (4, [0]), (136, [0]), (128, [1])]))
+    assert present.ams_slots_present == {}
+
+
+def test_ams_slots_present_on_real_fixtures() -> None:
+    multi = _fixture_snapshot("x1c_multi_ams").ams_slots_present
+    assert multi[("2", "0")] == 0.0 and multi[("2", "1")] == 1.0
+    assert multi[("128", "0")] == 1.0
+    assert len(multi) == 13
+    assert _fixture_snapshot("h2d_pro").ams_slots_present[("128", "0")] == 1.0
+    assert _fixture_snapshot("a2l").ams_slots_present == {}
+    assert _fixture_snapshot("p1p_no_ams").ams_slots_present == {}

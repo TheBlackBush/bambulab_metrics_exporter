@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import socket
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 
@@ -22,6 +23,12 @@ def _restore_environment() -> Iterator[None]:
     os.environ.update(saved)
     overrides._ORIGINAL_ENV.clear()
     startup.reset_legacy_login_state()
+
+
+@pytest.fixture(autouse=True)
+def _isolated_config_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Keep state files (e.g. the send-code limit) out of the real config directory."""
+    monkeypatch.setenv("BAMBULAB_CONFIG_DIR", str(tmp_path))
 
 
 _LOCAL_HOSTS = {"127.0.0.1", "::1", "localhost", "testserver"}

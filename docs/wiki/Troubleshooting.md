@@ -30,6 +30,16 @@ The exporter never exits on connection problems: the web server stays up and the
 - The credentials were not rejected; the cloud API was unreachable. The exporter retries every
   60 seconds without sending verification emails. Check DNS and outbound HTTPS.
 
+**Too many codes requested**
+- The `/auth` page limits verification emails: 5 sends 60 seconds apart, then a 10 minute wait,
+  then a 1 hour wait after each later round of 5. Rejected sends count too. The limit survives
+  restarts and is reset only by a successful login on the page. The **Send code** button is
+  active when the page loads; the time left appears on it after you press it. A press during
+  a wait is refused and does not use up a try. Wait for it, or use `bambulab-reauth` in the
+  container, which is a separate path that this limit does not apply to.
+  To clear the limit by hand, stop the container, delete `send-code-limit.json` from the config
+  directory, and start it again. Deleting it while the container runs has no effect.
+
 **The exporter ignores my changed env vars**
 - Settings saved on the `/auth` page override env vars. Use **Reset to env vars** on the page.
 
@@ -49,6 +59,27 @@ The exporter never exits on connection problems: the web server stays up and the
   the exporter user: `docker exec -it -u 99:100 <container> bambulab-reauth`
 
 ---
+
+## Several Printers in One Exporter
+
+- A printer picked on `/auth` disappears after a restart: set `BAMBULAB_SECRET_KEY`. Without it the
+  printer list lives in memory only.
+- One printer shows an error on the page while others work: each printer has its own connection and
+  retries on its own; the status page and `printers` in `/auth/status` list each state. The top
+  level `state` is the worst one.
+- All cloud printers show **Login required**: they share one Bambu account, so one login on `/auth`
+  restores all of them. LAN printers are not affected.
+- Saving a selection is refused when the account device list is empty or the latest refresh failed
+  (the picker then says the list is the last known one). Try again in a minute. A cloud printer that
+  left the account can still be removed.
+- **The saved printer list could not be read** on `/auth`: the exporter runs the env-var printer (or
+  nothing) because `printers.enc.json` did not decrypt or is damaged. Usually `BAMBULAB_SECRET_KEY`
+  changed or is missing: restore it and restart. The log names the error type. If you save a new list
+  or reset instead, the old file is kept as `printers.enc.json.bad`.
+- A serial is either cloud or LAN, never both: remove the printer first to change how it connects.
+- Two printers can have the same `printer_name`; filter on `serial` to separate them.
+- Several printers per exporter have not been validated on real hardware. If one misbehaves, run it
+  in its own container.
 
 ## No Metrics / Empty /metrics
 

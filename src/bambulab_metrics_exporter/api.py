@@ -3,17 +3,19 @@ from __future__ import annotations
 import html
 import ipaddress
 import logging
+import os
 import re
 import secrets
 import time
 from collections import OrderedDict
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
+from typing import Protocol, cast
 from urllib.parse import parse_qs, urlsplit
 
 from fastapi import FastAPI, HTTPException, Request, Response
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from starlette.concurrency import run_in_threadpool
@@ -23,10 +25,17 @@ from bambulab_metrics_exporter.auth_actions import (
     ActionResult,
     AttemptLimiter,
     AuthInputError,
+    CloudDevice,
+    CloudDeviceList,
     CodeSender,
+    add_local_printer,
+    add_login_printer,
     configure_cloud,
     configure_local,
     mask_serial,
+    persist_note,
+    remove_printer,
+    select_cloud_printers,
 )
 from bambulab_metrics_exporter.config import Settings
 from bambulab_metrics_exporter.metrics import ExporterMetrics
@@ -36,10 +45,8 @@ from bambulab_metrics_exporter.overrides import (
     restore_original_env,
 )
 from bambulab_metrics_exporter.overrides import lock as overrides_lock
+from bambulab_metrics_exporter.printers import TRANSPORT_LOCAL, PrinterConfig
 from bambulab_metrics_exporter.reauth import credentials_path
-
-if TYPE_CHECKING:
-    from bambulab_metrics_exporter.runtime import ExporterRuntime
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +66,12 @@ _STATE_LABELS: dict[str, tuple[str, str]] = {
 
 
 _REFRESH_STATES = {"starting", "connecting"}
+
+Reconnect = Callable[[], None]
+
+_UNREADABLE_NOTE = (
+    "The saved printer list could not be read, so it is not in use. Check BAMBULAB_SECRET_KEY."
+)
 
 _PRINTER_ICON = (
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
@@ -128,6 +141,17 @@ def _last_update(last: float | None, poll: float | None, now: float) -> tuple[st
     return text, "fresh" if fresh else "stale"
 
 
+def _send_code_button(seconds: int) -> tuple[str, str]:
+    """Attributes and label for the Send code button. Only integers and fixed text."""
+    if seconds <= 0:
+        return "", "Send code"
+    if seconds <= 60:
+        label = f"{seconds}s"
+    else:
+        label = f"{seconds // 60}m {seconds % 60}s"
+    return f' disabled data-wait="{seconds}"', f"Send code ({label})"
+
+
 def _notice_html(result: ActionResult) -> str:
     kind, icon = ("ok", "&#10003;") if result.ok else ("bad", "!")
     note = (
@@ -143,6 +167,41 @@ def _notice_html(result: ActionResult) -> str:
 class _ReadyFlag(Protocol):
     @property
     def ready(self) -> bool: ...
+
+
+class _Backend(Protocol):
+    """What the app needs from an ExporterRuntime or a PrinterFleet."""
+
+    @property
+    def settings(self) -> Settings: ...
+
+    @property
+    def metrics(self) -> ExporterMetrics: ...
+
+    @property
+    def ready(self) -> bool: ...
+
+    def status(self) -> dict[str, str]: ...
+
+    def reconfigure(self) -> None: ...
+
+
+class _Fleet(_Backend, Protocol):
+    @property
+    def saved(self) -> bool: ...
+
+    @property
+    def list_unreadable(self) -> bool: ...
+
+    def configs(self) -> list[PrinterConfig]: ...
+
+    def printers_status(self) -> list[dict[str, str]]: ...
+
+    def reconfigure_cloud(self) -> None: ...
+
+    def update(self, configs: list[PrinterConfig]) -> bool: ...
+
+    def reset_to_env(self) -> None: ...
 
 
 def _check_health(metrics: ExporterMetrics) -> tuple[bool, str]:
@@ -164,6 +223,21 @@ _MAX_FORM_BYTES = 8192
 _FLASH_COOKIE = "bme_auth"
 _FLASH_TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{16,64}$")
 _FLASH_LIMIT = 64
+
+
+@dataclass(slots=True)
+class _Flash:
+    """What one visitor sees once after a page action.
+
+    The email is held in memory only (never on disk), and the store of these is capped by
+    ``_FLASH_LIMIT``. A flash with ``show_send_wait`` is shown for a single page view; a
+    plain result flash may be shown again by the auto-reloads while connecting.
+    """
+
+    result: ActionResult
+    email: str = ""
+    show_send_wait: bool = False
+
 
 # Names that only resolve on a local network. A DNS-rebinding attacker needs a public
 # domain they control, so these (plus IP addresses) are safe to accept without config.
@@ -235,11 +309,88 @@ async def _form(request: Request) -> dict[str, str]:
     return {k: v[0] for k, v in parse_qs(body, keep_blank_values=True).items()}
 
 
+def _printers_html(printers: list[dict[str, str]]) -> str:
+    """Per-printer rows for the landing page; names can come from the cloud account."""
+    if len(printers) < 2:
+        return ""
+    rows = "".join(
+        f'<div class="printer-row"><span>{html.escape(p["name"])}</span>'
+        f'<span class="printer-state">'
+        f'{html.escape(_STATE_LABELS.get(p["state"], (p["state"], ""))[0])}</span></div>'
+        for p in printers
+    )
+    return f'<div class="printer-list">{rows}</div>'
+
+
+def _page_text(text: str) -> str:
+    """Escape untrusted text. The page is filled by a chain of replaces, so braces are
+    escaped too: a printer name must not be able to expand a later placeholder."""
+    return html.escape(text, quote=True).replace("{", "&#123;")
+
+
+def _printer_rows(printers: list[dict[str, str]]) -> str:
+    """Monitored printers; only masked serials reach this unauthenticated page."""
+    rows = []
+    for printer in printers:
+        label, css = _STATE_LABELS.get(printer["state"], (printer["state"], "wait"))
+        where = "LAN" if printer["transport"] == TRANSPORT_LOCAL else "Cloud"
+        message = (
+            f'<span class="hint printer-message">{_page_text(printer["message"])}</span>'
+            if printer["message"]
+            else ""
+        )
+        rows.append(
+            '<form method="post" action="/auth/printers/remove" class="printer-row">'
+            f'<input type="hidden" name="printer_id" value="{_page_text(printer["id"])}">'
+            f'<span class="step">{_page_text(printer["name"])} '
+            f'<span class="hint">{_page_text(printer["serial"])}, {where}</span>{message}</span>'
+            f'<span class="pill {css}">{_page_text(label)}</span>'
+            '<button type="submit" class="danger small">Remove</button></form>'
+        )
+    return "".join(rows)
+
+
+def _cloud_picker(
+    devices: list[CloudDevice], selected: set[str], refresh_failed: bool = False
+) -> str:
+    """Checkbox names carry the opaque id; the form parser keeps one value per key."""
+    if not devices:
+        if not refresh_failed:
+            return ""
+        return (
+            '<div class="device-list"><span class="hint">The printer list could not be '
+            "refreshed from Bambu Cloud. Reload the page in a minute to retry.</span></div>"
+        )
+    rows = []
+    for device in devices:
+        checked = " checked" if device.serial in selected else ""
+        state = "Online" if device.online else "Offline"
+        rows.append(
+            '<label class="device-row">'
+            f'<input type="checkbox" name="printer_{device.printer_id}"{checked}>'
+            f'<span>{_page_text(device.name or "Printer")} '
+            f'<span class="hint">{_page_text(device.model)}, '
+            f'{_page_text(mask_serial(device.serial))}, {state}</span></span></label>'
+        )
+    return (
+        '<form method="post" action="/auth/printers/select" class="device-list">'
+        '<span class="label">Printers on this account</span>'
+        + (
+            '<span class="hint">The list could not be refreshed from Bambu Cloud; '
+            "this is the last known one.</span>"
+            if refresh_failed
+            else ""
+        )
+        + "".join(rows)
+        + '<button type="submit">Save selection</button></form>'
+    )
+
+
 def build_app(
     metrics: ExporterMetrics | None = None,
     collector: _ReadyFlag | None = None,
     settings: Settings | None = None,
-    runtime: ExporterRuntime | None = None,
+    runtime: _Backend | None = None,
 ) -> FastAPI:
     """Build the HTTP app. Pass ``runtime`` in production; the /auth page needs it to
     reconnect. ``metrics``/``collector``/``settings`` remain for static wiring in tests."""
@@ -260,6 +411,10 @@ def build_app(
 
     def get_settings() -> Settings | None:
         return runtime.settings if runtime is not None else settings
+
+    def printers() -> list[dict[str, str]]:
+        lister = getattr(runtime, "printers_status", None)
+        return lister() if lister is not None else []
 
     app = FastAPI(title="bambulab-metrics-exporter", version=__version__)
 
@@ -298,6 +453,10 @@ def build_app(
         raw_printer_name = ""
         if current is not None:
             raw_printer_name = current.printer_name_label or current.bambulab_printer_name or ""
+        listed = printers()
+        if len(listed) > 1:
+            raw_printer_name = f"{len(listed)} printers"
+            mode = ""
         printer_badge = (
             f'<span class="printer-badge">{_PRINTER_ICON}{html.escape(raw_printer_name)}</span>'
             if raw_printer_name
@@ -315,6 +474,7 @@ def build_app(
             .replace("{{PRINTER_BADGE}}", printer_badge)
             .replace("{{MODE_BADGE}}", mode_badge)
             .replace("{{ALERT}}", _ALERTS.get(state, ""))
+            .replace("{{PRINTERS}}", _printers_html(listed))
             .replace("{{HEALTH_STATUS}}", health_status)
             .replace("{{HEALTH_CLASS}}", health_class)
             .replace("{{READY_STATUS}}", ready_status)
@@ -330,7 +490,8 @@ def build_app(
 
     @app.get("/metrics")
     def metrics_handler() -> Response:
-        data = generate_latest(get_metrics().registry)
+        registry = getattr(runtime, "scrape_registry", None) or get_metrics().registry
+        data = generate_latest(registry)
         return Response(content=data, media_type=CONTENT_TYPE_LATEST)
 
     @app.get("/health")
@@ -350,12 +511,14 @@ def build_app(
     return app
 
 
-def _add_auth_routes(app: FastAPI, runtime: ExporterRuntime) -> None:
+def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
+    fleet = cast("_Fleet", runtime) if hasattr(runtime, "update") else None
+    devices = CloudDeviceList()
     code_sender = CodeSender()
     login_limiter = AttemptLimiter(max_attempts=5, window_seconds=60.0)
     # Last action result per visitor (cookie), shown once. Kept server-side so the page
     # never renders text taken from the URL, and one visitor never sees another's result.
-    flashes: OrderedDict[str, ActionResult] = OrderedDict()
+    flashes: OrderedDict[str, _Flash] = OrderedDict()
 
     def allowed_hosts() -> set[str]:
         raw = getattr(runtime.settings, "auth_allowed_hosts", "") or ""
@@ -372,19 +535,13 @@ def _add_auth_routes(app: FastAPI, runtime: ExporterRuntime) -> None:
         token = request.cookies.get(_FLASH_COOKIE, "")
         return token if _FLASH_TOKEN_RE.match(token) else ""
 
-    def set_flash(token: str, result: ActionResult) -> None:
-        flashes[token] = result
+    def set_flash(token: str, flash: _Flash) -> None:
+        flashes[token] = flash
         flashes.move_to_end(token)
         while len(flashes) > _FLASH_LIMIT:
             flashes.popitem(last=False)
 
-    def render(
-        request: Request,
-        email: str = "",
-        cloud_tab: bool | None = None,
-        allow_refresh: bool = True,
-        result: ActionResult | None = None,
-    ) -> HTMLResponse:
+    def render(request: Request) -> HTMLResponse:
         status = runtime.status()
         label, css = _STATE_LABELS.get(status["state"], (status["state"], "wait"))
         current = runtime.settings
@@ -398,30 +555,82 @@ def _add_auth_routes(app: FastAPI, runtime: ExporterRuntime) -> None:
             if status["message"]
             else ""
         )
+        # One card: printer rows carry each state and message, so the summary only adds
+        # an overall state when there are several printers to sum up.
+        printers = fleet.printers_status() if fleet else []
+        title = "Status"
+        pill = f'<span class="pill {css}">{html.escape(label)}</span>'
+        detail = html.escape(f"{where}, printer {printer}")
+        current_html = "" if fleet else f'<div class="detail">{detail}</div>'
+        if printers:
+            title = "Printers" if len(printers) > 1 else "Printer"
+            pill = pill if len(printers) > 1 else ""
+            message = ""
+        unreadable = (
+            f'<div class="detail">{_UNREADABLE_NOTE}</div>'
+            if fleet and fleet.list_unreadable
+            else ""
+        )
         # While connecting, reload every few seconds so the status updates by itself, and
-        # keep the last result visible until the state settles. Pages answering a post do
-        # not reload, so the email the visitor typed stays in the form.
-        refreshing = status["state"] in _REFRESH_STATES and allow_refresh
+        # keep the last result visible until the state settles. Every post redirects here
+        # (so a refresh cannot submit a form again); the flash carries the email the visitor
+        # typed and whether the Send code wait shows, for this one view.
+        refreshing = status["state"] in _REFRESH_STATES
         token = visitor(request)
-        if result is None and token:
-            result = flashes.get(token) if refreshing else flashes.pop(token, None)
+        flash = None
+        if token:
+            flash = flashes.get(token)
+            # The page after a Send code or login press is a single view in any state: it
+            # holds the typed email and the timer, so it is consumed and does not reload.
+            if flash and (flash.show_send_wait or not refreshing):
+                flashes.pop(token, None)
+            if flash and flash.show_send_wait:
+                refreshing = False
+        result = flash.result if flash else None
+        email = flash.email if flash else ""
+        show_send_wait = flash.show_send_wait if flash else False
         flash_html = _notice_html(result) if result else ""
-        cloud = current.bambulab_transport == "cloud_mqtt" if cloud_tab is None else cloud_tab
+        # The wait shows only right after a Send code or login post, never on a plain
+        # load, so the button starts active and the timer follows a press.
+        send_attrs, send_label = _send_code_button(
+            code_sender.wait_seconds() if show_send_wait else 0
+        )
+        picker = ""
+        if fleet and os.getenv("BAMBULAB_CLOUD_ACCESS_TOKEN"):
+            selected = {
+                config.serial for config in fleet.configs() if config.transport != TRANSPORT_LOCAL
+            }
+            picker = _cloud_picker(devices.peek(), selected, devices.refresh_failed)
+        if picker and not printers:
+            # Signed in with nothing chosen yet: the next step is the picker, not env settings.
+            message = '<div class="detail">Select your printers below.</div>'
+        message += unreadable
+        cloud = (
+            show_send_wait or current.bambulab_transport == "cloud_mqtt"
+            or bool(picker and not printers)
+        )
         page = (
             _AUTH_TEMPLATE
             .replace("{{VERSION}}", __version__)
-            .replace("{{STATE_LABEL}}", html.escape(label))
-            .replace("{{STATE_CLASS}}", css)
-            .replace("{{CURRENT}}", html.escape(f"{where}, printer {printer}"))
+            .replace("{{STATUS_TITLE}}", title)
+            .replace("{{STATUS_PILL}}", pill)
+            .replace("{{CURRENT}}", current_html)
             .replace("{{STATE_MESSAGE}}", message)
             .replace("{{FLASH}}", flash_html)
+            .replace("{{DATA_REFRESH}}", ' data-refresh="1"' if refreshing else "")
             .replace(
                 "{{REFRESH}}",
                 '<meta http-equiv="refresh" content="3;url=/auth">' if refreshing else "",
             )
             .replace("{{LOCAL_CHECKED}}", "" if cloud else "checked")
             .replace("{{CLOUD_CHECKED}}", "checked" if cloud else "")
-            # Echo only the email the visitor just submitted; it is never stored.
+            .replace("{{SEND_ATTRS}}", send_attrs)
+            .replace("{{SEND_LABEL}}", send_label)
+            .replace("{{PRINTERS}}", _printer_rows(printers))
+            .replace("{{CLOUD_PICKER}}", picker)
+            .replace("{{LOCAL_ACTION}}", "/auth/printers/add-local" if fleet else "/auth/local")
+            .replace("{{LOCAL_BUTTON}}", "Add printer" if fleet else "Connect locally")
+            # Echo only the email from this visitor's last post, held in memory for one view.
             .replace("{{CLOUD_EMAIL}}", html.escape(email, quote=True))
         )
         return HTMLResponse(content=page, headers={"Cache-Control": "no-store"})
@@ -454,77 +663,166 @@ def _add_auth_routes(app: FastAPI, runtime: ExporterRuntime) -> None:
             result = ActionResult(False, f"Could not save the settings: {_short_error(exc)}")
         return form, result
 
+    def wants_json(request: Request) -> bool:
+        return "application/json" in request.headers.get("accept", "")
+
+    def apply_change(result: ActionResult, reconnect: Reconnect | None) -> None:
+        if reconnect and result.ok and not result.applied:
+            reconnect()
+
+    def json_reply(
+        result: ActionResult, reconnect: Reconnect | None, with_wait: bool
+    ) -> Response:
+        """Answer a background request from the page script: no redirect and no flash, and
+        nothing the visitor typed is echoed (only the result message and the wait)."""
+        apply_change(result, reconnect)
+        body: dict[str, object] = {
+            "ok": result.ok,
+            "message": result.message,
+            "note": result.note,
+        }
+        if with_wait:
+            body["wait_seconds"] = code_sender.wait_seconds()
+        return JSONResponse(body, headers={"Cache-Control": "no-store"})
+
     async def handle(
-        request: Request, action: Callable[[dict[str, str]], ActionResult], reconnect: bool
+        request: Request,
+        action: Callable[[dict[str, str]], ActionResult],
+        reconnect: Reconnect | None,
     ) -> Response:
         _form_data, result = await run_action(request, action)
+        if wants_json(request):
+            return json_reply(result, reconnect, with_wait=False)
         token = visitor(request) or secrets.token_urlsafe(16)
-        set_flash(token, result)
-        if reconnect and result.ok:
-            runtime.reconfigure()
+        set_flash(token, _Flash(result))
+        apply_change(result, reconnect)
         return with_visitor(RedirectResponse("/auth", status_code=303), token)
 
     async def cloud_action(
-        request: Request, action: Callable[[dict[str, str]], ActionResult], reconnect: bool
+        request: Request,
+        action: Callable[[dict[str, str]], ActionResult],
+        reconnect: Reconnect | None,
+        with_wait: bool = False,
     ) -> Response:
-        """Cloud steps answer with the page itself (not a redirect) while the visitor still
-        has to act, so the email they typed stays filled in for the next step."""
+        """Cloud steps redirect like every other post (so a refresh cannot press Send code
+        again); the flash keeps the typed email and the wait for the next page view."""
         form, result = await run_action(request, action)
+        if wants_json(request):
+            return json_reply(result, reconnect, with_wait)
+        token = visitor(request) or secrets.token_urlsafe(16)
         if reconnect and result.ok:
-            token = visitor(request) or secrets.token_urlsafe(16)
-            set_flash(token, result)
-            runtime.reconfigure()
-            return with_visitor(RedirectResponse("/auth", status_code=303), token)
-        return render(
-            request,
-            email=form.get("email", "").strip(),
-            cloud_tab=True,
-            allow_refresh=False,
-            result=result,
-        )
+            set_flash(token, _Flash(result))
+            apply_change(result, reconnect)
+        else:
+            set_flash(
+                token,
+                _Flash(result, email=form.get("email", "").strip(), show_send_wait=True),
+            )
+        return with_visitor(RedirectResponse("/auth", status_code=303), token)
 
     @app.get("/auth", response_class=HTMLResponse)
     def auth_page(request: Request) -> HTMLResponse:
         guard(request)
+        if fleet:
+            devices.refresh()
         return render(request)
 
     @app.get("/auth/status")
-    def auth_status(request: Request) -> dict[str, str]:
+    def auth_status(request: Request) -> dict[str, object]:
         guard(request)
-        return runtime.status()
+        status: dict[str, object] = dict(runtime.status())
+        lister = getattr(runtime, "printers_status", None)
+        if lister is not None:
+            status["printers"] = lister()
+        return status
+
+    def saved(persisted: bool, message: str) -> ActionResult:
+        return ActionResult(True, message, persist_note(persisted), applied=True)
 
     @app.post("/auth/local")
     async def auth_local(request: Request) -> Response:
-        return await handle(
-            request,
-            lambda f: configure_local(
-                f.get("host", ""), f.get("serial", ""), f.get("access_code", ""), f.get("port", "")
-            ),
-            reconnect=True,
-        )
+        def connect(f: dict[str, str]) -> ActionResult:
+            host, serial = f.get("host", ""), f.get("serial", "")
+            code, port = f.get("access_code", ""), f.get("port", "")
+            if fleet and fleet.saved:
+                # A saved list decides what runs, so the env printer would change nothing.
+                configs = add_local_printer(fleet.configs(), host, serial, code, port)
+                return saved(fleet.update(configs), "LAN printer saved.")
+            return configure_local(host, serial, code, port)
+
+        return await handle(request, connect, reconnect=runtime.reconfigure)
 
     @app.post("/auth/cloud/send-code")
     async def auth_send_code(request: Request) -> Response:
         return await cloud_action(
-            request, lambda f: code_sender.send(f.get("email", "")), reconnect=False
+            request, lambda f: code_sender.send(f.get("email", "")), reconnect=None, with_wait=True
         )
 
     @app.post("/auth/cloud/login")
     async def auth_cloud_login(request: Request) -> Response:
         def login(f: dict[str, str]) -> ActionResult:
             login_limiter.check()
-            return configure_cloud(f.get("email", ""), f.get("code", ""), f.get("serial", ""))
+            result = configure_cloud(f.get("email", ""), f.get("code", ""), f.get("serial", ""))
+            if result.ok:
+                code_sender.reset()
+                devices.clear()
+                if fleet and fleet.saved and result.device:
+                    return add_login_printer(fleet.configs(), result.device, fleet.update, result)
+            return result
 
-        return await cloud_action(request, login, reconnect=True)
+        # LAN printers do not use the account, so a login must not restart them.
+        reconnect = fleet.reconfigure_cloud if fleet else runtime.reconfigure
+        return await cloud_action(request, login, reconnect=reconnect)
 
     @app.post("/auth/reset")
     async def auth_reset(request: Request) -> Response:
         def reset(_form: dict[str, str]) -> ActionResult:
+            had_list = fleet.saved if fleet else False
             removed = clear_overrides()
             restored = restore_credentials_backup(credentials_path(runtime.settings))
             restore_original_env()
-            if removed or restored:
+            if fleet:
+                devices.clear()  # It belongs to the page login, which is gone now.
+                fleet.reset_to_env()
+            if removed or restored or had_list:
                 return ActionResult(True, "Page settings removed; using the container's env vars.")
             return ActionResult(True, "No saved page settings; already using env vars.")
 
-        return await handle(request, reset, reconnect=True)
+        return await handle(request, reset, reconnect=runtime.reconfigure)
+
+    if fleet is None:
+        return
+
+    @app.post("/auth/printers/select")
+    async def auth_printers_select(request: Request) -> Response:
+        def select(f: dict[str, str]) -> ActionResult:
+            chosen = {k.removeprefix("printer_") for k in f if k.startswith("printer_")}
+            devices.refresh()  # A printer gone from the account must not come back.
+            if devices.refresh_failed:
+                raise AuthInputError(
+                    "The printer list could not be refreshed from Bambu Cloud. "
+                    "Nothing was changed. Try again in a minute."
+                )
+            configs = select_cloud_printers(fleet.configs(), devices.peek(), chosen)
+            return saved(fleet.update(configs), "Printer selection saved.")
+
+        return await handle(request, select, reconnect=None)
+
+    @app.post("/auth/printers/add-local")
+    async def auth_printers_add_local(request: Request) -> Response:
+        def add(f: dict[str, str]) -> ActionResult:
+            configs = add_local_printer(
+                fleet.configs(), f.get("host", ""), f.get("serial", ""),
+                f.get("access_code", ""), f.get("port", ""), f.get("name", ""),
+            )
+            return saved(fleet.update(configs), "LAN printer saved.")
+
+        return await handle(request, add, reconnect=None)
+
+    @app.post("/auth/printers/remove")
+    async def auth_printers_remove(request: Request) -> Response:
+        def remove(f: dict[str, str]) -> ActionResult:
+            configs = remove_printer(fleet.configs(), f.get("printer_id", ""))
+            return saved(fleet.update(configs), "Printer removed.")
+
+        return await handle(request, remove, reconnect=None)

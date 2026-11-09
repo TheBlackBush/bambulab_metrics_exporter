@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import json
+import logging
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+from bambulab_metrics_exporter.client.cloud_mqtt import CloudMqttBambuClient
 from bambulab_metrics_exporter.client.local_mqtt import LocalMqttBambuClient, _deep_merge_in_place
 from bambulab_metrics_exporter.config import Settings
 
@@ -343,3 +345,77 @@ def test_disconnect_closes_connection_before_stopping_loop(monkeypatch) -> None:
     worker.start()
     assert done.wait(3), "disconnect() hung"
     assert fake.calls == ["disconnect", "loop_stop"]
+
+
+# ---------------------------------------------------------------------------
+# Log content
+# ---------------------------------------------------------------------------
+
+_SERIAL = "FAKE00TEST000001"
+_MASKED = "FAK*************"
+_CLOUD_USER = "u_fake-user-123"
+
+
+def _log_client(monkeypatch) -> LocalMqttBambuClient:
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.client.local_mqtt.mqtt.Client",
+        lambda *a, **k: _FakeMQTTClient(),
+    )
+    return LocalMqttBambuClient(
+        Settings(
+            bambulab_host="192.0.2.25",
+            bambulab_serial=_SERIAL,
+            bambulab_username=_CLOUD_USER,
+            bambulab_access_code="fake-access-code",
+        )
+    )
+
+
+def _assert_masked(text: str) -> None:
+    assert _MASKED in text
+    assert _SERIAL not in text
+    assert _CLOUD_USER not in text
+    assert "device/" not in text
+
+
+def test_connect_log_masks_the_serial_and_drops_user_and_topic(monkeypatch, caplog) -> None:
+    client = _log_client(monkeypatch)
+    with caplog.at_level(logging.INFO):
+        client.connect()
+    _assert_masked(caplog.text)
+
+
+def test_connect_failure_log_masks_the_serial_and_drops_user_and_topic(
+    monkeypatch, caplog
+) -> None:
+    client = _log_client(monkeypatch)
+    with caplog.at_level(logging.INFO):
+        client._on_connect(_SubClient(), None, None, 5, None)
+    _assert_masked(caplog.text)
+
+
+def test_cloud_client_log_extra_carries_no_raw_serial(monkeypatch, caplog) -> None:
+    monkeypatch.setattr(
+        "bambulab_metrics_exporter.client.local_mqtt.mqtt.Client",
+        lambda *a, **k: _FakeMQTTClient(),
+    )
+    with caplog.at_level(logging.INFO):
+        CloudMqttBambuClient(
+            Settings(bambulab_serial=_SERIAL, bambulab_cloud_user_id="fake-user-123")
+        )
+    extras = [r.__dict__.get("serial") for r in caplog.records if hasattr(r, "serial")]
+    assert extras == [_MASKED]
+
+
+def test_paho_prints_topics_only_at_debug(caplog) -> None:
+    """The real paho client logs through this module's logger; topics carry the raw serial."""
+    client = LocalMqttBambuClient(Settings(bambulab_serial=_SERIAL))
+    client._client._sock = MagicMock()  # paho logs nothing without a socket
+    client._client._sock.send.side_effect = BlockingIOError
+    topic = f"device/{_SERIAL}/request".encode()
+    with caplog.at_level(logging.INFO):
+        client._client._send_publish(1, topic, b"{}", 1)
+    assert "device/" not in caplog.text
+    with caplog.at_level(logging.DEBUG):
+        client._client._send_publish(2, topic, b"{}", 1)
+    assert "device/" in caplog.text

@@ -203,6 +203,39 @@ def test_get_bind_devices_success() -> None:
         assert devices[0]["dev_id"] == "S1"
 
 
+def test_fetch_bind_devices_returns_a_real_empty_list() -> None:
+    with patch(
+        "bambulab_metrics_exporter.cloud_auth._get_json", return_value={"devices": []}
+    ) as get:
+        assert cloud_auth.fetch_bind_devices("tok", 10, 1, ["one", "two"]) == []
+    assert get.call_count == 1
+
+
+def test_fetch_bind_devices_tries_the_next_base() -> None:
+    answers = [cloud_auth.CloudAuthError("down"), {"devices": [{"dev_id": "S1"}, "junk"]}]
+    with patch("bambulab_metrics_exporter.cloud_auth._get_json", side_effect=answers):
+        assert cloud_auth.fetch_bind_devices("tok", 10, 1, ["one", "two"]) == [{"dev_id": "S1"}]
+
+
+@pytest.mark.parametrize(
+    "answer", [cloud_auth.CloudAuthError("body: secret-response"), {"message": "secret-response"}]
+)
+def test_fetch_bind_devices_raises_when_every_base_fails(answer: object) -> None:
+    with patch("bambulab_metrics_exporter.cloud_auth._get_json", side_effect=[answer, answer]):
+        with pytest.raises(cloud_auth.CloudAuthError) as caught:
+            cloud_auth.fetch_bind_devices("tok", 10, 1, ["one", "two"])
+    assert "secret-response" not in str(caught.value)
+    assert caught.value.__cause__ is None
+
+
+def test_get_bind_devices_still_answers_empty_when_every_base_fails() -> None:
+    with patch(
+        "bambulab_metrics_exporter.cloud_auth._get_json",
+        side_effect=cloud_auth.CloudAuthError("down"),
+    ):
+        assert cloud_auth.get_bind_devices("tok", 10, 1, ["one", "two"]) == []
+
+
 def test_cloud_auth_main_discovers_name_model() -> None:
     mock_result = MagicMock()
     mock_result.access_token = "tok"

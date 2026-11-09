@@ -11,6 +11,7 @@ from bambulab_metrics_exporter.models import (
     _extract_ams_info,
     ams_dry_state_name,
     ams_dry_sub_status_name,
+    parse_ams_dry_block_reasons,
     parse_ams_drying,
     parse_ams_info,
 )
@@ -34,6 +35,7 @@ class ExporterMetrics:
         self.print_layer_progress_percent = Gauge("bambulab_print_layer_progress_percent", "Layer-based progress percent", label_names, registry=self.registry)
         self.nozzle_temp = Gauge("bambulab_nozzle_temperature_celsius", "Nozzle temperature", label_names, registry=self.registry)
         self.nozzle_target_temp = Gauge("bambulab_nozzle_target_temperature_celsius", "Nozzle target temperature", label_names, registry=self.registry)
+        self.active_nozzle_temp = Gauge("bambulab_active_nozzle_temperature_celsius", "Temperature of the nozzle in use (the active extruder)", label_names, registry=self.registry)
         self.nozzle_diameter = Gauge("bambulab_nozzle_diameter", "Nozzle diameter from MQTT", label_names, registry=self.registry)
         self.bed_temp = Gauge("bambulab_bed_temperature_celsius", "Bed temperature", label_names, registry=self.registry)
         self.bed_target_temp = Gauge("bambulab_bed_target_temperature_celsius", "Bed target temperature", label_names, registry=self.registry)
@@ -92,10 +94,64 @@ class ExporterMetrics:
             [*label_names, "extruder_id"],
             registry=self.registry,
         )
+        self.print_prepare_percent = Gauge(
+            "bambulab_print_prepare_percent",
+            "Download progress of the job file before a print starts",
+            label_names,
+            registry=self.registry,
+        )
+        self.print_type_info = Gauge(
+            "bambulab_print_type_info",
+            "Job source (cloud, local, idle, system, unknown)",
+            [*label_names, "type"],
+            registry=self.registry,
+        )
+        self.print_skipped_objects = Gauge(
+            "bambulab_print_skipped_objects",
+            "Number of objects skipped in the current print",
+            label_names,
+            registry=self.registry,
+        )
+        self.timelapse_enabled = Gauge(
+            "bambulab_timelapse_enabled",
+            "1 if timelapse recording is enabled",
+            label_names,
+            registry=self.registry,
+        )
+        self.mqtt_signature_required = Gauge(
+            "bambulab_mqtt_signature_required",
+            "1 if the printer only accepts signed MQTT commands (Developer Mode off)",
+            label_names,
+            registry=self.registry,
+        )
+        self.axis_homed = Gauge(
+            "bambulab_axis_homed",
+            "1 if the axis is homed",
+            [*label_names, "axis"],
+            registry=self.registry,
+        )
         self.firmware_update_available = Gauge(
             "bambulab_firmware_update_available",
             "1 when a firmware update is available, 0 when up to date",
             label_names,
+            registry=self.registry,
+        )
+        self.firmware_upgrade_status_info = Gauge(
+            "bambulab_firmware_upgrade_status_info",
+            "Firmware upgrade state",
+            [*label_names, "status"],
+            registry=self.registry,
+        )
+        self.network_rtt = Gauge(
+            "bambulab_network_rtt",
+            "Raw round-trip value reported per network interface (unit and meaning not confirmed)",
+            [*label_names, "interface"],
+            registry=self.registry,
+        )
+        self.network_retransmissions = Gauge(
+            "bambulab_network_retransmissions",
+            "Retransmissions reported per network interface (meaning not confirmed)",
+            [*label_names, "interface"],
             registry=self.registry,
         )
         self.module_firmware_info = Gauge(
@@ -138,6 +194,48 @@ class ExporterMetrics:
             "bambulab_toolhead_filament_present",
             "1 if the extruder filament sensor detects filament",
             [*label_names, "extruder_id"],
+            registry=self.registry,
+        )
+        self.job_state_info = Gauge(
+            "bambulab_job_state_info",
+            "Job phase (job.job_state), finer than the gcode state",
+            [*label_names, "state"],
+            registry=self.registry,
+        )
+        self.print_stage_countdown_seconds = Gauge(
+            "bambulab_print_stage_countdown_seconds",
+            "Seconds left in the current stage, such as thermal preconditioning",
+            label_names,
+            registry=self.registry,
+        )
+        self.filament_change_step_info = Gauge(
+            "bambulab_filament_change_step_info",
+            "Filament change step of each extruder (idle when no change runs)",
+            [*label_names, "extruder_id", "step"],
+            registry=self.registry,
+        )
+        self.extruder_buffer_filament_present = Gauge(
+            "bambulab_extruder_buffer_filament_present",
+            "1 if filament is in the extruder's buffer",
+            [*label_names, "extruder_id"],
+            registry=self.registry,
+        )
+        self.extruder_nozzle_present = Gauge(
+            "bambulab_extruder_nozzle_present",
+            "1 if a nozzle is fitted on the extruder",
+            [*label_names, "extruder_id"],
+            registry=self.registry,
+        )
+        self.extruder_extrusion_direction_info = Gauge(
+            "bambulab_extruder_extrusion_direction_info",
+            "Filament feed direction reported by each extruder (idle, extruding, retracting)",
+            [*label_names, "extruder_id", "direction"],
+            registry=self.registry,
+        )
+        self.ams_slot_present = Gauge(
+            "bambulab_ams_slot_present",
+            "1 if a spool is in the AMS slot (tray_exist_bits), with or without a tag",
+            [*label_names, "ams_id", "slot_id"],
             registry=self.registry,
         )
         self.fan_big_1_speed = Gauge("bambulab_fan_big_1_speed_percent", "Big fan 1 speed percent", label_names, registry=self.registry)
@@ -288,6 +386,12 @@ class ExporterMetrics:
             "bambulab_ams_drying_duration_seconds",
             "Configured AMS drying duration",
             [*label_names, "ams_id"],
+            registry=self.registry,
+        )
+        self.ams_drying_blocked_reason_info = Gauge(
+            "bambulab_ams_drying_blocked_reason_info",
+            "Why this AMS cannot start drying now (drying_in_progress while it runs)",
+            [*label_names, "ams_id", "reason"],
             registry=self.registry,
         )
 
@@ -444,6 +548,7 @@ class ExporterMetrics:
         self._set_optional(self.print_layer_progress_percent, snapshot.layer_progress_percent)
         self._set_optional(self.nozzle_temp, snapshot.nozzle_temp)
         self._set_optional(self.nozzle_target_temp, snapshot.nozzle_target_temp)
+        self._set_optional(self.active_nozzle_temp, snapshot.active_nozzle_temp)
         self._set_optional(self.nozzle_diameter, snapshot.nozzle_diameter)
         self._set_optional(self.bed_temp, snapshot.bed_temp)
         self._set_optional(self.bed_target_temp, snapshot.bed_target_temp)
@@ -473,7 +578,33 @@ class ExporterMetrics:
         for fan, speed in snapshot.airduct_fan_speeds.items():
             self.airduct_fan_speed.labels(**labels, fan=fan).set(speed)
 
+        self._set_optional(self.print_prepare_percent, snapshot.print_prepare_percent)
+        self.print_type_info.clear()
+        if snapshot.print_type_name is not None:
+            self.print_type_info.labels(**labels, type=snapshot.print_type_name).set(1.0)
+        self._set_optional(self.print_skipped_objects, snapshot.skipped_objects)
+        self._set_optional(self.timelapse_enabled, snapshot.timelapse_enabled)
+        self._set_optional(self.mqtt_signature_required, snapshot.mqtt_signature_required)
+        self.axis_homed.clear()
+        for axis, homed in snapshot.axes_homed.items():
+            self.axis_homed.labels(**labels, axis=axis).set(homed)
         self._set_optional(self.firmware_update_available, snapshot.firmware_update_available)
+        self.firmware_upgrade_status_info.clear()
+        if snapshot.firmware_upgrade_status is not None:
+            self.firmware_upgrade_status_info.labels(
+                **labels, status=snapshot.firmware_upgrade_status
+            ).set(1.0)
+        self.network_rtt.clear()
+        self.network_retransmissions.clear()
+        for interface, stats in snapshot.network_stats.items():
+            if "rtt" in stats:
+                self.network_rtt.labels(**labels, interface=interface).set(
+                    stats["rtt"]
+                )
+            if "retrans" in stats:
+                self.network_retransmissions.labels(**labels, interface=interface).set(
+                    stats["retrans"]
+                )
         self.module_firmware_info.clear()
         for module, version in snapshot.module_firmware_versions.items():
             self.module_firmware_info.labels(**labels, module=module, version=version).set(1.0)
@@ -494,6 +625,44 @@ class ExporterMetrics:
         self.toolhead_filament_present.clear()
         for extruder, present in snapshot.toolhead_filament_present.items():
             self.toolhead_filament_present.labels(**labels, extruder_id=extruder).set(present)
+
+        self.job_state_info.clear()
+        if snapshot.job_state is not None:
+            self.job_state_info.labels(**labels, state=snapshot.job_state).set(1.0)
+        self._set_optional(
+            self.print_stage_countdown_seconds, snapshot.stage_countdown_seconds
+        )
+        for gauge in (
+            self.filament_change_step_info,
+            self.extruder_buffer_filament_present,
+            self.extruder_nozzle_present,
+            self.extruder_extrusion_direction_info,
+        ):
+            gauge.clear()
+        for extruder, extruder_state in snapshot.extruder_states.items():
+            step = extruder_state.get("step")
+            if isinstance(step, str):
+                self.filament_change_step_info.labels(
+                    **labels, extruder_id=extruder, step=step
+                ).set(1.0)
+            buffer_filament = extruder_state.get("buffer_filament")
+            if isinstance(buffer_filament, float):
+                self.extruder_buffer_filament_present.labels(
+                    **labels, extruder_id=extruder
+                ).set(buffer_filament)
+            nozzle_fitted = extruder_state.get("nozzle")
+            if isinstance(nozzle_fitted, float):
+                self.extruder_nozzle_present.labels(**labels, extruder_id=extruder).set(
+                    nozzle_fitted
+                )
+            direction = extruder_state.get("direction")
+            if isinstance(direction, str):
+                self.extruder_extrusion_direction_info.labels(
+                    **labels, extruder_id=extruder, direction=direction
+                ).set(1.0)
+        self.ams_slot_present.clear()
+        for (ams_id, slot_id), present in snapshot.ams_slots_present.items():
+            self.ams_slot_present.labels(**labels, ams_id=ams_id, slot_id=slot_id).set(present)
 
         self.nozzle_wear.clear()
         self.nozzle_print_time_seconds.clear()
@@ -781,6 +950,10 @@ class ExporterMetrics:
                     value = drying[key]
                     if value is not None:
                         gauge.labels(**labels, ams_id=ams_id).set(value)
+                for reason in parse_ams_dry_block_reasons(ams):
+                    self.ams_drying_blocked_reason_info.labels(
+                        **labels, ams_id=ams_id, reason=reason
+                    ).set(1.0)
 
             raw_trays = ams.get("tray")
             trays = [t for t in raw_trays if isinstance(t, dict)] if isinstance(raw_trays, list) else []
@@ -856,6 +1029,7 @@ class ExporterMetrics:
         self.ams_drying_remaining_seconds.clear()
         self.ams_drying_target_temperature.clear()
         self.ams_drying_duration_seconds.clear()
+        self.ams_drying_blocked_reason_info.clear()
 
     def mark_scrape(self, duration_seconds: float, success: bool, now_ts: float | None = None) -> None:
         labels = self._labels()

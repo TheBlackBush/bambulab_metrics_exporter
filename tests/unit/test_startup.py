@@ -641,3 +641,21 @@ def test_try_token_refresh_keeps_page_overrides_out_of_env_file(
     text = env_file.read_text()
     assert "BAMBULAB_CLOUD_ACCESS_TOKEN=new_access" in text
     assert "PAGESERIAL0001" not in text and "BAMBULAB_TRANSPORT" not in text
+
+
+def test_local_failure_points_to_the_auth_page_not_only_env_vars() -> None:
+    settings = Settings(
+        bambulab_transport="local_mqtt", bambulab_host="192.0.2.25",
+        bambulab_serial="FAKE00TEST000001", bambulab_access_code="fake-access-code",
+    )
+    with patch("bambulab_metrics_exporter.startup._probe_connection", return_value=False):
+        with pytest.raises(RuntimeError) as failed:
+            _validate_local(settings)
+    assert "/auth" in str(failed.value) and "BAMBULAB_" not in str(failed.value)
+
+
+def test_local_missing_values_point_to_the_auth_page() -> None:
+    settings = Settings.model_construct(bambulab_host="", bambulab_serial="", bambulab_access_code="")
+    with pytest.raises(RuntimeError) as failed:
+        _validate_local(settings)
+    assert "/auth" in str(failed.value)

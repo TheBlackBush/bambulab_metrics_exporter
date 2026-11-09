@@ -38,7 +38,7 @@ groups:
           description: "Printer {{ $labels.printer_name }} reports {{ $value }} serious or fatal HMS error(s); check the printer screen or Bambu Handy."
 
       - alert: BambuNozzleTooHot
-        expr: bambulab_nozzle_temperature_celsius > 320
+        expr: bambulab_active_nozzle_temperature_celsius > 320 or bambulab_nozzle_temperature_celsius > 320
         for: 30s
         labels:
           severity: critical

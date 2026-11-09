@@ -149,8 +149,8 @@ def test_run_starts_runtime_before_server_and_stops_on_shutdown(monkeypatch, cap
 
     monkeypatch.setattr("bambulab_metrics_exporter.main._safe_load_dotenv", lambda: order.append("dotenv"))
     monkeypatch.setattr("bambulab_metrics_exporter.main.apply_overrides_to_env", lambda: order.append("overrides"))
-    monkeypatch.setattr("bambulab_metrics_exporter.main._bootstrap_cloud_credentials", lambda: order.append("bootstrap"))
-    monkeypatch.setattr("bambulab_metrics_exporter.main.ExporterRuntime", lambda: runtime)
+    monkeypatch.setattr("bambulab_metrics_exporter.main._bootstrap_cloud_credentials", lambda force=False: order.append("bootstrap"))
+    monkeypatch.setattr("bambulab_metrics_exporter.main.PrinterFleet", lambda store: runtime)
 
     def fake_build_app(runtime=None):
         assert runtime is not None
@@ -212,7 +212,7 @@ def test_run_with_invalid_env_still_serves(monkeypatch, caplog) -> None:
     monkeypatch.setenv("POLLING_INTERVAL_SECONDS", "0")
     served: dict = {}
     monkeypatch.setattr("bambulab_metrics_exporter.main._safe_load_dotenv", lambda: None)
-    monkeypatch.setattr("bambulab_metrics_exporter.main.ExporterRuntime.start", lambda self: None)
+    monkeypatch.setattr("bambulab_metrics_exporter.main.PrinterFleet.start", lambda self: None)
     monkeypatch.setattr(
         "bambulab_metrics_exporter.main.uvicorn.run",
         lambda app, host, port, log_level: served.update(host=host, port=port),
@@ -247,7 +247,57 @@ def test_overrides_are_logged_after_logging_is_configured(monkeypatch) -> None:
     monkeypatch.setattr(
         "bambulab_metrics_exporter.main.apply_overrides_to_env", lambda: order.append("overrides")
     )
-    monkeypatch.setattr("bambulab_metrics_exporter.main.ExporterRuntime.start", lambda self: None)
+    monkeypatch.setattr("bambulab_metrics_exporter.main.PrinterFleet.start", lambda self: None)
     monkeypatch.setattr("bambulab_metrics_exporter.main.uvicorn.run", lambda *a, **k: None)
     main.run()
     assert order[:2] == ["logging", "overrides"]
+
+
+def test_mixed_fleet_loads_cloud_tokens_with_local_env_transport(monkeypatch, tmp_path) -> None:
+    from bambulab_metrics_exporter import main
+    from bambulab_metrics_exporter.credentials_store import save_encrypted_credentials
+    from bambulab_metrics_exporter.printers import PrinterConfig, PrinterStore
+
+    secret = "fake-development-key-never-use"
+    monkeypatch.setenv("BAMBULAB_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("BAMBULAB_SECRET_KEY", secret)
+    monkeypatch.setenv("BAMBULAB_TRANSPORT", "local_mqtt")
+    monkeypatch.delenv("BAMBULAB_CLOUD_ACCESS_TOKEN", raising=False)
+    monkeypatch.delenv("BAMBULAB_CLOUD_USER_ID", raising=False)
+    save_encrypted_credentials(
+        tmp_path / "credentials.enc.json",
+        secret,
+        {"BAMBULAB_CLOUD_USER_ID": "fake-user-123", "BAMBULAB_CLOUD_ACCESS_TOKEN": "fake-access-token"},
+    )
+    PrinterStore().save([PrinterConfig(serial="FAKE00TEST000001", transport="cloud_mqtt")])
+    main._bootstrap_cloud_credentials(force=main._has_cloud_printer(PrinterStore()))
+    assert os.environ["BAMBULAB_CLOUD_ACCESS_TOKEN"] == "fake-access-token"
+
+
+def _run_collecting_force(monkeypatch) -> list[bool]:
+    from bambulab_metrics_exporter import main
+
+    forced: list[bool] = []
+    monkeypatch.setattr(main, "_safe_load_dotenv", lambda: None)
+    monkeypatch.setattr(main, "apply_overrides_to_env", lambda: [])
+    monkeypatch.setattr(main, "_bootstrap_cloud_credentials", lambda force=False: forced.append(force))
+    monkeypatch.setattr(main, "PrinterFleet", lambda store: _RuntimeStub())
+    monkeypatch.setattr(main, "build_app", lambda runtime=None: _capture_app({}))
+    monkeypatch.setattr(main.uvicorn, "run", lambda app, host, port, log_level: None)
+    main.run()
+    return forced
+
+
+def test_page_login_with_no_saved_list_loads_tokens_after_a_restart(monkeypatch, tmp_path) -> None:
+    """The picker needs the account token even before a printer is ticked."""
+    monkeypatch.setenv("BAMBULAB_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("BAMBULAB_TRANSPORT", "local_mqtt")
+    monkeypatch.delenv("BAMBULAB_CREDENTIALS_FILE", raising=False)
+    (tmp_path / "credentials.enc.json.before-auth-page").write_bytes(b"")
+    assert _run_collecting_force(monkeypatch) == [True]
+
+
+def test_no_page_login_and_no_cloud_printer_needs_no_tokens(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("BAMBULAB_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("BAMBULAB_TRANSPORT", "local_mqtt")
+    assert _run_collecting_force(monkeypatch) == [False]

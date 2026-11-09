@@ -127,7 +127,8 @@ BAMBULAB_CLOUD_EMAIL=you@example.com
 1. Start the container **without** `BAMBULAB_CLOUD_CODE`. It finds no valid credentials, sends
    one verification code to your Bambu account email, and waits.
 2. Add `BAMBULAB_CLOUD_CODE=<code from email>` and recreate the container.
-3. The container logs in and saves the credentials encrypted in the config volume.
+3. The container logs in and saves the credentials encrypted in the config volume. If the account
+   has several printers, tick the ones to monitor on the `/auth` page (up to 32 per exporter).
 4. **Remove `BAMBULAB_CLOUD_CODE`**: codes are single-use and it is not needed afterwards.
 
 The saved credentials are used on every restart, and the refresh token renews them

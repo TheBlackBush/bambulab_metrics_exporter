@@ -12,10 +12,10 @@
   "__elements": {},
   "__requires": [
     {
-      "type": "panel",
-      "id": "gauge",
-      "name": "Gauge",
-      "version": ""
+      "type": "datasource",
+      "id": "prometheus",
+      "name": "Prometheus",
+      "version": "1.0.0"
     },
     {
       "type": "grafana",
@@ -25,20 +25,38 @@
     },
     {
       "type": "panel",
+      "id": "bargauge",
+      "name": "Bar gauge",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "gauge",
+      "name": "Gauge",
+      "version": ""
+    },
+    {
+      "type": "panel",
       "id": "marcusolsson-dynamictext-panel",
       "name": "Business Text",
       "version": "6.2.0"
     },
     {
-      "type": "datasource",
-      "id": "prometheus",
-      "name": "Prometheus",
-      "version": "1.0.0"
-    },
-    {
       "type": "panel",
       "id": "stat",
       "name": "Stat",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "state-timeline",
+      "name": "State timeline",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "table",
+      "name": "Table",
       "version": ""
     },
     {
@@ -79,10 +97,10 @@
     {
       "collapsed": false,
       "gridPos": {
-        "h": 1,
-        "w": 24,
         "x": 0,
-        "y": 0
+        "y": 0,
+        "w": 24,
+        "h": 1
       },
       "id": 50,
       "panels": [],
@@ -90,65 +108,75 @@
       "type": "row"
     },
     {
+      "id": 99,
+      "type": "stat",
+      "title": "Printer Connection",
+      "description": "Live MQTT connection to the printer. Other panels keep showing the last values received while this reads Disconnected.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "bambulab_printer_connected{job=\"$job\", printer_name=\"$printer\"}",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "A"
+        }
+      ],
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
-          "mappings": [
-            {
-              "options": {
-                "0": {
-                  "color": "red",
-                  "index": 1,
-                  "text": "OFFLINE"
-                },
-                "1": {
-                  "color": "green",
-                  "index": 0,
-                  "text": "ONLINE"
-                }
-              },
-              "type": "value"
-            }
-          ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "transparent",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 0
-              },
-              {
                 "color": "green",
-                "value": 1
+                "value": null
               }
             ]
-          }
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Disconnected",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "Connected",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ]
         },
         "overrides": []
       },
-      "gridPos": {
-        "h": 4,
-        "w": 3,
-        "x": 0,
-        "y": 1
-      },
-      "id": 27,
       "options": {
         "colorMode": "value",
         "graphMode": "none",
         "justifyMode": "auto",
         "orientation": "auto",
-        "percentChangeColorMode": "standard",
+        "textMode": "auto",
+        "wideLayout": true,
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -156,27 +184,8 @@
           "fields": "",
           "values": false
         },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "12.4.1",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "editorMode": "builder",
-          "expr": "bambulab_printer_up{job=\"$job\", printer_name=\"$printer\"}",
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Up",
-      "type": "stat"
+        "showPercentChange": false
+      }
     },
     {
       "datasource": {
@@ -206,10 +215,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 3,
         "x": 3,
-        "y": 1
+        "y": 1,
+        "w": 3,
+        "h": 4
       },
       "id": 46,
       "options": {
@@ -294,10 +303,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 3,
         "x": 6,
-        "y": 1
+        "y": 1,
+        "w": 3,
+        "h": 4
       },
       "id": 32,
       "options": {
@@ -354,6 +363,146 @@
       "type": "stat"
     },
     {
+      "id": 95,
+      "type": "stat",
+      "title": "Job State",
+      "description": "Job phase from recent firmware, finer than Printer State.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 9,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "bambulab_job_state_info{job=\"$job\", printer_name=\"$printer\"} == 1",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "A",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "idle": {
+                  "text": "Idle",
+                  "index": 0,
+                  "color": "text"
+                },
+                "slicing": {
+                  "text": "Slicing",
+                  "index": 1
+                },
+                "prepare": {
+                  "text": "Preparing",
+                  "index": 2
+                },
+                "starting": {
+                  "text": "Starting",
+                  "index": 3
+                },
+                "running": {
+                  "text": "Printing",
+                  "index": 4,
+                  "color": "green"
+                },
+                "pause": {
+                  "text": "Paused",
+                  "index": 5,
+                  "color": "yellow"
+                },
+                "pausing": {
+                  "text": "Pausing",
+                  "index": 6,
+                  "color": "yellow"
+                },
+                "resuming": {
+                  "text": "Resuming",
+                  "index": 7
+                },
+                "finish": {
+                  "text": "Finished",
+                  "index": 8,
+                  "color": "blue"
+                },
+                "failed": {
+                  "text": "Failed",
+                  "index": 9,
+                  "color": "red"
+                },
+                "finishing": {
+                  "text": "Finishing",
+                  "index": 10
+                },
+                "stopping": {
+                  "text": "Stopping",
+                  "index": 11
+                },
+                "unknown": {
+                  "text": "Unknown",
+                  "index": 12
+                }
+              }
+            }
+          ],
+          "noValue": "Not reported"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^state$/",
+          "values": false
+        },
+        "showPercentChange": false
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "includeByName": {
+              "state": true
+            }
+          }
+        }
+      ]
+    },
+    {
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
@@ -401,10 +550,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
+        "x": 12,
+        "y": 1,
         "w": 3,
-        "x": 9,
-        "y": 1
+        "h": 4
       },
       "id": 58,
       "options": {
@@ -470,10 +619,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
+        "x": 15,
+        "y": 1,
         "w": 3,
-        "x": 0,
-        "y": 5
+        "h": 4
       },
       "id": 57,
       "options": {
@@ -509,7 +658,7 @@
           "refId": "A"
         }
       ],
-      "title": "SD Card",
+      "title": "SD / USB Storage",
       "transformations": [
         {
           "id": "labelsToFields",
@@ -528,95 +677,6 @@
           }
         }
       ],
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [
-            {
-              "options": {
-                "0": {
-                  "color": "red",
-                  "index": 1,
-                  "text": "OFF"
-                },
-                "1": {
-                  "color": "green",
-                  "index": 0,
-                  "text": "ON"
-                }
-              },
-              "type": "value"
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "transparent",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 0
-              },
-              {
-                "color": "green",
-                "value": 1
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 3,
-        "x": 3,
-        "y": 5
-      },
-      "id": 45,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "12.4.1",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "editorMode": "builder",
-          "expr": "bambulab_chamber_light_on{job=\"$job\", printer_name=\"$printer\"}",
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Chamber Light 💡",
       "type": "stat"
     },
     {
@@ -667,10 +727,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
+        "x": 18,
+        "y": 1,
         "w": 3,
-        "x": 6,
-        "y": 5
+        "h": 4
       },
       "id": 37,
       "options": {
@@ -709,54 +769,20 @@
       "type": "stat"
     },
     {
+      "id": 109,
+      "type": "stat",
+      "title": "Top Lid",
+      "description": "Top lid sensor. H2 family only; other models show N/A.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "decimals": 1,
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
       "gridPos": {
-        "h": 4,
+        "x": 21,
+        "y": 1,
         "w": 3,
-        "x": 9,
-        "y": 5
+        "h": 4
       },
-      "id": 38,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "area",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": true
-        },
-        "showPercentChange": false,
-        "textMode": "value",
-        "wideLayout": true
-      },
-      "pluginVersion": "12.4.1",
       "targets": [
         {
           "datasource": {
@@ -764,16 +790,74 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "exemplar": false,
-          "expr": "bambulab_nozzle_diameter{job=\"$job\", printer_name=\"$printer\"}",
+          "expr": "bambulab_lid_open{job=\"$job\", printer_name=\"$printer\"}",
           "instant": true,
-          "legendFormat": "__auto",
           "range": false,
+          "legendFormat": "__auto",
           "refId": "A"
         }
       ],
-      "title": "Nozzle Diameter",
-      "type": "stat"
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Closed",
+                  "index": 0,
+                  "color": "green"
+                },
+                "1": {
+                  "text": "Open",
+                  "index": 1,
+                  "color": "orange"
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "nan",
+                "result": {
+                  "text": "N/A",
+                  "color": "text",
+                  "index": 0
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false
+      }
     },
     {
       "datasource": {
@@ -823,10 +907,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 3,
         "x": 0,
-        "y": 9
+        "y": 5,
+        "w": 3,
+        "h": 4
       },
       "id": 64,
       "options": {
@@ -913,10 +997,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 3,
         "x": 3,
-        "y": 9
+        "y": 5,
+        "w": 3,
+        "h": 4
       },
       "id": 65,
       "options": {
@@ -1004,10 +1088,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 3,
         "x": 6,
-        "y": 9
+        "y": 5,
+        "w": 3,
+        "h": 4
       },
       "id": 66,
       "options": {
@@ -1075,10 +1159,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 3,
         "x": 9,
-        "y": 9
+        "y": 5,
+        "w": 3,
+        "h": 4
       },
       "id": 67,
       "options": {
@@ -1136,12 +1220,544 @@
       "type": "stat"
     },
     {
+      "id": 107,
+      "type": "stat",
+      "title": "Camera Recording",
+      "description": "Whether the printer camera is recording.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "bambulab_camera_recording{job=\"$job\", printer_name=\"$printer\"}",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Off",
+                  "index": 0,
+                  "color": "text"
+                },
+                "1": {
+                  "text": "On",
+                  "index": 1,
+                  "color": "green"
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "nan",
+                "result": {
+                  "text": "N/A",
+                  "color": "text",
+                  "index": 0
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false
+      }
+    },
+    {
+      "id": 108,
+      "type": "stat",
+      "title": "Timelapse",
+      "description": "Whether timelapse recording is on for prints.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 15,
+        "y": 5,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "bambulab_timelapse_enabled{job=\"$job\", printer_name=\"$printer\"}",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Off",
+                  "index": 0,
+                  "color": "text"
+                },
+                "1": {
+                  "text": "On",
+                  "index": 1,
+                  "color": "green"
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "nan",
+                "result": {
+                  "text": "N/A",
+                  "color": "text",
+                  "index": 0
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false
+      }
+    },
+    {
+      "id": 110,
+      "type": "stat",
+      "title": "Network",
+      "description": "Wired (Ethernet) or Wi-Fi connection.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 5,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "bambulab_wired_network{job=\"$job\", printer_name=\"$printer\"}",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Wi-Fi",
+                  "index": 0,
+                  "color": "blue"
+                },
+                "1": {
+                  "text": "Wired",
+                  "index": 1,
+                  "color": "blue"
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "nan",
+                "result": {
+                  "text": "N/A",
+                  "color": "text",
+                  "index": 0
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false
+      }
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "red",
+                  "index": 1,
+                  "text": "OFF"
+                },
+                "1": {
+                  "color": "green",
+                  "index": 0,
+                  "text": "ON"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 0
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 21,
+        "y": 5,
+        "w": 3,
+        "h": 4
+      },
+      "id": 45,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.4.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "builder",
+          "expr": "bambulab_chamber_light_on{job=\"$job\", printer_name=\"$printer\"}",
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Chamber Light 💡",
+      "type": "stat"
+    },
+    {
+      "id": 79,
+      "type": "stat",
+      "title": "Tool Head",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "bambulab_tool_head_info{job=\"$job\", printer_name=\"$printer\"} == 1",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{tool}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "N/A"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "name",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false
+      }
+    },
+    {
+      "id": 80,
+      "type": "stat",
+      "title": "Accessories",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 9,
+        "w": 18,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "bambulab_accessory_present{job=\"$job\", printer_name=\"$printer\"} == 1",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{accessory}}",
+          "refId": "A",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "None detected",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "filament_buffer": {
+                  "text": "Filament Buffer",
+                  "index": 0
+                },
+                "external_exhaust_fan": {
+                  "text": "Exhaust Fan",
+                  "index": 1
+                },
+                "fire_extinguisher": {
+                  "text": "Fire Extinguisher",
+                  "index": 2
+                },
+                "rotary_attachment": {
+                  "text": "Rotary Attachment",
+                  "index": 3
+                },
+                "filament_switch": {
+                  "text": "Filament Track Switch",
+                  "index": 4
+                },
+                "air_pump": {
+                  "text": "Air Pump",
+                  "index": 5
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^accessory$/",
+          "values": true
+        },
+        "showPercentChange": false
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "includeByName": {
+              "accessory": true
+            }
+          }
+        }
+      ]
+    },
+    {
       "collapsed": false,
       "gridPos": {
-        "h": 1,
-        "w": 24,
         "x": 0,
-        "y": 13
+        "y": 13,
+        "w": 24,
+        "h": 1
       },
       "id": 35,
       "panels": [],
@@ -1176,10 +1792,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 3,
         "x": 0,
-        "y": 14
+        "y": 14,
+        "w": 3,
+        "h": 4
       },
       "id": 39,
       "options": {
@@ -1265,10 +1881,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 3,
         "x": 3,
-        "y": 14
+        "y": 14,
+        "w": 3,
+        "h": 4
       },
       "id": 29,
       "options": {
@@ -1337,10 +1953,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 3,
         "x": 6,
-        "y": 14
+        "y": 14,
+        "w": 3,
+        "h": 4
       },
       "id": 14,
       "options": {
@@ -1398,10 +2014,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 3,
         "x": 9,
-        "y": 14
+        "y": 14,
+        "w": 3,
+        "h": 4
       },
       "id": 36,
       "options": {
@@ -1452,92 +2068,148 @@
       "type": "stat"
     },
     {
+      "id": 96,
+      "type": "stat",
+      "title": "Stage Countdown",
+      "description": "Time left in the current stage, for example thermal preconditioning. 0 when no countdown runs.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
       "gridPos": {
-        "h": 4,
+        "x": 12,
+        "y": 14,
         "w": 3,
-        "x": 0,
-        "y": 18
+        "h": 4
       },
-      "id": 44,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": true
-        },
-        "showPercentChange": false,
-        "textMode": "name",
-        "wideLayout": true
-      },
-      "pluginVersion": "12.4.1",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "editorMode": "builder",
-          "exemplar": false,
-          "expr": "bambulab_spd_lvl_state{job=\"$job\", printer_name=\"$printer\"} == 1",
+          "editorMode": "code",
+          "expr": "bambulab_print_stage_countdown_seconds{job=\"$job\", printer_name=\"$printer\"}",
           "instant": true,
-          "legendFormat": "__auto",
           "range": false,
+          "legendFormat": "__auto",
           "refId": "A"
         }
       ],
-      "title": "Printer Speed",
-      "transformations": [
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "dtdurations",
+          "noValue": "Not reported",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "None",
+                  "color": "text",
+                  "index": 0
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false
+      }
+    },
+    {
+      "id": 114,
+      "type": "stat",
+      "title": "Skipped Objects",
+      "description": "Objects skipped in the current print.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 15,
+        "y": 14,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
         {
-          "id": "labelsToFields",
-          "options": {
-            "keepLabels": [
-              "state",
-              "mode"
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "bambulab_print_skipped_objects{job=\"$job\", printer_name=\"$printer\"}",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
             ]
           }
         },
-        {
-          "id": "formatString",
-          "options": {
-            "outputFormat": "Title Case",
-            "stringField": "mode"
-          }
-        }
-      ],
-      "type": "stat"
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false
+      }
     },
     {
       "datasource": {
@@ -1567,10 +2239,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 9,
-        "x": 3,
-        "y": 18
+        "x": 18,
+        "y": 14,
+        "w": 6,
+        "h": 4
       },
       "id": 41,
       "options": {
@@ -1631,12 +2303,413 @@
       "type": "stat"
     },
     {
+      "id": 111,
+      "type": "stat",
+      "title": "File Download",
+      "description": "Download progress of the job file before the print starts.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "bambulab_print_prepare_percent{job=\"$job\", printer_name=\"$printer\"}",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "percent",
+          "max": 100,
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false
+      }
+    },
+    {
+      "id": 112,
+      "type": "stat",
+      "title": "Job Source",
+      "description": "Where the current job came from.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 3,
+        "y": 18,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "bambulab_print_type_info{job=\"$job\", printer_name=\"$printer\"} == 1",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "A",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "cloud": {
+                  "text": "Cloud",
+                  "index": 0,
+                  "color": "blue"
+                },
+                "local": {
+                  "text": "Local",
+                  "index": 1,
+                  "color": "green"
+                },
+                "idle": {
+                  "text": "Idle",
+                  "index": 2,
+                  "color": "text"
+                },
+                "system": {
+                  "text": "System",
+                  "index": 3,
+                  "color": "purple"
+                },
+                "unknown": {
+                  "text": "Unknown",
+                  "index": 4,
+                  "color": "text"
+                }
+              }
+            }
+          ],
+          "noValue": "N/A"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^type$/",
+          "values": false
+        },
+        "showPercentChange": false
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "includeByName": {
+              "type": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 113,
+      "type": "stat",
+      "title": "Speed",
+      "description": "Print speed as a percentage of normal, next to the speed profile.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 18,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "bambulab_spd_mag{job=\"$job\", printer_name=\"$printer\"}",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false
+      }
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 9,
+        "y": 18,
+        "w": 3,
+        "h": 4
+      },
+      "id": 44,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "showPercentChange": false,
+        "textMode": "name",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.4.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "bambulab_spd_lvl_state{job=\"$job\", printer_name=\"$printer\"} == 1",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Printer Speed",
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "keepLabels": [
+              "state",
+              "mode"
+            ]
+          }
+        },
+        {
+          "id": "formatString",
+          "options": {
+            "outputFormat": "Title Case",
+            "stringField": "mode"
+          }
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "id": 115,
+      "type": "stat",
+      "title": "Fail Reason",
+      "description": "Reason code reported when a print fails. Empty when the print has not failed.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 18,
+        "w": 12,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "bambulab_fail_reason_info{job=\"$job\", printer_name=\"$printer\", fail_reason!=\"0\", fail_reason!=\"\"} == 1",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "A",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "None"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^fail_reason$/",
+          "values": true
+        },
+        "showPercentChange": false
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "includeByName": {
+              "fail_reason": true
+            }
+          }
+        }
+      ]
+    },
+    {
       "collapsed": false,
       "gridPos": {
-        "h": 1,
-        "w": 24,
         "x": 0,
-        "y": 22
+        "y": 22,
+        "w": 24,
+        "h": 1
       },
       "id": 54,
       "panels": [],
@@ -1650,6 +2723,9 @@
       },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
           "fieldMinMax": false,
           "mappings": [],
           "thresholds": {
@@ -1669,15 +2745,16 @@
               }
             ]
           },
-          "unit": "celsius"
+          "unit": "celsius",
+          "min": 0
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 3,
         "x": 0,
-        "y": 23
+        "y": 23,
+        "w": 3,
+        "h": 4
       },
       "id": 21,
       "options": {
@@ -1686,10 +2763,9 @@
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
-            "last"
+            "lastNotNull"
           ],
           "fields": "",
-          "limit": 1,
           "values": false
         },
         "showThresholdLabels": false,
@@ -1704,7 +2780,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
-          "expr": "max(bambulab_nozzle_temperature_celsius{job=\"$job\", printer_name=\"$printer\"})",
+          "expr": "max(bambulab_active_nozzle_temperature_celsius{job=\"$job\", printer_name=\"$printer\"})",
           "instant": false,
           "legendFormat": "Nozzle Temperature",
           "range": true,
@@ -1715,12 +2791,12 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "editorMode": "builder",
-          "expr": "max(bambulab_nozzle_target_temperature_celsius{job=\"$job\", printer_name=\"$printer\"})",
-          "instant": false,
-          "legendFormat": "Nozzle Target Temperature",
-          "range": true,
-          "refId": "B"
+          "editorMode": "code",
+          "expr": "(max(bambulab_printer_model_info{job=\"$job\", printer_name=\"$printer\", model=~\"H.*\"} == 1) * 350) or (max(bambulab_printer_model_info{job=\"$job\", printer_name=\"$printer\", model=\"X1E\"} == 1) * 320) or (max(bambulab_printer_model_info{job=\"$job\", printer_name=\"$printer\"} == 1) * 300)",
+          "instant": true,
+          "range": false,
+          "legendFormat": "Max",
+          "refId": "Max"
         }
       ],
       "title": "Nozzle Temperature (C) ",
@@ -1728,21 +2804,19 @@
         {
           "id": "configFromData",
           "options": {
-            "applyTo": {
-              "id": "byName",
-              "options": "Nozzle Temperature"
-            },
-            "configRefId": "B",
+            "configRefId": "Max",
             "mappings": [
               {
-                "fieldName": "Nozzle Target Temperature",
-                "handlerKey": "max"
+                "fieldName": "Max",
+                "handlerKey": "max",
+                "reducerId": "lastNotNull"
               }
             ]
           }
         }
       ],
-      "type": "gauge"
+      "type": "gauge",
+      "description": "Active nozzle temperature. The scale ends at the model's nozzle limit: 350 °C on H models (H2 family, H3C), 320 °C on the X1E, 300 °C on other models."
     },
     {
       "datasource": {
@@ -1778,10 +2852,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 3,
         "x": 3,
-        "y": 23
+        "y": 23,
+        "w": 3,
+        "h": 4
       },
       "id": 33,
       "options": {
@@ -1881,10 +2955,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 3,
         "x": 6,
-        "y": 23
+        "y": 23,
+        "w": 3,
+        "h": 4
       },
       "id": 40,
       "options": {
@@ -1921,6 +2995,162 @@
       "type": "gauge"
     },
     {
+      "id": 76,
+      "type": "stat",
+      "title": "Chamber Target",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 9,
+        "y": 23,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "bambulab_chamber_target_temperature_celsius{job=\"$job\", printer_name=\"$printer\"}",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "celsius",
+          "noValue": "No heater"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false
+      }
+    },
+    {
+      "id": 75,
+      "type": "stat",
+      "title": "Chamber Heater",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 23,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "bambulab_chamber_heater_state{job=\"$job\", printer_name=\"$printer\"}",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Idle",
+                  "color": "text",
+                  "index": 0
+                },
+                "1": {
+                  "text": "Heating",
+                  "color": "orange",
+                  "index": 1
+                },
+                "2": {
+                  "text": "Holding",
+                  "color": "green",
+                  "index": 2
+                },
+                "3": {
+                  "text": "Cooling",
+                  "color": "blue",
+                  "index": 3
+                }
+              }
+            }
+          ],
+          "noValue": "No heater"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false
+      }
+    },
+    {
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
@@ -1953,10 +3183,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 9,
-        "y": 23
+        "x": 15,
+        "y": 23,
+        "w": 9,
+        "h": 4
       },
       "id": 42,
       "options": {
@@ -2095,10 +3325,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 9,
-        "w": 9,
         "x": 0,
-        "y": 27
+        "y": 27,
+        "w": 8,
+        "h": 9
       },
       "id": 4,
       "options": {
@@ -2122,7 +3352,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
-          "expr": "max(bambulab_nozzle_temperature_celsius{job=\"$job\", printer_name=\"$printer\"})",
+          "expr": "max(bambulab_active_nozzle_temperature_celsius{job=\"$job\", printer_name=\"$printer\"})",
           "instant": false,
           "legendFormat": "Nozzle Temperature",
           "range": true,
@@ -2155,6 +3385,138 @@
       ],
       "title": "Nozzle, Bed, & Chamber Temp",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "celsius"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 27,
+        "w": 8,
+        "h": 9
+      },
+      "id": 105,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.4.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "bambulab_extruder_temperature_celsius{job=\"$job\", printer_name=\"$printer\"}",
+          "instant": false,
+          "range": true,
+          "legendFormat": "Extruder {{extruder_id}}",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "bambulab_extruder_target_temperature_celsius{job=\"$job\", printer_name=\"$printer\"}",
+          "instant": false,
+          "range": true,
+          "legendFormat": "Extruder {{extruder_id}} target",
+          "refId": "B"
+        }
+      ],
+      "title": "Nozzle Temperatures per Extruder",
+      "type": "timeseries",
+      "description": "Current (solid) and target (dashed) temperature of each nozzle. Extruder 0 is the right nozzle, extruder 1 the left on dual-nozzle printers."
     },
     {
       "datasource": {
@@ -2239,10 +3601,10 @@
         ]
       },
       "gridPos": {
-        "h": 9,
-        "w": 6,
-        "x": 9,
-        "y": 27
+        "x": 16,
+        "y": 27,
+        "w": 8,
+        "h": 9
       },
       "id": 55,
       "options": {
@@ -2317,16 +3679,707 @@
       "type": "timeseries"
     },
     {
+      "id": 83,
+      "type": "row",
+      "title": "Extruders & Nozzles",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 36,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 97,
+      "type": "table",
+      "title": "Extruder Status",
+      "description": "Per extruder: filament change step, feed direction, filament sensor, loaded AMS slot, nozzle and buffer. Extruder 0 is the right nozzle and 1 the left on dual-nozzle printers. Older printers show only the columns they report.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 37,
+        "w": 16,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (extruder_id, step) (bambulab_filament_change_step_info{job=\"$job\", printer_name=\"$printer\"} == 1)",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "A",
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (extruder_id, direction) (bambulab_extruder_extrusion_direction_info{job=\"$job\", printer_name=\"$printer\"} == 1)",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "B",
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (extruder_id) (bambulab_extruder_nozzle_present{job=\"$job\", printer_name=\"$printer\"})",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "C",
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (extruder_id) (bambulab_extruder_buffer_filament_present{job=\"$job\", printer_name=\"$printer\"})",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "D",
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (extruder_id) (bambulab_toolhead_filament_present{job=\"$job\", printer_name=\"$printer\"})",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "E",
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (extruder_id, slot) (label_replace(label_replace(label_join(bambulab_extruder_loaded_slot_info{job=\"$job\", printer_name=\"$printer\"} == 1, \"slot\", \" slot \", \"ams_id\", \"slot_id\"), \"slot\", \"AMS $1\", \"slot\", \"([0-9]+ slot .+)\"), \"slot\", \"External spool\", \"ams_id\", \"external\"))",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "F",
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (extruder_id, nozzle_type) (label_join(bambulab_extruder_nozzle_info{job=\"$job\", printer_name=\"$printer\"} == 1, \"nozzle_type\", \" \", \"nozzle_type\", \"nozzle_diameter\"))",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "G",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "minWidth": 70
+          },
+          "noValue": "-"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Filament Change"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "idle": {
+                        "text": "Idle",
+                        "index": 0
+                      },
+                      "pause": {
+                        "text": "Paused",
+                        "index": 1
+                      },
+                      "heat_nozzle": {
+                        "text": "Heating the nozzle",
+                        "index": 2
+                      },
+                      "cut_filament": {
+                        "text": "Cutting the filament",
+                        "index": 3
+                      },
+                      "pull_current_filament": {
+                        "text": "Pulling back the current filament",
+                        "index": 4
+                      },
+                      "push_new_filament": {
+                        "text": "Pushing the new filament",
+                        "index": 5
+                      },
+                      "grab_new_filament": {
+                        "text": "Grabbing the new filament",
+                        "index": 6
+                      },
+                      "purge_old_filament": {
+                        "text": "Purging the old filament",
+                        "index": 7
+                      },
+                      "check_position": {
+                        "text": "Checking the filament position",
+                        "index": 8
+                      },
+                      "switch_extruder": {
+                        "text": "Switching extruder",
+                        "index": 9
+                      },
+                      "switch_hotend": {
+                        "text": "Switching hotend",
+                        "index": 10
+                      },
+                      "ams_filament_cooling": {
+                        "text": "AMS cooling the filament",
+                        "index": 11
+                      },
+                      "push_switcher_filament": {
+                        "text": "Feeding at the Filament Track Switch",
+                        "index": 12
+                      },
+                      "pull_switcher_filament": {
+                        "text": "Pulling back at the Filament Track Switch",
+                        "index": 13
+                      },
+                      "switcher_switch": {
+                        "text": "Switching track",
+                        "index": 14
+                      },
+                      "batch_pull_filament": {
+                        "text": "Pulling back several filaments",
+                        "index": 15
+                      },
+                      "nesting_print_tool": {
+                        "text": "Tool change",
+                        "index": 16
+                      },
+                      "purge_filament": {
+                        "text": "Purging",
+                        "index": 17
+                      },
+                      "unknown": {
+                        "text": "Unknown step",
+                        "index": 18
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Direction"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "idle": {
+                        "text": "Idle",
+                        "index": 0
+                      },
+                      "extruding": {
+                        "text": "Extruding",
+                        "index": 1
+                      },
+                      "retracting": {
+                        "text": "Retracting",
+                        "index": 2
+                      },
+                      "unknown": {
+                        "text": "Unknown",
+                        "index": 3
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Nozzle"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "Not fitted",
+                        "index": 0,
+                        "color": "red"
+                      },
+                      "1": {
+                        "text": "Fitted",
+                        "index": 1,
+                        "color": "green"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Buffer"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "Empty",
+                        "index": 0,
+                        "color": "text"
+                      },
+                      "1": {
+                        "text": "Has filament",
+                        "index": 1,
+                        "color": "green"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Filament Sensor"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "Empty",
+                        "index": 0,
+                        "color": "text"
+                      },
+                      "1": {
+                        "text": "Loaded",
+                        "index": 1,
+                        "color": "green"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Extruder"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value #A": true,
+              "Value #B": true,
+              "Value #F": true,
+              "Value #G": true
+            },
+            "indexByName": {
+              "extruder_id": 0,
+              "step": 1,
+              "direction": 2,
+              "Value #E": 3,
+              "slot": 4,
+              "nozzle_type": 5,
+              "Value #C": 6,
+              "Value #D": 7
+            },
+            "renameByName": {
+              "extruder_id": "Extruder",
+              "step": "Filament Change",
+              "direction": "Direction",
+              "Value #C": "Nozzle",
+              "Value #D": "Buffer",
+              "Value #E": "Filament Sensor",
+              "slot": "Loaded Slot",
+              "nozzle_type": "Nozzle Type"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 103,
+      "type": "stat",
+      "title": "Active Nozzle",
+      "description": "Nozzle in use on dual-nozzle printers. Extruder 0 is the right nozzle, extruder 1 the left.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 37,
+        "w": 3,
+        "h": 3
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "bambulab_active_extruder_index{job=\"$job\", printer_name=\"$printer\"} and on () (count(bambulab_extruder_temperature_celsius{job=\"$job\", printer_name=\"$printer\"}) > 1)",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Right",
+                  "color": "blue",
+                  "index": 0
+                },
+                "1": {
+                  "text": "Left",
+                  "color": "purple",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "noValue": "Single nozzle"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false
+      }
+    },
+    {
+      "id": 104,
+      "type": "stat",
+      "title": "Active Nozzle Type",
+      "description": "Type code and diameter of the nozzle in use.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 19,
+        "y": 37,
+        "w": 5,
+        "h": 3
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "bambulab_active_nozzle_info{job=\"$job\", printer_name=\"$printer\"} == 1",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{nozzle_type}} {{nozzle_diameter}} mm",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "N/A"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "name",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false
+      }
+    },
+    {
+      "id": 86,
+      "type": "stat",
+      "title": "Nozzle Print Time",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 40,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "bambulab_nozzle_print_time_seconds{job=\"$job\", printer_name=\"$printer\"}",
+          "instant": true,
+          "range": false,
+          "legendFormat": "Extruder {{extruder_id}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s",
+          "noValue": "Not reported"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false
+      }
+    },
+    {
+      "id": 87,
+      "type": "stat",
+      "title": "Nozzle Wear",
+      "description": "Raw wear value reported by the printer; the unit is not confirmed.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 20,
+        "y": 40,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "bambulab_nozzle_wear_ratio{job=\"$job\", printer_name=\"$printer\"}",
+          "instant": true,
+          "range": false,
+          "legendFormat": "Extruder {{extruder_id}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "Not reported"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false
+      }
+    },
+    {
       "collapsed": false,
       "gridPos": {
-        "h": 1,
-        "w": 24,
         "x": 0,
-        "y": 36
+        "y": 44,
+        "w": 24,
+        "h": 1
       },
       "id": 26,
       "panels": [],
-      "title": "AMS Status",
+      "title": "AMS",
       "type": "row"
     },
     {
@@ -2377,10 +4430,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 3,
         "x": 0,
-        "y": 37
+        "y": 45,
+        "w": 4,
+        "h": 4
       },
       "id": 47,
       "options": {
@@ -2466,10 +4519,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
+        "x": 4,
+        "y": 45,
         "w": 4,
-        "x": 3,
-        "y": 37
+        "h": 4
       },
       "id": 59,
       "options": {
@@ -2574,10 +4627,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
+        "x": 8,
+        "y": 45,
         "w": 4,
-        "x": 7,
-        "y": 37
+        "h": 4
       },
       "id": 62,
       "options": {
@@ -2664,10 +4717,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
+        "x": 12,
+        "y": 45,
         "w": 4,
-        "x": 11,
-        "y": 37
+        "h": 4
       },
       "id": 63,
       "options": {
@@ -2706,6 +4759,134 @@
       "type": "stat"
     },
     {
+      "id": 98,
+      "type": "stat",
+      "title": "Spools in AMS",
+      "description": "Slots with a spool, with or without an RFID tag. AMS, AMS lite, AMS 2 Pro and AMS HT only.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 45,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "sum by (ams_id) (bambulab_ams_slot_present{job=\"$job\", printer_name=\"$printer\"})",
+          "instant": true,
+          "range": false,
+          "legendFormat": "AMS {{ams_id}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "No AMS"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "value_and_name",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false
+      }
+    },
+    {
+      "id": 91,
+      "type": "stat",
+      "title": "Dryer State",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 20,
+        "y": 45,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "bambulab_ams_heater_state_info{job=\"$job\", printer_name=\"$printer\"} == 1",
+          "instant": true,
+          "range": false,
+          "legendFormat": "AMS {{ams_id}}: {{state}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "No dryer"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "name",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false
+      }
+    },
+    {
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
@@ -2729,10 +4910,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 15,
-        "w": 7,
         "x": 0,
-        "y": 41
+        "y": 49,
+        "w": 7,
+        "h": 20
       },
       "id": 53,
       "options": {
@@ -2878,10 +5059,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 5,
-        "w": 4,
         "x": 7,
-        "y": 41
+        "y": 49,
+        "w": 4,
+        "h": 5
       },
       "id": 28,
       "options": {
@@ -2948,10 +5129,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 5,
-        "w": 4,
         "x": 11,
-        "y": 41
+        "y": 49,
+        "w": 4,
+        "h": 5
       },
       "id": 34,
       "options": {
@@ -2987,6 +5168,352 @@
       ],
       "title": "AMS Humidity",
       "type": "gauge"
+    },
+    {
+      "id": 89,
+      "type": "stat",
+      "title": "Drying Time Left",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 15,
+        "y": 49,
+        "w": 5,
+        "h": 5
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "bambulab_ams_drying_remaining_seconds{job=\"$job\", printer_name=\"$printer\"}",
+          "instant": true,
+          "range": false,
+          "legendFormat": "AMS {{ams_id}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s",
+          "noValue": "No dryer"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false
+      }
+    },
+    {
+      "id": 90,
+      "type": "stat",
+      "title": "Drying Target",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 20,
+        "y": 49,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "bambulab_ams_drying_target_temperature_celsius{job=\"$job\", printer_name=\"$printer\"}",
+          "instant": true,
+          "range": false,
+          "legendFormat": "AMS {{ams_id}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "celsius",
+          "noValue": "Not set"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false
+      }
+    },
+    {
+      "id": 117,
+      "type": "stat",
+      "title": "Drying Phase",
+      "description": "What the dryer is doing: heating or dehumidifying.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 7,
+        "y": 54,
+        "w": 6,
+        "h": 5
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "label_replace(label_join(bambulab_ams_dry_sub_status_info{job=\"$job\", printer_name=\"$printer\", state!=\"none\"} == 1, \"text\", \": \", \"ams_id\", \"state\"), \"text\", \"AMS $1\", \"text\", \"(.+)\")",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "A",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "Not drying"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^text$/",
+          "values": true
+        },
+        "showPercentChange": false
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "includeByName": {
+              "text": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 118,
+      "type": "stat",
+      "title": "Drying Duration",
+      "description": "Drying time set for the current or last drying run.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 13,
+        "y": 54,
+        "w": 5,
+        "h": 5
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "bambulab_ams_drying_duration_seconds{job=\"$job\", printer_name=\"$printer\"}",
+          "instant": true,
+          "range": false,
+          "legendFormat": "AMS {{ams_id}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s",
+          "noValue": "Not set"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "value_and_name",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false
+      }
+    },
+    {
+      "id": 119,
+      "type": "stat",
+      "title": "Drying Blocked",
+      "description": "Why drying cannot start now. drying_in_progress only means a run is active.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 54,
+        "w": 6,
+        "h": 5
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "label_replace(label_join(bambulab_ams_drying_blocked_reason_info{job=\"$job\", printer_name=\"$printer\"} == 1, \"text\", \": \", \"ams_id\", \"reason\"), \"text\", \"AMS $1\", \"text\", \"(.+)\")",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "A",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "Not blocked"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^text$/",
+          "values": true
+        },
+        "showPercentChange": false
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "includeByName": {
+              "text": true
+            }
+          }
+        }
+      ]
     },
     {
       "datasource": {
@@ -3058,10 +5585,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 10,
-        "w": 8,
         "x": 7,
-        "y": 46
+        "y": 59,
+        "w": 17,
+        "h": 10
       },
       "id": 60,
       "options": {
@@ -3096,517 +5623,16 @@
       "type": "timeseries"
     },
     {
-      "id": 68,
-      "type": "row",
-      "title": "Health & Firmware",
-      "collapsed": false,
-      "panels": [],
-      "gridPos": {
-        "x": 0,
-        "y": 56,
-        "w": 24,
-        "h": 1
-      }
-    },
-    {
-      "id": 69,
-      "type": "bargauge",
-      "title": "HMS Errors by Severity",
-      "description": "Active HMS (health management) errors. Details are on the printer screen.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 57,
-        "w": 6,
-        "h": 6
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "editorMode": "code",
-          "expr": "bambulab_hms_active_errors{job=\"$job\", printer_name=\"$printer\"}",
-          "instant": true,
-          "range": false,
-          "legendFormat": "{{severity}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "min": 0,
-          "color": {
-            "mode": "continuous-GrYlRd"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "displayMode": "gradient",
-        "orientation": "horizontal",
-        "showUnfilled": true,
-        "valueMode": "color",
-        "namePlacement": "left",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "id": 70,
-      "type": "bargauge",
-      "title": "HMS Errors by Module",
-      "description": "",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "gridPos": {
-        "x": 6,
-        "y": 57,
-        "w": 6,
-        "h": 6
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "editorMode": "code",
-          "expr": "bambulab_hms_active_errors_by_module{job=\"$job\", printer_name=\"$printer\"}",
-          "instant": true,
-          "range": false,
-          "legendFormat": "{{module}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "min": 0,
-          "color": {
-            "mode": "continuous-GrYlRd"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "displayMode": "gradient",
-        "orientation": "horizontal",
-        "showUnfilled": true,
-        "valueMode": "color",
-        "namePlacement": "left",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "id": 71,
-      "type": "stat",
-      "title": "Firmware Update",
-      "description": "",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 57,
-        "w": 3,
-        "h": 3
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "editorMode": "code",
-          "expr": "bambulab_firmware_update_available{job=\"$job\", printer_name=\"$printer\"}",
-          "instant": true,
-          "range": false,
-          "legendFormat": "__auto",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "Up to date",
-                  "color": "green",
-                  "index": 0
-                },
-                "1": {
-                  "text": "Available",
-                  "color": "orange",
-                  "index": 1
-                }
-              }
-            }
-          ],
-          "noValue": "Unknown"
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "textMode": "auto",
-        "wideLayout": true,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false
-      }
-    },
-    {
-      "id": 73,
-      "type": "table",
-      "title": "Module Firmware",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "gridPos": {
-        "x": 15,
-        "y": 57,
-        "w": 9,
-        "h": 6
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "editorMode": "code",
-          "expr": "bambulab_module_firmware_info{job=\"$job\", printer_name=\"$printer\"} == 1",
-          "instant": true,
-          "range": false,
-          "legendFormat": "__auto",
-          "refId": "A",
-          "format": "table"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "options": {
-        "showHeader": true,
-        "cellHeight": "sm"
-      },
-      "transformations": [
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true,
-              "Value": true,
-              "__name__": true,
-              "instance": true,
-              "job": true,
-              "printer_name": true,
-              "serial": true
-            },
-            "indexByName": {
-              "module": 0,
-              "version": 1
-            },
-            "renameByName": {
-              "module": "Module",
-              "version": "Version"
-            }
-          }
-        }
-      ]
-    },
-    {
-      "id": 72,
-      "type": "stat",
-      "title": "Printer Firmware",
-      "description": "",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 60,
-        "w": 3,
-        "h": 3
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "editorMode": "code",
-          "expr": "bambulab_module_firmware_info{job=\"$job\", printer_name=\"$printer\", module=\"ota\"} == 1",
-          "instant": true,
-          "range": false,
-          "legendFormat": "{{version}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "textMode": "name",
-        "wideLayout": true,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false
-      }
-    },
-    {
       "id": 74,
       "type": "row",
-      "title": "Chamber, Airduct & Accessories",
+      "title": "Airduct, Lights & Storage",
       "collapsed": false,
       "panels": [],
       "gridPos": {
         "x": 0,
-        "y": 63,
+        "y": 69,
         "w": 24,
         "h": 1
-      }
-    },
-    {
-      "id": 75,
-      "type": "stat",
-      "title": "Chamber Heater",
-      "description": "",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 64,
-        "w": 3,
-        "h": 4
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "editorMode": "code",
-          "expr": "bambulab_chamber_heater_state{job=\"$job\", printer_name=\"$printer\"}",
-          "instant": true,
-          "range": false,
-          "legendFormat": "__auto",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "Idle",
-                  "color": "text",
-                  "index": 0
-                },
-                "1": {
-                  "text": "Heating",
-                  "color": "orange",
-                  "index": 1
-                },
-                "2": {
-                  "text": "Holding",
-                  "color": "green",
-                  "index": 2
-                },
-                "3": {
-                  "text": "Cooling",
-                  "color": "blue",
-                  "index": 3
-                }
-              }
-            }
-          ],
-          "noValue": "No heater"
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "textMode": "auto",
-        "wideLayout": true,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false
-      }
-    },
-    {
-      "id": 76,
-      "type": "stat",
-      "title": "Chamber Target",
-      "description": "",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "gridPos": {
-        "x": 3,
-        "y": 64,
-        "w": 3,
-        "h": 4
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "editorMode": "code",
-          "expr": "bambulab_chamber_target_temperature_celsius{job=\"$job\", printer_name=\"$printer\"}",
-          "instant": true,
-          "range": false,
-          "legendFormat": "__auto",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "celsius",
-          "noValue": "No heater"
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "textMode": "auto",
-        "wideLayout": true,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false
       }
     },
     {
@@ -3619,8 +5645,8 @@
         "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
-        "x": 6,
-        "y": 64,
+        "x": 0,
+        "y": 70,
         "w": 3,
         "h": 4
       },
@@ -3683,8 +5709,8 @@
         "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
-        "x": 9,
-        "y": 64,
+        "x": 3,
+        "y": 70,
         "w": 6,
         "h": 4
       },
@@ -3738,134 +5764,6 @@
       }
     },
     {
-      "id": 79,
-      "type": "stat",
-      "title": "Tool Head",
-      "description": "",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "gridPos": {
-        "x": 15,
-        "y": 64,
-        "w": 3,
-        "h": 4
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "editorMode": "code",
-          "expr": "bambulab_tool_head_info{job=\"$job\", printer_name=\"$printer\"} == 1",
-          "instant": true,
-          "range": false,
-          "legendFormat": "{{tool}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "noValue": "N/A"
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "textMode": "name",
-        "wideLayout": true,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false
-      }
-    },
-    {
-      "id": 80,
-      "type": "stat",
-      "title": "Accessories",
-      "description": "",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "gridPos": {
-        "x": 18,
-        "y": 64,
-        "w": 6,
-        "h": 4
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "editorMode": "code",
-          "expr": "bambulab_accessory_present{job=\"$job\", printer_name=\"$printer\"} == 1",
-          "instant": true,
-          "range": false,
-          "legendFormat": "{{accessory}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "noValue": "None detected"
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "textMode": "name",
-        "wideLayout": true,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false
-      }
-    },
-    {
       "id": 81,
       "type": "stat",
       "title": "Lights",
@@ -3875,10 +5773,10 @@
         "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
-        "x": 0,
-        "y": 68,
+        "x": 9,
+        "y": 70,
         "w": 9,
-        "h": 3
+        "h": 4
       },
       "targets": [
         {
@@ -3966,10 +5864,10 @@
         "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
-        "x": 9,
-        "y": 68,
+        "x": 18,
+        "y": 70,
         "w": 6,
-        "h": 3
+        "h": 4
       },
       "targets": [
         {
@@ -4020,32 +5918,32 @@
       }
     },
     {
-      "id": 83,
+      "id": 68,
       "type": "row",
-      "title": "Extruders & Nozzles",
+      "title": "Health & Firmware",
       "collapsed": false,
       "panels": [],
       "gridPos": {
         "x": 0,
-        "y": 71,
+        "y": 74,
         "w": 24,
         "h": 1
       }
     },
     {
-      "id": 84,
-      "type": "stat",
-      "title": "Filament at Extruder",
-      "description": "",
+      "id": 69,
+      "type": "bargauge",
+      "title": "HMS Errors by Severity",
+      "description": "Active HMS (health management) errors. Details are on the printer screen.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
         "x": 0,
-        "y": 72,
-        "w": 6,
-        "h": 4
+        "y": 75,
+        "w": 5,
+        "h": 6
       },
       "targets": [
         {
@@ -4054,10 +5952,136 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "bambulab_toolhead_filament_present{job=\"$job\", printer_name=\"$printer\"}",
+          "expr": "bambulab_hms_active_errors{job=\"$job\", printer_name=\"$printer\"}",
           "instant": true,
           "range": false,
-          "legendFormat": "Extruder {{extruder_id}}",
+          "legendFormat": "{{severity}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "color": {
+            "mode": "continuous-GrYlRd"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "left",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 70,
+      "type": "bargauge",
+      "title": "HMS Errors by Module",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 5,
+        "y": 75,
+        "w": 5,
+        "h": 6
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "bambulab_hms_active_errors_by_module{job=\"$job\", printer_name=\"$printer\"}",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{module}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "color": {
+            "mode": "continuous-GrYlRd"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "left",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 71,
+      "type": "stat",
+      "title": "Firmware Update",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 10,
+        "y": 75,
+        "w": 3,
+        "h": 3
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "bambulab_firmware_update_available{job=\"$job\", printer_name=\"$printer\"}",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
           "refId": "A"
         }
       ],
@@ -4080,18 +6104,19 @@
               "type": "value",
               "options": {
                 "0": {
-                  "text": "Empty",
-                  "color": "text",
+                  "text": "Up to date",
+                  "color": "green",
                   "index": 0
                 },
                 "1": {
-                  "text": "Loaded",
-                  "color": "green",
+                  "text": "Available",
+                  "color": "orange",
                   "index": 1
                 }
               }
             }
-          ]
+          ],
+          "noValue": "Unknown"
         },
         "overrides": []
       },
@@ -4113,19 +6138,19 @@
       }
     },
     {
-      "id": 85,
+      "id": 120,
       "type": "stat",
-      "title": "Loaded Slot",
-      "description": "",
+      "title": "Firmware Upgrade",
+      "description": "Firmware upgrade progress reported by the printer.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
-        "x": 6,
-        "y": 72,
-        "w": 6,
-        "h": 4
+        "x": 13,
+        "y": 75,
+        "w": 3,
+        "h": 6
       },
       "targets": [
         {
@@ -4134,11 +6159,12 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "bambulab_extruder_loaded_slot_info{job=\"$job\", printer_name=\"$printer\"} == 1",
+          "expr": "bambulab_firmware_upgrade_status_info{job=\"$job\", printer_name=\"$printer\"} == 1",
           "instant": true,
           "range": false,
-          "legendFormat": "Extruder {{extruder_id}}: AMS {{ams_id}} slot {{slot_id}}",
-          "refId": "A"
+          "legendFormat": "__auto",
+          "refId": "A",
+          "format": "table"
         }
       ],
       "fieldConfig": {
@@ -4155,72 +6181,54 @@
               }
             ]
           },
-          "noValue": "Nothing loaded"
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "textMode": "name",
-        "wideLayout": true,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false
-      }
-    },
-    {
-      "id": 86,
-      "type": "stat",
-      "title": "Nozzle Print Time",
-      "description": "",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 72,
-        "w": 6,
-        "h": 4
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "editorMode": "code",
-          "expr": "bambulab_nozzle_print_time_seconds{job=\"$job\", printer_name=\"$printer\"}",
-          "instant": true,
-          "range": false,
-          "legendFormat": "Extruder {{extruder_id}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "idle": {
+                  "text": "Idle",
+                  "index": 0,
+                  "color": "text"
+                },
+                "upgrade_request": {
+                  "text": "Requested",
+                  "index": 1,
+                  "color": "blue"
+                },
+                "downloading": {
+                  "text": "Downloading",
+                  "index": 2,
+                  "color": "blue"
+                },
+                "download_fail": {
+                  "text": "Download failed",
+                  "index": 3,
+                  "color": "red"
+                },
+                "flash_fail": {
+                  "text": "Flash failed",
+                  "index": 4,
+                  "color": "red"
+                },
+                "upgrade_fail": {
+                  "text": "Failed",
+                  "index": 5,
+                  "color": "red"
+                },
+                "upgrade_success": {
+                  "text": "Succeeded",
+                  "index": 6,
+                  "color": "green"
+                },
+                "unknown": {
+                  "text": "Unknown",
+                  "index": 7,
+                  "color": "text"
+                }
               }
-            ]
-          },
-          "unit": "s",
-          "noValue": "Not reported"
+            }
+          ],
+          "noValue": "N/A"
         },
         "overrides": []
       },
@@ -4229,239 +6237,41 @@
         "graphMode": "none",
         "justifyMode": "auto",
         "orientation": "auto",
-        "textMode": "auto",
+        "textMode": "value",
         "wideLayout": true,
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
           ],
-          "fields": "",
+          "fields": "/^status$/",
           "values": false
         },
         "showPercentChange": false
-      }
-    },
-    {
-      "id": 87,
-      "type": "stat",
-      "title": "Nozzle Wear",
-      "description": "Raw wear value reported by the printer; the unit is not confirmed.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": {
-        "x": 18,
-        "y": 72,
-        "w": 6,
-        "h": 4
-      },
-      "targets": [
+      "transformations": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "editorMode": "code",
-          "expr": "bambulab_nozzle_wear_ratio{job=\"$job\", printer_name=\"$printer\"}",
-          "instant": true,
-          "range": false,
-          "legendFormat": "Extruder {{extruder_id}}",
-          "refId": "A"
+          "id": "organize",
+          "options": {
+            "includeByName": {
+              "status": true
+            }
+          }
         }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "noValue": "Not reported"
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "textMode": "auto",
-        "wideLayout": true,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false
-      }
+      ]
     },
     {
-      "id": 88,
-      "type": "row",
-      "title": "AMS Drying",
-      "collapsed": false,
-      "panels": [],
-      "gridPos": {
-        "x": 0,
-        "y": 76,
-        "w": 24,
-        "h": 1
-      }
-    },
-    {
-      "id": 89,
-      "type": "stat",
-      "title": "Drying Time Left",
-      "description": "",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 77,
-        "w": 8,
-        "h": 4
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "editorMode": "code",
-          "expr": "bambulab_ams_drying_remaining_seconds{job=\"$job\", printer_name=\"$printer\"}",
-          "instant": true,
-          "range": false,
-          "legendFormat": "AMS {{ams_id}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "s",
-          "noValue": "No dryer"
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "textMode": "auto",
-        "wideLayout": true,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false
-      }
-    },
-    {
-      "id": 90,
-      "type": "stat",
-      "title": "Drying Target",
-      "description": "",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "gridPos": {
-        "x": 8,
-        "y": 77,
-        "w": 8,
-        "h": 4
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "editorMode": "code",
-          "expr": "bambulab_ams_drying_target_temperature_celsius{job=\"$job\", printer_name=\"$printer\"}",
-          "instant": true,
-          "range": false,
-          "legendFormat": "AMS {{ams_id}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "celsius",
-          "noValue": "Not set"
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "textMode": "auto",
-        "wideLayout": true,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false
-      }
-    },
-    {
-      "id": 91,
-      "type": "stat",
-      "title": "Dryer State",
-      "description": "",
+      "id": 73,
+      "type": "table",
+      "title": "Module Firmware",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
         "x": 16,
-        "y": 77,
+        "y": 75,
         "w": 8,
-        "h": 4
+        "h": 6
       },
       "targets": [
         {
@@ -4470,10 +6280,73 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "bambulab_ams_heater_state_info{job=\"$job\", printer_name=\"$printer\"} == 1",
+          "expr": "bambulab_module_firmware_info{job=\"$job\", printer_name=\"$printer\"} == 1",
           "instant": true,
           "range": false,
-          "legendFormat": "AMS {{ams_id}}: {{state}}",
+          "legendFormat": "__auto",
+          "refId": "A",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true,
+              "__name__": true,
+              "instance": true,
+              "job": true,
+              "printer_name": true,
+              "serial": true
+            },
+            "indexByName": {
+              "module": 0,
+              "version": 1
+            },
+            "renameByName": {
+              "module": "Module",
+              "version": "Version"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 72,
+      "type": "stat",
+      "title": "Printer Firmware",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 10,
+        "y": 78,
+        "w": 3,
+        "h": 3
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "bambulab_module_firmware_info{job=\"$job\", printer_name=\"$printer\", module=\"ota\"} == 1",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{version}}",
           "refId": "A"
         }
       ],
@@ -4490,8 +6363,7 @@
                 "value": null
               }
             ]
-          },
-          "noValue": "No dryer"
+          }
         },
         "overrides": []
       },
@@ -4515,10 +6387,10 @@
     {
       "collapsed": false,
       "gridPos": {
-        "h": 1,
-        "w": 24,
         "x": 0,
-        "y": 81
+        "y": 81,
+        "w": 24,
+        "h": 1
       },
       "id": 24,
       "panels": [],
@@ -4533,43 +6405,36 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
+            "mode": "thresholds"
           },
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
+            "fillOpacity": 80,
+            "lineWidth": 0,
+            "spanNulls": false,
+            "insertNulls": false,
             "hideFrom": {
               "legend": false,
               "tooltip": false,
               "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
             }
           },
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Disconnected",
+                  "index": 0,
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Connected",
+                  "index": 1,
+                  "color": "green"
+                }
+              }
+            }
+          ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -4587,23 +6452,26 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
-        "w": 5,
         "x": 0,
-        "y": 82
+        "y": 82,
+        "w": 5,
+        "h": 6
       },
       "id": 11,
       "options": {
+        "showValue": "never",
+        "mergeValues": true,
+        "alignValue": "left",
+        "rowHeight": 0.8,
         "legend": {
-          "calcs": [],
+          "showLegend": false,
           "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
+          "placement": "bottom"
         },
         "tooltip": {
-          "hideZeros": false,
           "mode": "single",
-          "sort": "none"
+          "sort": "none",
+          "hideZeros": false
         }
       },
       "pluginVersion": "12.4.1",
@@ -4613,17 +6481,18 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "editorMode": "builder",
+          "editorMode": "code",
           "exemplar": false,
-          "expr": "bambulab_printer_up{job=\"$job\", printer_name=\"$printer\"}",
+          "expr": "bambulab_printer_connected{job=\"$job\", printer_name=\"$printer\"}",
           "instant": false,
           "legendFormat": "{{printer_name}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Up",
-      "type": "timeseries"
+      "title": "Printer Connection",
+      "type": "state-timeline",
+      "description": "1 while the exporter holds a live MQTT connection to the printer."
     },
     {
       "datasource": {
@@ -4688,10 +6557,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
-        "w": 5,
         "x": 5,
-        "y": 82
+        "y": 82,
+        "w": 5,
+        "h": 6
       },
       "id": 10,
       "options": {
@@ -4788,10 +6657,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
-        "w": 5,
         "x": 10,
-        "y": 82
+        "y": 82,
+        "w": 5,
+        "h": 6
       },
       "id": 18,
       "options": {
@@ -4893,118 +6762,6 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "continuous-GrYlRd"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 20,
-            "gradientMode": "scheme",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "smooth",
-            "lineWidth": 3,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "celsius"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 5,
-        "x": 0,
-        "y": 88
-      },
-      "id": 20,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.4.1",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "editorMode": "builder",
-          "expr": "max(bambulab_nozzle_temperature_celsius{job=\"$job\", printer_name=\"$printer\"})",
-          "instant": false,
-          "legendFormat": "Nozzle Temperature",
-          "range": true,
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "editorMode": "builder",
-          "expr": "max(bambulab_nozzle_target_temperature_celsius{job=\"$job\", printer_name=\"$printer\"})",
-          "instant": false,
-          "legendFormat": "Nozzle Target Temperature",
-          "range": true,
-          "refId": "B"
-        }
-      ],
-      "title": "Nozzle Temperature",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
             "mode": "palette-classic"
           },
           "custom": {
@@ -5059,10 +6816,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
-        "w": 5,
-        "x": 5,
-        "y": 88
+        "x": 0,
+        "y": 88,
+        "w": 7,
+        "h": 6
       },
       "id": 17,
       "options": {
@@ -5170,10 +6927,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
-        "w": 5,
-        "x": 10,
-        "y": 88
+        "x": 7,
+        "y": 88,
+        "w": 8,
+        "h": 6
       },
       "id": 9,
       "options": {
@@ -5277,6 +7034,236 @@
           "mode": "multi",
           "sort": "desc"
         }
+      }
+    },
+    {
+      "id": 106,
+      "type": "row",
+      "title": "Exporter Health",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 94,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 100,
+      "type": "stat",
+      "title": "Exporter Poll",
+      "description": "Whether the exporter's latest polling cycle succeeded.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 95,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "bambulab_exporter_scrape_success{job=\"$job\", printer_name=\"$printer\"}",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Failing",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "OK",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false
+      }
+    },
+    {
+      "id": 101,
+      "type": "stat",
+      "title": "Last Successful Poll",
+      "description": "Time since the exporter last completed a polling cycle.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 4,
+        "y": 95,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "time() - bambulab_exporter_last_success_unixtime{job=\"$job\", printer_name=\"$printer\"}",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 60
+              },
+              {
+                "color": "red",
+                "value": 300
+              }
+            ]
+          },
+          "unit": "s",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false
+      }
+    },
+    {
+      "id": 102,
+      "type": "stat",
+      "title": "Poll Duration",
+      "description": "How long each polling cycle takes.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 95,
+        "w": 16,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "bambulab_exporter_scrape_duration_seconds{job=\"$job\", printer_name=\"$printer\"}",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false
       }
     }
   ],

@@ -39,7 +39,7 @@ Pytest output (coverage XML, `.coverage`, cache) goes to `tests/results/`; do no
 
 This repository is a Python 3.11+ Prometheus exporter for Bambu Lab 3D printers. It is
 intended for self-hosted and homelab operators who run one exporter process or container
-per printer and scrape it with Prometheus. Docker is the supported production deployment;
+(serving one or several printers) and scrape it with Prometheus. Docker is the supported production deployment;
 the project is packaged locally for its container and development environment, not
 published to PyPI.
 
@@ -68,10 +68,16 @@ Important boundaries:
 - Cloud authentication and encrypted persistence span `cloud_auth.py`, `startup.py`,
   `main.py`, `credentials_store.py`, `security.py`, and `env_sync.py`. Treat them as one
   security-sensitive subsystem.
-- A process has one serial, client, state store, registry, and collector. Multiple printers
-  require separate processes/containers. Do not imply same-process multi-printer support.
+- A process runs a `PrinterFleet` (`fleet.py`): one `ExporterRuntime` per printer, each with its
+  own serial, client, state store, registry, and collector, up to `MAX_PRINTERS` (32). `/metrics`
+  merges the registries. Printers are chosen on `/auth` and stored encrypted in
+  `printers.enc.json` (`printers.py`). Two-tier run mode: no store file means the one env printer
+  (plus `/auth` overrides) exactly as before; the first page change writes the store; **Reset to
+  env vars** deletes it. Cloud printers share one account and a lock around token validation and
+  refresh. Separate containers remain supported. Multi-printer behavior is tested with fakes only,
+  not on real hardware; do not claim otherwise.
 - Model recognition is broader than hardware validation. The README says real-world
-  development and validation currently occur only on an X1C.
+  development and validation currently occur on an X1C (an H2D was checked on real hardware while idle and while printing).
 
 # Repository Map
 
@@ -86,6 +92,10 @@ Important boundaries:
   `error`). It validates, starts the collector, retries every 60 s, waits for credentials,
   and rebuilds settings/metrics/client on `reconfigure()`. The process never exits on
   connection problems.
+- `fleet.py` and `printers.py`: `PrinterFleet` (runtimes per printer, merged `/metrics` collector,
+  combined status and readiness, `update()`, `reset_to_env()`) and `PrinterConfig`/`PrinterStore`
+  (`printers.enc.json`, `mask_serial`, `MAX_PRINTERS`). Add per-printer behavior here, not in the
+  single-runtime path.
 - `capabilities.py`: per-model hardware table (chamber sensor/heater, door source, lid, aux
   and chamber fans, extruders, hotend rack, laser/cutter). Gate model-specific metrics with
   `PrinterSnapshot.capabilities` instead of checking model names; unknown models are
@@ -119,8 +129,12 @@ Important boundaries:
   `/health` is process liveness; `/ready` becomes ready after a nonempty payload (sticky).
   `/auth` is unauthenticated by maintainer decision; keep its protections: escaped output, no
   stored secrets rendered, same-origin check, Host allowlist (`_host_allowed`, DNS rebinding,
-  `AUTH_ALLOWED_HOSTS`), anti-framing headers (middleware), 8 KB form cap, send-code and login
-  rate limits, per-visitor result cookie, and `overrides.lock` around every page change.
+  `AUTH_ALLOWED_HOSTS`), anti-framing headers (middleware), 8 KB form cap, send-code ladder
+  (`SendCodeLimiter`, persisted) and login rate limit, per-visitor result cookie, and
+  `overrides.lock` around every page change. The page script sends every form in the
+  background with `Accept: application/json`; the four posts then answer JSON (`ok`,
+  `message`, plus `wait_seconds` for send-code) with no flash, and without that header they
+  redirect to `/auth` as before (no-JavaScript fallback).
   Preserve endpoint contracts.
 - `src/bambulab_metrics_exporter/cloud_auth.py`: Bambu Cloud HTTP/OTP CLI, token refresh,
   device discovery, bounded HTTP retry/backoff, and credential output. Never expose
@@ -145,8 +159,8 @@ Important boundaries:
   these as potentially device-derived and sensitive. Inspect before reuse; sanitize all new
   fixtures.
 - `examples/sample_metrics.prom`: sample exposition that should track metric behavior.
-- `tests/fixtures/printers/`: one sanitized real payload per model (12 from ha-bambulab,
-  MIT, attribution in its README; one from the maintainer's X1C), checked by
+- `tests/fixtures/printers/`: one sanitized real payload per model (14: 12 from public
+  MIT-licensed sample data, attribution in its README; one from the maintainer's X1C and one from the maintainer's H2D), checked by
   `tests/unit/test_printer_fixtures.py`. Add new captures only through
   `sanitize_fixture.py` and review the output; never commit a raw capture.
 
@@ -509,9 +523,9 @@ use fakes and remain offline.
 - Metric changes: registry isolation, duplicate-registration prevention, exact names/types,
   base and dynamic labels, values, `NaN`, unknown states, clearing/omitting stale dynamic
   series, and Prometheus exposition. Test compatibility aliases.
-- Multi-printer work, if explicitly requested, needs isolation tests for state, clients,
-  labels, registries, failures, and duplicate metrics. Current behavior is one printer per
-  process; do not add a superficial multi-printer test that implies otherwise.
+- Multi-printer changes need isolation tests for state, clients, labels, registries, failures,
+  and duplicate metrics (merged exposition has one HELP/TYPE per family). Use fake clients; the
+  fleet has not been run against two real printers.
 - API/deployment changes: endpoint status/body/content type, readiness/liveness semantics,
   healthcheck compatibility, configured ports, and graceful shutdown.
 - Never commit real serial numbers, IPs, hostnames, usernames, emails, access codes, tokens,
@@ -756,12 +770,12 @@ Agents must not:
 
 Evidence at the time this manual was created:
 
-- Version `0.2.1`; Python 3.11+ package with FastAPI, Paho MQTT, Prometheus client,
+- Version `0.3.0`; Python 3.11+ package with FastAPI, Paho MQTT, Prometheus client,
   Pydantic settings, Uvicorn, cryptography/Fernet, and dotenv.
 - Local and cloud MQTT modes work through the same client architecture. Cloud supports OTP
   authentication, encrypted credential persistence, and refresh-token recovery. Model
   detection recognizes A1/A1 Mini/A2L, P1P/P1S/P2S, H2C/H2D/H2D Pro/H2S, X1/X1C/X1E/X2D and
-  AMS variants; only X1C is stated as real-world validated. The serial prefix (payload
+  AMS variants; only X1C is stated as real-world validated (the H2D was checked on real hardware while idle and while printing). The serial prefix (payload
   `print.sn` or configured `BAMBULAB_SERIAL`) is the main identity source because pushall
   omits identity fields. `print.device.type` is a mode bitmask and `print.model_id` an
   opaque job id; never use either for model identity.
@@ -782,7 +796,7 @@ Important technical debt and high-risk areas:
 - MQTT decode does not safely handle malformed UTF-8 or valid non-object JSON. Some AMS/tray
   integer conversions can raise on malformed payloads.
 - Collector failure/recovery, reconnect/resubscribe, duplicate metric registration, secret
-  redaction, and same-process multi-printer behavior lack explicit focused tests.
+  redaction lack explicit focused tests. Multi-printer operation is tested with fakes only.
 - `models.py` and `metrics.py` are large and tightly coupled; auth/persistence spans several
   modules. Changes need sequential coordination.
 - Deployment documentation has obsolete label variables and gaps around refresh tokens and

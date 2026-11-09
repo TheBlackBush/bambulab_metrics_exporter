@@ -4,14 +4,80 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-09
+
 ### Added
+- `bambulab_accessory_present{accessory="filament_buffer"}` also detects an external filament
+  buffer by its `ahbc` module name when the module has no product name. The buffer built into
+  the H2 series is part of the printer and still reads 0, now documented in the metrics reference.
+- Multi-printer support: one exporter can monitor up to 32 printers (cloud and LAN mixed, one
+  Bambu account), chosen on the `/auth` page. After a cloud login the page lists the account
+  printers to tick; LAN printers are added with a form and any printer can be removed. The page
+  updates without a reload. A one-printer cloud account is added automatically at login when a
+  saved list exists. Removing works for a cloud printer that left the account, and saving a
+  selection is refused when the device list is empty or its latest refresh failed. A cloud login
+  reconnects cloud printers only. The list is stored encrypted in
+  `printers.enc.json` (needs `BAMBULAB_SECRET_KEY` to survive restarts) and **Reset to env vars**
+  removes it. A list that cannot be read is reported on `/auth` and in the log, and is kept as
+  `printers.enc.json.bad` before it is replaced. `/auth/status` gains a `printers` list of `{id, name, serial (masked), transport, state, message}`. With several
+  printers `/ready` is ready once any printer has data. Existing metrics and single-printer
+  deployments do not change, and one container per printer remains supported. Two-printer
+  operation is covered by tests with fakes, not validated on real hardware.
+- `bambulab_print_prepare_percent` (job file download progress), `bambulab_print_type_info{type}`
+  (job source), `bambulab_print_skipped_objects`, `bambulab_timelapse_enabled`,
+  `bambulab_mqtt_signature_required` (Developer Mode off) and `bambulab_axis_homed{axis}`.
+- `bambulab_ams_drying_blocked_reason_info{ams_id,reason}`, `bambulab_firmware_upgrade_status_info{status}`,
+  `bambulab_network_rtt{interface}` and `bambulab_network_retransmissions{interface}`.
+  The last two are reported by the printer; their unit and meaning are not confirmed.
+- `bambulab_active_nozzle_temperature_celsius`: temperature of the nozzle in use. On dual-nozzle
+  printers `bambulab_nozzle_temperature_celsius` is extruder 0 and can read an idle nozzle during a
+  print. That metric does not change. The example dashboard, alert and recording rule now use the new
+  metric, so re-import them to benefit.
 - Images are also published to Docker Hub as `blackbush/bambulab_metrics_exporter`
   (releases: `<version>` and `latest`; develop: `develop` and `develop-<short-sha>`), alongside
   GHCR. The release workflow syncs the README to the Docker Hub description and can be run
   manually to re-publish an existing release tag. Docker Hub publishing is skipped when its
   credentials are not set. Earlier releases (0.1.0 to 0.2.1) were copied to Docker Hub.
+- New metrics from data recent printers already send: `bambulab_job_state_info` (job phase),
+  `bambulab_print_stage_countdown_seconds`, `bambulab_filament_change_step_info`,
+  `bambulab_extruder_buffer_filament_present`, `bambulab_extruder_nozzle_present`,
+  `bambulab_extruder_extrusion_direction_info` and `bambulab_ams_slot_present` (spool in slot,
+  with or without a tag). Printers that do not send a field get no series. No existing metric
+  changes.
 
 ### Changed
+- Grafana: the example dashboard lists every panel type it uses (Bar gauge, State timeline and Table
+  were missing), and `examples/grafana/` holds a Grafana.com README, short description and
+  screenshots in `images/`. The dashboard screenshot moved to
+  `examples/grafana/images/bambulab-dashboard-0-full.png`.
+- The README is shorter: it introduces the exporter, its features and supported printers, and keeps
+  a short quick start. Setup details, the variable list and the metrics overview are in the wiki,
+  and the wiki home page gains "How it works" and "Known limitations". New dashboard screenshot.
+- Grafana: new panels for metrics the exporter already sent: camera recording, timelapse, top lid
+  and wired or Wi-Fi network (Printer Status); file download progress, job source, speed
+  percentage, skipped objects and fail reason (Print Progress); drying phase, drying duration and
+  why drying cannot start (AMS); firmware upgrade progress (Health & Firmware); and a Nozzle Type
+  column in the Extruder Status table. Empty cells in that table show "-". No metric changes.
+- Grafana: the Nozzle Temperature gauge uses a fixed scale that ends at the model's nozzle limit
+  (350 °C on H models such as the H2 family and H3C, 320 °C on the X1E, 300 °C on other models), so its fill and colors no
+  longer shift with the data. It shows only the active nozzle's temperature.
+- Grafana: the sample dashboard is reorganized into fewer, clearer rows (Printer Status, Print
+  Progress, Temperatures, Extruders & Nozzles, AMS, Airduct, Lights & Storage, Health & Firmware,
+  Trending Metrics, Exporter Health). Duplicate panels are removed: the Up stat (replaced by
+  Printer Connection, since Up stays 1 on cached data), Nozzle Diameter (shown by Active Nozzle
+  Type), the Nozzle Temperature trend (covered by the temperature charts), and Filament at
+  Extruder and Loaded Slot (now columns of the Extruder Status table). The Up trend now shows
+  the printer connection as a timeline, and Accessories shows "None detected" when nothing is
+  found. No metric changes. Re-import the sample dashboard to get the new layout.
+- Grafana: the SD Card panel is now "SD / USB Storage", because an H2D reports a USB drive through
+  the same field. Re-import the sample dashboard to get the new title. No metric changes.
+- The `/auth` page limits verification emails to 5 sends 60 seconds apart, then waits 10
+  minutes, then 1 hour after each later round. A successful login resets the limit, and it
+  survives restarts. After a Send code press the button shows the time left and is
+  disabled until then; a fresh page load starts with the button active. Every action on
+  the page (Send code, Log in, Connect locally, Reset) now runs in the background and the
+  page stays open, so a refresh never submits a form again. Without JavaScript each
+  action posts and redirects back to `/auth`.
 - Setup docs lead with the `/auth` page: the README and wiki Quick Start start the container
   with only `BAMBULAB_SECRET_KEY` and a config volume, then connect the printer in the browser.
   Printer connection and login env vars are documented as optional.
@@ -19,10 +85,6 @@ All notable changes to this project are documented in this file.
   Serial are no longer required; printer and login fields are optional advanced settings with
   clearer descriptions; `PRINTER_NAME` (ignored by the exporter) is replaced by
   `PRINTER_NAME_LABEL`; new `BAMBULAB_REQUEST_PUSHALL` option and a link to the wiki.
-- README rewritten for non-technical users: plain-language intro with the dashboard
-  screenshot, one place per topic (setup, connecting the printer, env vars, Prometheus and
-  Grafana), a short metrics highlight table linking to the full Metrics Reference, and updated
-  limitations. Duplicated PromQL examples and the full metrics table now live only in the wiki.
 - Wiki: one home per topic. Quick Start covers the browser setup and the `/auth` page;
   Installation covers install methods (GHCR, Compose, local build, Unraid) and the env-variable
   and command-line cloud login; duplicated `/auth` and cloud-code sections removed. Grafana
@@ -40,6 +102,17 @@ All notable changes to this project are documented in this file.
   obsolete `PRINTER_NAME`, `SITE`, `LOCATION` and unused `RECONNECT_INTERVAL_SECONDS`.
 
 ### Fixed
+- Grafana: the Nozzle Temperature gauge now uses the same green, orange and red threshold colors
+  as the Bed and Chamber gauges, and keeps its last value through a missed sample.
+- MQTT logs show the masked serial and no longer show the topic or the MQTT user name (the cloud
+  user id). The MQTT library still prints topics when `LOG_LEVEL=DEBUG`.
+- Encrypted credential and settings files are written atomically, so a crash cannot truncate them.
+- `/auth/local` with a saved printer list adds the printer to the list; it used to report success
+  without changing anything.
+- A page login keeps its token after a restart when no cloud printer is saved yet, so the printer
+  picker still appears.
+- `bambulab_print_stage_info` / `bambulab_stg_cur` report `idle` after a cancelled print; the
+  printer kept reporting the last stage while `gcode_state` was `FAILED`.
 - Unraid template category is `Tools:Utilities Network:Management`; the previous value
   produced Community Applications errors (`Unknown category "Monitoring"`).
 
@@ -87,7 +160,7 @@ All notable changes to this project are documented in this file.
   "Supported models"), replacing scattered model checks.
 - Model codes: `O2D` and the cloud short name `H2DP` (H2D Pro), `A1M`, `A04`, `A12`, `N2`
   (A1 mini), `A11` (A1), and `-V2` hardware revisions (`N6-V2`, `O1D-V2`, `O1C2-V2`, ...).
-- R1 laser engraver (serial prefix `35F`, Bambu Studio code `N8`) is recognized as model `R1`;
+- R1 laser engraver (serial prefix `35F`, model code `N8`) is recognized as model `R1`;
   no FDM metrics are reported for it.
 - `bambulab_filament_tangle_detection_enabled`: the tangle-detection setting, NaN when the
   printer does not support it.
@@ -227,8 +300,7 @@ All notable changes to this project are documented in this file.
   re-authentication never started. Any 401/403 with no successful endpoint now counts as
   rejected credentials.
 - Removed the `api-eu.bambulab.com` API endpoint: the host does not exist (it never resolved)
-  and caused the DNS failure above. Bambu Studio and ha-bambulab use only `api.bambulab.com`
-  outside China.
+  and caused the DNS failure above. `api.bambulab.com` serves every region outside China.
 - After a successful token refresh at startup, the MQTT client was still built with the old
   token and failed with `Not authorized`. Refreshed credentials now apply to the running
   configuration.
