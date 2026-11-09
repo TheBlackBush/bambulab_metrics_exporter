@@ -44,6 +44,9 @@ All notable changes to this project are documented in this file.
   changes.
 
 ### Changed
+- The README is shorter: it introduces the exporter, its features and supported printers, and keeps
+  a short quick start. Setup details, the variable list and the metrics overview are in the wiki,
+  and the wiki home page gains "How it works" and "Known limitations". New dashboard screenshot.
 - Grafana: new panels for metrics the exporter already sent: camera recording, timelapse, top lid
   and wired or Wi-Fi network (Printer Status); file download progress, job source, speed
   percentage, skipped objects and fail reason (Print Progress); drying phase, drying duration and
