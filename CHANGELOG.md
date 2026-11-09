@@ -17,6 +17,7 @@ All notable changes to this project are documented in this file.
 - Unraid template: the Requires field lists everything needed: the printer (LAN details or a
   Bambu Cloud account), the Secret Key, Prometheus (job name with `bambulab`) and Grafana with
   dashboard 25033 and the Business Text plugin.
+- Community Applications profile (`ca_profile.xml`): updated overview text and a profile image.
 - `tmp/` is ignored by git.
 
 ## [0.3.0] - 2026-11-09
