@@ -15,7 +15,7 @@
   <WebUI>http://[IP]:[PORT:9109]/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/TheBlackBush/bambulab_metrics_exporter/main/unraid-bambulab-metrics-exporter.xml</TemplateURL>
   <Icon>https://raw.githubusercontent.com/TheBlackBush/bambulab_metrics_exporter/main/docs/logo.png</Icon>
-  <Screenshot>https://raw.githubusercontent.com/TheBlackBush/bambulab_metrics_exporter/main/examples/grafana/dashboard-sample.jpg</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/TheBlackBush/bambulab_metrics_exporter/main/examples/grafana/images/bambulab-dashboard-0-full.png</Screenshot>
   <Requires>Prometheus to collect the metrics, and Grafana to chart them (ready-made dashboard: grafana.com ID 25033).</Requires>
   <License>GPL-3.0</License>
   <Changes>Release notes: https://github.com/TheBlackBush/bambulab_metrics_exporter/blob/main/CHANGELOG.md</Changes>

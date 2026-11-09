@@ -44,6 +44,10 @@ All notable changes to this project are documented in this file.
   changes.
 
 ### Changed
+- Grafana: the example dashboard lists every panel type it uses (Bar gauge, State timeline and Table
+  were missing), and `examples/grafana/` holds a Grafana.com README, short description and
+  screenshots in `images/`. The dashboard screenshot moved to
+  `examples/grafana/images/bambulab-dashboard-0-full.png`.
 - The README is shorter: it introduces the exporter, its features and supported printers, and keeps
   a short quick start. Setup details, the variable list and the metrics overview are in the wiki,
   and the wiki home page gains "How it works" and "Known limitations". New dashboard screenshot.
