@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-09
+
 ### Added
 - `bambulab_accessory_present{accessory="filament_buffer"}` also detects an external filament
   buffer by its `ahbc` module name when the module has no product name. The buffer built into
@@ -69,12 +71,6 @@ All notable changes to this project are documented in this file.
   found. No metric changes. Re-import the sample dashboard to get the new layout.
 - Grafana: the SD Card panel is now "SD / USB Storage", because an H2D reports a USB drive through
   the same field. Re-import the sample dashboard to get the new title. No metric changes.
-- Grafana: new **Job & Filament Change** row with job state, stage countdown, an Extruder Status
-  table (filament change step shown in plain words, feed direction, nozzle, buffer) and spools
-  per AMS unit, built on the new metrics above. Re-import the sample dashboard to get it.
-- Grafana: Printer Status shows the live printer connection and exporter health (poll result,
-  time since the last successful poll, poll duration); Temperatures shows the active nozzle, its
-  type and per-extruder nozzle temperatures on dual-nozzle printers. These use existing metrics.
 - The `/auth` page limits verification emails to 5 sends 60 seconds apart, then waits 10
   minutes, then 1 hour after each later round. A successful login resets the limit, and it
   survives restarts. After a Send code press the button shows the time left and is
@@ -89,10 +85,6 @@ All notable changes to this project are documented in this file.
   Serial are no longer required; printer and login fields are optional advanced settings with
   clearer descriptions; `PRINTER_NAME` (ignored by the exporter) is replaced by
   `PRINTER_NAME_LABEL`; new `BAMBULAB_REQUEST_PUSHALL` option and a link to the wiki.
-- README rewritten for non-technical users: plain-language intro with the dashboard
-  screenshot, one place per topic (setup, connecting the printer, env vars, Prometheus and
-  Grafana), a short metrics highlight table linking to the full Metrics Reference, and updated
-  limitations. Duplicated PromQL examples and the full metrics table now live only in the wiki.
 - Wiki: one home per topic. Quick Start covers the browser setup and the `/auth` page;
   Installation covers install methods (GHCR, Compose, local build, Unraid) and the env-variable
   and command-line cloud login; duplicated `/auth` and cloud-code sections removed. Grafana

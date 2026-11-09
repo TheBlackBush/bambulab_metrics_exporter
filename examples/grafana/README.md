@@ -12,7 +12,7 @@ Panels for hardware your printer does not have show a placeholder ("No heater", 
 |---|---|
 | Grafana | Built with 12.4, tested on 13.3 |
 | Prometheus | 2.40+ |
-| [bambulab_metrics_exporter](https://github.com/TheBlackBush/bambulab_metrics_exporter) | 0.2.0+ (older versions leave the newer panels empty) |
+| [bambulab_metrics_exporter](https://github.com/TheBlackBush/bambulab_metrics_exporter) | 0.3.0+ (older versions leave the newer panels empty) |
 | Business Text plugin (`marcusolsson-dynamictext-panel`) | 6.x |
 
 ### Business Text plugin (AMS inventory panel)
