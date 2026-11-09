@@ -4,7 +4,7 @@ A ready-made dashboard is published on
 [Grafana.com (ID 25033)](https://grafana.com/grafana/dashboards/25033-bambulab-metrics/) and
 included in the repository as `examples/grafana/dashboard.sample.json`.
 
-![Dashboard Sample](https://github.com/TheBlackBush/bambulab_metrics_exporter/blob/main/examples/grafana/dashboard-sample.jpg?raw=true)
+![Dashboard Sample](https://github.com/TheBlackBush/bambulab_metrics_exporter/blob/main/examples/grafana/images/bambulab-dashboard-0-full.png?raw=true)
 
 ---
 

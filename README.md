@@ -14,7 +14,7 @@ printer's live status over your home network or through Bambu Cloud, and publish
 [Prometheus](https://prometheus.io/) to collect and [Grafana](https://grafana.com/) to chart.
 Watch prints, temperatures, filament and errors on a dashboard, keep history, and get alerts.
 
-![Grafana dashboard sample](examples/grafana/dashboard-sample.jpg)
+![Grafana dashboard sample](examples/grafana/images/bambulab-dashboard-0-full.png)
 
 ## Features
 

@@ -1,0 +1,1 @@
+Bambu Lab 3D printer monitoring: print progress, temperatures, fans, AMS filament and drying, extruders, HMS errors and firmware, for bambulab-metrics-exporter.
