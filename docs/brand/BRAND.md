@@ -68,6 +68,7 @@ text 24 px and up, never for body text.
 | `png/icon-48/180/192/512.png` | Icon tile (180 = apple-touch-icon, 192/512 = web manifest). |
 | `png/favicon-16.png`, `png/favicon-32.png` | Favicons. |
 | `png/lockup-2400x640.png`| Lockup at 2×, transparent background. |
+| `svg/social-preview.svg`, `png/social-preview-1280x640.png`, `png/social-preview-2560x1280.png` | GitHub social preview (white, lockup centered, green base bar). Upload the 1280×640 PNG. |
 
 ## Usage rules
 
@@ -99,5 +100,6 @@ text 24 px and up, never for body text.
    `favicon-32.png` as the PNG fallback, `icon-180.png` as `apple-touch-icon`,
    `icon-192.png` / `icon-512.png` in the web manifest, and `--bme-*` variables for colors.
 4. Grafana dashboards shipped with the exporter: use `#00AE42` as the primary series color.
-5. GitHub social preview (Settings → Social preview, 1280×640): place `lockup-2400x640.png`
-   centered on white.
+5. GitHub social preview: this is set in the repo UI, not in code. Open the repo →
+   Settings → General → Social preview → Edit → Upload an image, and choose
+   `png/social-preview-1280x640.png` (GitHub wants at least 640×320, under 1 MB).
