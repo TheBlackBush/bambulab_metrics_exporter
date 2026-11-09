@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/TheBlackBush/bambulab_metrics_exporter/main/docs/brand/svg/icon.svg">
+    <img src="https://raw.githubusercontent.com/TheBlackBush/bambulab_metrics_exporter/main/docs/brand/png/lockup-2400x640.png" alt="bambulab_metrics_exporter" height="120">
+  </picture>
+</p>
+
 # bambulab_metrics_exporter
 
 See your Bambu Lab 3D printer in Grafana: print progress, temperatures, fans, AMS filament and

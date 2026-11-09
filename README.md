@@ -1,4 +1,13 @@
-# bambulab-metrics-exporter
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/svg/icon.svg">
+    <img src="docs/brand/png/lockup-2400x640.png" alt="bambulab_metrics_exporter" height="160">
+  </picture>
+</p>
+
+<p align="center"><em>Not affiliated with Bambu Lab.</em></p>
+
+# bambulab_metrics_exporter
 
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/downloads/release/python-3110/)
 [![GitHub Release](https://img.shields.io/github/v/release/TheBlackBush/bambulab_metrics_exporter?style=for-the-badge)](https://github.com/TheBlackBush/bambulab_metrics_exporter/releases)
