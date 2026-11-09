@@ -18,6 +18,8 @@ All notable changes to this project are documented in this file.
   Bambu Cloud account), the Secret Key, Prometheus (job name with `bambulab`) and Grafana with
   dashboard 25033 and the Business Text plugin.
 - Community Applications profile (`ca_profile.xml`): updated overview text and a profile image.
+- `docs/logo.png` (the icon link in existing Unraid installs) now holds the new icon instead of
+  the Bambu Lab logo, so that link keeps working and shows the new logo when Unraid reloads it.
 - `tmp/` is ignored by git.
 
 ## [0.3.0] - 2026-11-09
