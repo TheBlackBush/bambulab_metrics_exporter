@@ -48,3 +48,6 @@ apk_app/
 *.apk
 *.apkm
 *.xapk
+
+# Local scratch files
+tmp/

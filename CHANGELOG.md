@@ -4,6 +4,24 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-09
+
+### Changed
+- New project logo. The README and wiki home page show it, the status and `/auth` pages use it
+  as their logo and favicon, and the Unraid template and Community Applications profile use it
+  as the app icon. The Bambu Lab logo is no longer shipped; the README states the project is not
+  affiliated with Bambu Lab. The brand kit, usage guide and GitHub social preview image are in
+  `docs/brand/`.
+- Grafana screenshots in `examples/grafana/images/` are rendered wider, so all AMS spool cards
+  fit on one row.
+- Unraid template: the Requires field lists everything needed: the printer (LAN details or a
+  Bambu Cloud account), the Secret Key, Prometheus (job name with `bambulab`) and Grafana with
+  dashboard 25033 and the Business Text plugin.
+- Community Applications profile (`ca_profile.xml`): updated overview text and a profile image.
+- `docs/logo.png` (the icon link in existing Unraid installs) now holds the new icon instead of
+  the Bambu Lab logo, so that link keeps working and shows the new logo when Unraid reloads it.
+- `tmp/` is ignored by git.
+
 ## [0.3.0] - 2026-11-09
 
 ### Added
