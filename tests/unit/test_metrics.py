@@ -1714,6 +1714,23 @@ class TestFirmwareAccessoryStageEdgeCases:
         m.update_from_snapshot(_snap({"aux": "zz"}))
         assert self._series(m, "bambulab_accessory_present") == []
 
+    def _buffer(self, modules: list[dict[str, object]]) -> float:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(
+            PrinterSnapshot(connected=True, raw={"print": {}, "info": {"module": modules}})
+        )
+        return m.accessory_present.labels(**self.labels, accessory="filament_buffer")._value.get()
+
+    def test_external_buffer_by_ahbc_module_name(self) -> None:
+        assert self._buffer([{"name": "ahbc", "product_name": ""}]) == 1.0
+        assert self._buffer([{"name": "ahbc/0"}]) == 1.0
+        assert self._buffer([{"name": " AHBC "}]) == 1.0
+
+    def test_builtin_h2_buffer_board_is_not_an_accessory(self) -> None:
+        # The H2 series reports its built-in buffer board as "ahb" with no product name.
+        assert self._buffer([{"name": "ahb", "hw_ver": "AHB03", "product_name": ""}]) == 0.0
+        assert self._buffer([{"name": "ahbcx"}, {"name": 7}, {"name": None}]) == 0.0
+
     def test_light_modes_unknown_and_foreign_nodes(self) -> None:
         m = ExporterMetrics(printer_name="test", serial="SN123")
         lights = [{"node": "heatbed_light", "mode": "pulse"}, {"node": "laser_light", "mode": "on"}]
