@@ -47,7 +47,7 @@ Watch prints, temperatures, filament and errors on a dashboard, keep history, an
 
 ## Supported printers
 
-X1, X1C, X1E, X2D, P1P, P1S, P2S, A1, A1 mini, A2L, H2D, H2D Pro, H2S and H2C are recognized.
+X1, X1C, X1E, X2D, P1P, P1S, P2S, A1, A1 mini, A2L, H2D, H2D Pro, H2S, H2C and H3C are recognized.
 Real-world testing so far is on an **X1C**, and an **H2D** was checked on real hardware while idle
 and while printing. Other models are recognized from their data and may report some values
 differently. If you own another model and want to help, please

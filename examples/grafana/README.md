@@ -84,7 +84,7 @@ bambulab_metrics_exporter  (:9109/metrics)
 Prometheus  ──►  Grafana
 ```
 
-Model detection covers the A1, A1 mini, A2L, P1P, P1S, P2S, X1, X1C, X1E, X2D, H2D, H2D Pro, H2S and H2C. Real-world validation so far is on an X1C and an H2D.
+Model detection covers the A1, A1 mini, A2L, P1P, P1S, P2S, X1, X1C, X1E, X2D, H2D, H2D Pro, H2S, H2C and H3C. Real-world validation so far is on an X1C and an H2D.
 
 ### Prometheus scrape config
 

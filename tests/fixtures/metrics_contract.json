@@ -23,6 +23,13 @@
   ],
   "type": "gauge"
  },
+ "bambulab_active_nozzle_temperature_celsius": {
+  "labels": [
+   "printer_name",
+   "serial"
+  ],
+  "type": "gauge"
+ },
  "bambulab_airduct_fan_speed_percent": {
   "labels": [
    "printer_name",
@@ -65,6 +72,15 @@
    "ams_model",
    "ams_series",
    "state"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_ams_drying_blocked_reason_info": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "ams_id",
+   "reason"
   ],
   "type": "gauge"
  },
@@ -202,6 +218,90 @@
    "printer_name",
    "serial",
    "ams_id"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_ams_zone_drying_blocked_reason_info": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "ams_id",
+   "zone_id",
+   "reason"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_ams_zone_drying_duration_seconds": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "ams_id",
+   "zone_id"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_ams_zone_drying_remaining_seconds": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "ams_id",
+   "zone_id"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_ams_zone_drying_target_temperature_celsius": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "ams_id",
+   "zone_id"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_ams_zone_heater_state_info": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "ams_id",
+   "zone_id",
+   "state"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_ams_zone_humidity": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "ams_id",
+   "zone_id"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_ams_zone_humidity_index": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "ams_id",
+   "zone_id"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_ams_zone_slot_info": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "ams_id",
+   "zone_id",
+   "slot_id"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_ams_zone_temperature_celsius": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "ams_id",
+   "zone_id"
   ],
   "type": "gauge"
  },
@@ -456,6 +556,14 @@
   ],
   "type": "gauge"
  },
+ "bambulab_firmware_upgrade_status_info": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "status"
+  ],
+  "type": "gauge"
+ },
  "bambulab_hms_active_errors": {
   "labels": [
    "printer_name",
@@ -590,6 +698,22 @@
   "labels": [
    "printer_name",
    "serial"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_network_retransmissions": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "interface"
+  ],
+  "type": "gauge"
+ },
+ "bambulab_network_rtt": {
+  "labels": [
+   "printer_name",
+   "serial",
+   "interface"
   ],
   "type": "gauge"
  },

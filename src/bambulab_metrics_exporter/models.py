@@ -35,6 +35,7 @@ PRODUCT_NAME_TO_PRINTER: dict[str, str] = {
     "bambu lab h2d": "H2D",
     "bambu lab h2d pro": "H2DPRO",
     "bambu lab h2s": "H2S",
+    "bambu lab h3c": "H3C",
     "bambu lab x1": "X1",
     "bambu lab x1 carbon": "X1C",
     "bambu lab x1e": "X1E",
@@ -59,6 +60,7 @@ _SN_PREFIX_TO_PRINTER: dict[str, str] = {
     "094": "H2D",
     "239": "H2DPRO",
     "31B": "H2C",
+    "32X": "H3C",
     # Laser engraver (model code N8).
     "35F": "R1",
 }
@@ -81,6 +83,7 @@ _MODEL_CODE_TO_PRINTER: dict[str, str] = {
     "O1D": "H2D",
     "O1E": "H2DPRO",
     "O1S": "H2S",
+    "N10": "H3C",
     # Alternate codes from newer firmware and the cloud device list.
     "O2D": "H2DPRO",
     "N2": "A1MINI",
@@ -191,6 +194,11 @@ AMS_MODEL_BY_MODULE_PREFIX: dict[str, str] = {
     "n3f": "ams_2_pro",
     "n3s": "ams_ht",
 }
+# get_version module names without a "/<id>" suffix → (AMS unit id, model). The AMS 3H
+# reports one module "n10a" for its unit id 32.
+AMS_MODEL_BY_MODULE_NAME: dict[str, tuple[str, str]] = {
+    "n10a": ("32", "ams_3h"),
+}
 
 # print_type values (job source); anything else is reported as "unknown".
 PRINT_TYPES: tuple[str, ...] = ("cloud", "local", "idle", "system", "unknown")
@@ -238,6 +246,7 @@ AMS_MODEL_TO_SERIES: dict[str, str] = {
     "ams_lite": "gen_1",
     "ams_2_pro": "gen_2",
     "ams_ht": "gen_2",
+    "ams_3h": "gen_3",
 }
 
 # ams_info bits 0-3 ams_type → model name (when valid / nonzero)
@@ -247,9 +256,13 @@ AMS_TYPE_TO_MODEL: dict[int, str] = {
     3: "ams_2_pro",
     4: "ams_ht",
     5: "ams_lite",  # AMS Lite on the A2L ("mixed" type)
+    6: "ams_3h",  # AMS 3H (H3C): 9 slots, humidity and drying per zone
 }
 
-HOTEND_RACK_SLOT_IDS: tuple[int, ...] = (16, 17, 18, 19, 20, 21)
+# Hotend rack slots in device.nozzle.info ids: 16 + rack address. The H2C rack has 6 slots
+# (16-21), the H3C rack 9 (16-24).
+HOTEND_RACK_SLOT_IDS: tuple[int, ...] = tuple(range(16, 25))
+HOTEND_RACK_DEFAULT_SLOTS = 6
 
 HOTEND_RACK_HOLDER_POSITION_NAMES: dict[int, str] = {
     1: "a_top",
@@ -457,6 +470,52 @@ def parse_ams_dry_block_reasons(unit: dict[str, Any]) -> list[str]:
         if name not in reasons:
             reasons.append(name)
     return reasons
+
+
+def parse_ams_zones(unit: dict[str, Any]) -> list[dict[str, Any]]:
+    """Humidity, temperature and drying zones of an AMS that reports them per zone
+    (`zone_info[]`, AMS 3H). Each zone keeps its own `humidity` (index 1-5),
+    `humidity_raw` (%), `temp` (°C), `info` (dryer state bits, as on the unit) and
+    `dry_time` / `dry_setting` / `dry_sf_reason` (as on an AMS 2 Pro). A zone can dry
+    only when it holds exactly two slots, as Bambu Studio decides. Zones with an id
+    outside 0-7 or a malformed entry are skipped."""
+    raw = unit.get("zone_info")
+    if not isinstance(raw, list):
+        return []
+    zones: list[dict[str, Any]] = []
+    seen: set[int] = set()
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        zone_id = to_int(item.get("zone_id"))
+        if zone_id is None or not 0 <= zone_id <= 7 or zone_id in seen:
+            continue
+        seen.add(zone_id)
+        slots: list[int] = []
+        raw_slots = item.get("zone_slots")
+        if isinstance(raw_slots, list):
+            for slot in raw_slots:
+                slot_id = to_int(slot)
+                if slot_id is not None and 0 <= slot_id <= 15 and slot_id not in slots:
+                    slots.append(slot_id)
+        humidity_raw = _to_float(item.get("humidity_raw"))
+        humidity_index = _to_float(item.get("humidity"))
+        zones.append(
+            {
+                "zone_id": zone_id,
+                "slots": slots,
+                "humidity_percent": humidity_raw
+                if humidity_raw is not None and 1.0 <= humidity_raw <= 100.0 else None,
+                "humidity_index": humidity_index
+                if humidity_index is not None and 1.0 <= humidity_index <= 5.0 else None,
+                "temperature": _to_float(item.get("temp")),
+                "info": _extract_ams_info(item),
+                "dryable": len(slots) == 2,
+                "drying": parse_ams_drying(item),
+                "blocked_reasons": parse_ams_dry_block_reasons(item),
+            }
+        )
+    return zones
 
 
 def _ams_status_name(code: int) -> str:
@@ -1168,7 +1227,7 @@ class PrinterSnapshot:
 
     @property
     def mounted_nozzle_entries(self) -> list[dict[str, Any]]:
-        """Nozzles mounted on an extruder (`device.nozzle.info[]` ids 0-15; 16-21 are rack
+        """Nozzles mounted on an extruder (`device.nozzle.info[]` ids 0-15; 16-24 are rack
         slots). Nozzle id 0 is extruder 0 (right on dual-extruder models), 1 extruder 1.
         `p_t` is the total print time in seconds; `wear` is passed through unscaled."""
         device = self.print_block.get("device")
@@ -1448,8 +1507,9 @@ class PrinterSnapshot:
     def ams_slots_present(self) -> dict[tuple[str, str], float]:
         """(ams_id, slot_id) to 1 when a spool sits in the slot, from the hex bitmask
         `ams.tray_exist_bits`. AMS, AMS lite and AMS 2 Pro (ids 0-3) use bit
-        ams_id * 4 + slot; AMS HT (ids 128-135, one slot) uses bit 16 + (ams_id - 128).
-        Units with any other id are left out rather than given a guessed bit."""
+        ams_id * 4 + slot; AMS HT (ids 128-135, one slot) uses bit 16 + (ams_id - 128);
+        AMS 3H (9 slots) uses bit 28 + slot. Units with any other id are left out rather
+        than given a guessed bit."""
         ams = self.print_block.get("ams")
         raw = ams.get("tray_exist_bits") if isinstance(ams, dict) else None
         if not isinstance(raw, str) or not raw.strip():
@@ -1459,6 +1519,7 @@ class PrinterSnapshot:
         if not re.fullmatch(r"(?:0[xX])?[0-9a-fA-F]+", text):
             return {}
         bits = int(text, 16)
+        models = {str(to_int(u.get("id"))): u["ams_model"] for u in self.ams_units_with_model}
         out: dict[tuple[str, str], float] = {}
         for unit in self.ams_units:
             ams_id = to_int(unit.get("id"))
@@ -1471,7 +1532,11 @@ class PrinterSnapshot:
                 slot = to_int(tray.get("id"))
                 if slot is None or slot < 0:
                     continue
-                if 0 <= ams_id <= 3 and slot <= 3:
+                if models.get(str(ams_id)) == "ams_3h":
+                    if slot > 8:
+                        continue
+                    bit = 28 + slot
+                elif 0 <= ams_id <= 3 and slot <= 3:
                     bit = ams_id * 4 + slot
                 elif 128 <= ams_id <= 135 and slot == 0:
                     bit = 16 + ams_id - 128
@@ -1828,7 +1893,7 @@ class PrinterSnapshot:
             return []
 
         out: list[dict[str, str]] = []
-        for slot_id in HOTEND_RACK_SLOT_IDS:
+        for slot_id in self._hotend_rack_slot_ids(exist):
             if tar_id == slot_id:
                 state = "mounted"
             elif isinstance(exist, int) and (exist & (1 << slot_id)) != 0:
@@ -1837,6 +1902,16 @@ class PrinterSnapshot:
                 state = "empty"
             out.append({"slot_id": str(slot_id), "state": state})
         return out
+
+    def _hotend_rack_slot_ids(self, exist: int | None) -> tuple[int, ...]:
+        """Rack slots to report: the model's slot count (6 on the H2C, 9 on the H3C), or
+        more when the payload shows a higher slot docked, so an unknown 9-slot rack still
+        reports every slot."""
+        count = max(self.capabilities.hotend_rack_slots, HOTEND_RACK_DEFAULT_SLOTS)
+        for index, slot_id in enumerate(HOTEND_RACK_SLOT_IDS):
+            if isinstance(exist, int) and exist >= 0 and exist & (1 << slot_id):
+                count = max(count, index + 1)
+        return HOTEND_RACK_SLOT_IDS[:count]
 
     @property
     def hotend_rack_hotend_entries(self) -> list[dict[str, Any]]:
@@ -2140,7 +2215,13 @@ class PrinterSnapshot:
         models: dict[str, str] = {}
         for mod in self.modules:
             name = mod.get("name")
-            if not isinstance(name, str) or "/" not in name:
+            if not isinstance(name, str):
+                continue
+            whole = AMS_MODEL_BY_MODULE_NAME.get(name.strip().lower())
+            if whole is not None:
+                models[whole[0]] = whole[1]
+                continue
+            if "/" not in name:
                 continue
             prefix, _, unit_id = name.partition("/")
             model = AMS_MODEL_BY_MODULE_PREFIX.get(prefix.strip().lower())

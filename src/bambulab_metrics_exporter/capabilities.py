@@ -26,6 +26,7 @@ class ModelCapabilities:
     chamber_fan: bool = True  # big_fan2
     dual_extruder: bool = False
     hotend_rack: bool = False
+    hotend_rack_slots: int = 6  # slots reported as series when the model has a rack
     laser_cut: bool = False  # laser / cutter tool heads
     fdm: bool = True
 
@@ -59,6 +60,11 @@ CAPABILITIES: dict[str, ModelCapabilities] = {
     "H2C": ModelCapabilities(
         chamber_heater=True, door_source=DOOR_STAT, lid_sensor=True, dual_extruder=True,
         hotend_rack=True, laser_cut=True,
+    ),
+    # Tool changer: one extruder and a 9-slot hotend rack; no laser or cutter. Door and lid
+    # sources are not confirmed on real hardware, so they stay permissive.
+    "H3C": ModelCapabilities(
+        chamber_heater=True, door_source=DOOR_AUTO, hotend_rack=True, hotend_rack_slots=9,
     ),
     # Laser engraver (model code N8, serial prefix 35F): no FDM hardware.
     "R1": ModelCapabilities(

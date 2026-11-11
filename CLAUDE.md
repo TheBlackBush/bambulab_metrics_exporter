@@ -774,7 +774,7 @@ Evidence at the time this manual was created:
   Pydantic settings, Uvicorn, cryptography/Fernet, and dotenv.
 - Local and cloud MQTT modes work through the same client architecture. Cloud supports OTP
   authentication, encrypted credential persistence, and refresh-token recovery. Model
-  detection recognizes A1/A1 Mini/A2L, P1P/P1S/P2S, H2C/H2D/H2D Pro/H2S, X1/X1C/X1E/X2D and
+  detection recognizes A1/A1 Mini/A2L, P1P/P1S/P2S, H2C/H2D/H2D Pro/H2S/H3C, X1/X1C/X1E/X2D and
   AMS variants; only X1C is stated as real-world validated (the H2D was checked on real hardware while idle and while printing). The serial prefix (payload
   `print.sn` or configured `BAMBULAB_SERIAL`) is the main identity source because pushall
   omits identity fields. `print.device.type` is a mode bitmask and `print.model_id` an

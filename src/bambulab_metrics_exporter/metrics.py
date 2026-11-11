@@ -14,6 +14,7 @@ from bambulab_metrics_exporter.models import (
     parse_ams_dry_block_reasons,
     parse_ams_drying,
     parse_ams_info,
+    parse_ams_zones,
 )
 
 
@@ -392,6 +393,62 @@ class ExporterMetrics:
             "bambulab_ams_drying_blocked_reason_info",
             "Why this AMS cannot start drying now (drying_in_progress while it runs)",
             [*label_names, "ams_id", "reason"],
+            registry=self.registry,
+        )
+        # AMS units that report humidity and drying per zone (AMS 3H).
+        zone_labels = [*label_names, "ams_id", "zone_id"]
+        self.ams_zone_slot_info = Gauge(
+            "bambulab_ams_zone_slot_info",
+            "AMS slot belonging to a humidity/drying zone (1 per slot)",
+            [*zone_labels, "slot_id"],
+            registry=self.registry,
+        )
+        self.ams_zone_humidity = Gauge(
+            "bambulab_ams_zone_humidity",
+            "AMS zone humidity in percent",
+            zone_labels,
+            registry=self.registry,
+        )
+        self.ams_zone_humidity_index = Gauge(
+            "bambulab_ams_zone_humidity_index",
+            "AMS zone humidity index (1-5, 5 is driest)",
+            zone_labels,
+            registry=self.registry,
+        )
+        self.ams_zone_temperature_celsius = Gauge(
+            "bambulab_ams_zone_temperature_celsius",
+            "AMS zone temperature",
+            zone_labels,
+            registry=self.registry,
+        )
+        self.ams_zone_heater_state_info = Gauge(
+            "bambulab_ams_zone_heater_state_info",
+            "AMS zone dryer state as labeled info metric (zones that can dry)",
+            [*zone_labels, "state"],
+            registry=self.registry,
+        )
+        self.ams_zone_drying_remaining_seconds = Gauge(
+            "bambulab_ams_zone_drying_remaining_seconds",
+            "Remaining AMS zone drying time (0 when not drying)",
+            zone_labels,
+            registry=self.registry,
+        )
+        self.ams_zone_drying_target_temperature = Gauge(
+            "bambulab_ams_zone_drying_target_temperature_celsius",
+            "Configured AMS zone drying temperature",
+            zone_labels,
+            registry=self.registry,
+        )
+        self.ams_zone_drying_duration_seconds = Gauge(
+            "bambulab_ams_zone_drying_duration_seconds",
+            "Configured AMS zone drying duration",
+            zone_labels,
+            registry=self.registry,
+        )
+        self.ams_zone_drying_blocked_reason_info = Gauge(
+            "bambulab_ams_zone_drying_blocked_reason_info",
+            "Why this AMS zone cannot start drying now (drying_in_progress while it runs)",
+            [*zone_labels, "reason"],
             registry=self.registry,
         )
 
@@ -955,6 +1012,8 @@ class ExporterMetrics:
                         **labels, ams_id=ams_id, reason=reason
                     ).set(1.0)
 
+            self._update_ams_zones(labels, ams_id, ams)
+
             raw_trays = ams.get("tray")
             trays = [t for t in raw_trays if isinstance(t, dict)] if isinstance(raw_trays, list) else []
             for tray in trays:
@@ -983,6 +1042,37 @@ class ExporterMetrics:
                     **labels, ams_id=ams_id, slot_id=tray_id, tray_type=tray_type, tray_color=tray_color
                 ).set(1.0)
 
+
+    def _update_ams_zones(
+        self, labels: dict[str, str], ams_id: str, ams: dict[str, object]
+    ) -> None:
+        for zone in parse_ams_zones(ams):
+            zl = {**labels, "ams_id": ams_id, "zone_id": str(zone["zone_id"])}
+            for slot_id in zone["slots"]:
+                self.ams_zone_slot_info.labels(**zl, slot_id=str(slot_id)).set(1.0)
+            for gauge, key in (
+                (self.ams_zone_humidity, "humidity_percent"),
+                (self.ams_zone_humidity_index, "humidity_index"),
+                (self.ams_zone_temperature_celsius, "temperature"),
+            ):
+                if zone[key] is not None:
+                    gauge.labels(**zl).set(zone[key])
+            if not zone["dryable"]:
+                continue
+            info = zone["info"]
+            if isinstance(info, int):
+                state = ams_dry_state_name(parse_ams_info(info)["dry_heater_state"])
+                self.ams_zone_heater_state_info.labels(**zl, state=state).set(1.0)
+            drying = zone["drying"]
+            for gauge, key in (
+                (self.ams_zone_drying_remaining_seconds, "remaining_seconds"),
+                (self.ams_zone_drying_target_temperature, "target_temperature"),
+                (self.ams_zone_drying_duration_seconds, "duration_seconds"),
+            ):
+                if drying[key] is not None:
+                    gauge.labels(**zl).set(drying[key])
+            for reason in zone["blocked_reasons"]:
+                self.ams_zone_drying_blocked_reason_info.labels(**zl, reason=reason).set(1.0)
 
     @staticmethod
     def _format_color(raw: str | None) -> str:
@@ -1030,6 +1120,18 @@ class ExporterMetrics:
         self.ams_drying_target_temperature.clear()
         self.ams_drying_duration_seconds.clear()
         self.ams_drying_blocked_reason_info.clear()
+        for gauge in (
+            self.ams_zone_slot_info,
+            self.ams_zone_humidity,
+            self.ams_zone_humidity_index,
+            self.ams_zone_temperature_celsius,
+            self.ams_zone_heater_state_info,
+            self.ams_zone_drying_remaining_seconds,
+            self.ams_zone_drying_target_temperature,
+            self.ams_zone_drying_duration_seconds,
+            self.ams_zone_drying_blocked_reason_info,
+        ):
+            gauge.clear()
 
     def mark_scrape(self, duration_seconds: float, success: bool, now_ts: float | None = None) -> None:
         labels = self._labels()
