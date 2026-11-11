@@ -58,7 +58,8 @@ All other panels use built-in Grafana panel types.
 - **AMS**: AMS model and status, auto refill, tangle detection setting, spools per unit, dryer
   state, filament inventory (Business Text spool cards), AMS temperature and humidity, drying
   time left and target, drying phase (heating or dehumidifying), set drying duration, why drying
-  cannot start, AMS temperature trend
+  cannot start, AMS temperature trend, and an AMS Zones table (AMS 3H on the H3C: humidity,
+  temperature and drying per zone; "No AMS zones" on other printers)
 - **Airduct, Lights & Storage**: airduct mode and fan speeds, light states, timelapse storage
 - **Health & Firmware**: active HMS errors by severity and module, firmware update available,
   firmware upgrade progress, printer and module firmware versions

@@ -20,6 +20,8 @@ All notable changes to this project are documented in this file.
   labelled `ams_id` and `zone_id`. The AMS 3H has no unit-level humidity, temperature or drying
   values, so those metrics are not exported for it. Existing metrics and the H2C's 6 rack slots
   do not change.
+- Grafana: an AMS Zones table under the AMS row shows humidity, temperature and drying per zone
+  for the AMS 3H. Re-import the sample dashboard to get it.
 
 ## [0.3.1] - 2026-11-09
 
