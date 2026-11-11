@@ -53,7 +53,6 @@ Full documentation is in the **[wiki](https://github.com/TheBlackBush/bambulab_m
 | P | P1P, P1S, P2S | |
 | X | X1, X1 Carbon, X1E, X2D | X1 Carbon |
 | H | H2C, H2D, H2D Pro, H2S, H3C | H2D (idle and printing) |
-| Laser | R1 | |
 
 AMS units: **AMS**, **AMS Lite**, **AMS 2 Pro**, **AMS HT** and **AMS 3H**, plus the external spool.
 
