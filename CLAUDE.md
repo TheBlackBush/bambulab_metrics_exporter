@@ -136,6 +136,20 @@ Important boundaries:
   `message`, plus `wait_seconds` for send-code) with no flash, and without that header they
   redirect to `/auth` as before (no-JavaScript fallback).
   Preserve endpoint contracts.
+- `src/bambulab_metrics_exporter/diagnostics.py`: the diagnostic report and the payload
+  sanitizer shared with `sanitize_fixture.py`. `api.py` serves the page `GET /diagnostics`
+  (`templates/diagnostics.html`: run, show, copy, download, open a prefilled GitHub issue;
+  linked from `/` and `/auth`) and the JSON `GET /diagnostics/report` (`?download=1`), both
+  behind the `/auth` Host guard. Inputs come from
+  `ExporterRuntime.diagnostics_inputs()` / `PrinterFleet.diagnostics_inputs()` and
+  `PollingCollector.last_snapshot`; recent log lines from `RecentLogHandler` (installed by
+  `configure_logging`). Everything leaving it is sanitized: serials keep only the 3-character
+  model prefix; addresses, names, job/file/account ids and credentials are removed. Add any new
+  identifying payload field to the sanitizer and `tests/unit/test_diagnostics.py`. Users attach
+  the report through `.github/ISSUE_TEMPLATE/diagnostic.yml`; wiki page `Diagnostic-Report.md`.
+  `diagnostics.detect_model` names the model without printer data (serial prefix or configured
+  model); `ExporterRuntime.detected_model()` feeds the `model` field of
+  `PrinterFleet.printers_status()`, and an empty value shows **Unsupported printer** on `/auth`.
 - `src/bambulab_metrics_exporter/cloud_auth.py`: Bambu Cloud HTTP/OTP CLI, token refresh,
   device discovery, bounded HTTP retry/backoff, and credential output. Never expose
   response bodies, emails, tokens, codes, or device IDs carelessly.
@@ -162,7 +176,8 @@ Important boundaries:
 - `tests/fixtures/printers/`: one sanitized real payload per model (14: 12 from public
   MIT-licensed sample data, attribution in its README; one from the maintainer's X1C and one from the maintainer's H2D), checked by
   `tests/unit/test_printer_fixtures.py`. Add new captures only through
-  `sanitize_fixture.py` and review the output; never commit a raw capture.
+  `sanitize_fixture.py` (it uses the sanitizer in `diagnostics.py`) and review the output;
+  never commit a raw capture.
 
 ## Packaging, deployment, and automation
 

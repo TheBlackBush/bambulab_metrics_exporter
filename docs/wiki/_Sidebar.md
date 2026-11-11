@@ -8,3 +8,4 @@
 - [[Grafana-Dashboard|Grafana Dashboard]]
 - [[Metrics-Reference|Metrics Reference]]
 - [[Troubleshooting]]
+- [[Diagnostic-Report|Diagnostic Report]]

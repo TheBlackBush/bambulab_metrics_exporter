@@ -16,6 +16,7 @@ from prometheus_client.metrics_core import Metric
 from bambulab_metrics_exporter.client.base import BambuClient
 from bambulab_metrics_exporter.client.factory import build_client
 from bambulab_metrics_exporter.config import Settings
+from bambulab_metrics_exporter.diagnostics import PrinterDiagnostics
 from bambulab_metrics_exporter.metrics import ExporterMetrics
 from bambulab_metrics_exporter.overrides import lock as overrides_lock
 from bambulab_metrics_exporter.printers import (
@@ -193,6 +194,9 @@ class PrinterFleet:
     def ready(self) -> bool:
         return any([runtime.ready for runtime in self._snapshot()])
 
+    def diagnostics_inputs(self) -> list[PrinterDiagnostics]:
+        return [item for runtime in self._snapshot() for item in runtime.diagnostics_inputs()]
+
     @property
     def saved(self) -> bool:
         return self._store.load() is not None
@@ -303,6 +307,8 @@ class PrinterFleet:
                 "transport": config.transport if config else str(settings.bambulab_transport),
                 "state": status["state"],
                 "message": status["message"],
+                # Empty when the exporter does not recognize the printer model.
+                "model": runtime.detected_model() or "",
             })
         return out
 

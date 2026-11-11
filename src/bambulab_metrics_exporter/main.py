@@ -98,6 +98,7 @@ def log_web_endpoints(settings: Settings) -> None:
         "",
         f"    Status page:         {url}/",
         f"    Printer connection:  {url}/auth",
+        f"    Diagnostics:         {url}/diagnostics",
         f"    Prometheus metrics:  {url}/metrics",
         f"    Health:              {url}/health",
         f"    Readiness:           {url}/ready",

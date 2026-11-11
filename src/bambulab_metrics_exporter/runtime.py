@@ -20,6 +20,7 @@ from bambulab_metrics_exporter.client.factory import build_client
 from bambulab_metrics_exporter.cloud_auth import get_bind_devices
 from bambulab_metrics_exporter.collector import PollingCollector
 from bambulab_metrics_exporter.config import Settings
+from bambulab_metrics_exporter.diagnostics import PrinterDiagnostics, detect_model
 from bambulab_metrics_exporter.env_sync import sync_env_file
 from bambulab_metrics_exporter.metrics import ExporterMetrics
 from bambulab_metrics_exporter.overrides import overridden_keys
@@ -159,6 +160,21 @@ class ExporterRuntime:
         if collector is not None and collector.ready:
             self._ever_ready = True
         return self._ever_ready
+
+    def detected_model(self) -> str | None:
+        """The printer model as far as the exporter can tell (None: not recognized)."""
+        with self._lock:
+            settings, collector = self.settings, self.collector
+        snapshot = collector.last_snapshot if collector is not None else None
+        return detect_model(settings, snapshot)[0]
+
+    def diagnostics_inputs(self) -> list[PrinterDiagnostics]:
+        """Raw inputs for the diagnostic report (sanitized by the report builder)."""
+        with self._lock:
+            settings, state, message = self.settings, self.state, self.message
+            collector = self.collector
+        snapshot = collector.last_snapshot if collector is not None else None
+        return [PrinterDiagnostics(settings, state, message, self.ready, snapshot, self.metrics)]
 
     def start(self) -> None:
         self._thread = threading.Thread(target=self._run, name="exporter-runtime", daemon=True)

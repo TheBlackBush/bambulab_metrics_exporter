@@ -13,98 +13,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 from pathlib import Path
-from typing import Any
 
-# Values replaced outright (key -> fake value or None to blank the value).
-_FIXED = {
-    "tag_uid": "0000000000000000",
-    "tray_uuid": "00000000000000000000000000000000",
-    "mac": "000000000000",
-    "ssid": "fixture-wifi",
-    "dev_name": "Fixture Printer",
-    "subtask_name": "fixture",
-    "gcode_file": "fixture.gcode.3mf",
-    "url": "",
-    "model_id": "FIXTUREMODELID00",
-    "task_id": "0",
-    "subtask_id": "0",
-    "job_id": "0",
-    "project_id": "0",
-    "profile_id": "0",
-    "design_id": "0",
-    "uid": "0",
-    "user_id": "0",
-    "mc_print_line": "",
-    "chip_id": "00000000000000000000000000000000",
-    "idx2": 0,
-    "t_utc": 0,
-}
-_SERIAL_KEYS = {"sn", "dev_id", "serial"}
-# 192.0.2.1 (RFC 5737 documentation range) as the printer's little-endian uint32.
-_FIXTURE_IP_INT = 192 + (0 << 8) + (2 << 16) + (1 << 24)
-# Valid IPv4 octets without leading zeros: Bambu firmware versions ("01.12.00.00")
-# always carry leading zeros, so they are never mistaken for addresses.
-_OCTET = r"(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)"
-_IPV4_RE = re.compile(rf"(?<![\w.]){_OCTET}(?:\.{_OCTET}){{3}}(?![\w.])")
-_EMAIL_RE = re.compile(r"[^@\s\"']+@[^@\s\"']+\.[a-z]{2,}", re.I)
-
-
-def _fake_serial(value: str) -> str:
-    if not value or value in {"REDACTED", "N/A"}:
-        return value
-    prefix = value[:3].upper()
-    return (prefix + "FIXTURE00000001")[: max(len(value), 15)]
-
-
-def _sanitize(obj: Any, serials: set[str]) -> Any:
-    if isinstance(obj, dict):
-        out: dict[str, Any] = {}
-        for key, value in obj.items():
-            if key in _SERIAL_KEYS and isinstance(value, str):
-                serials.add(value)
-                out[key] = _fake_serial(value)
-            elif key in _FIXED and isinstance(value, (str, int)) and value not in ("", 0):
-                out[key] = _FIXED[key]
-            elif key == "ams_id" and isinstance(value, str) and not value.strip().isdigit():
-                # A unit serial (some firmware), not the small numeric unit index.
-                out[key] = _fake_serial(value)
-            elif key == "ip" and isinstance(value, int) and value != 0:
-                out[key] = _FIXTURE_IP_INT
-            elif key == "rtsp_url" and isinstance(value, str) and value.startswith("rtsp"):
-                out[key] = "rtsps://192.0.2.1/streaming/live/1"
-            else:
-                out[key] = _sanitize(value, serials)
-        return out
-    if isinstance(obj, list):
-        return [_sanitize(item, serials) for item in obj]
-    if isinstance(obj, str):
-        text = _IPV4_RE.sub("192.0.2.1", obj)
-        return _EMAIL_RE.sub("operator@example.invalid", text)
-    return obj
-
-
-def _scrub_serial_mentions(obj: Any, serials: set[str]) -> Any:
-    """Replace serials that appear inside other strings (topics, file names)."""
-    if isinstance(obj, dict):
-        return {k: _scrub_serial_mentions(v, serials) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [_scrub_serial_mentions(v, serials) for v in obj]
-    if isinstance(obj, str):
-        for serial in serials:
-            if len(serial) >= 8 and serial in obj:
-                obj = obj.replace(serial, _fake_serial(serial))
-        return obj
-    return obj
-
-
-def sanitize(payload: dict[str, Any]) -> dict[str, Any]:
-    if "pushall" not in payload:
-        payload = {"pushall": payload, "get_version": {}}
-    serials: set[str] = set()
-    cleaned = _sanitize(payload, serials)
-    return _scrub_serial_mentions(cleaned, serials)
+# One sanitizer for fixtures and the diagnostic report (needs the package installed).
+from bambulab_metrics_exporter.diagnostics import sanitize
 
 
 def main() -> None:
