@@ -334,6 +334,7 @@ def test_diagnostics_page_runs_and_shares_the_report() -> None:
     assert 'fetch("/diagnostics/report"' in page
     # The issue link carries title, summary and fields, and the report when it fits.
     for snippet in ('["title", issueTitle(', '["description", issueDescription(',
+                    '"firmware " + fw', '"exporter " + report.exporter.version',
                     '["report", reportField]', "maxIssueUrl", "download();"):
         assert snippet in page
     assert "issues/new?template=diagnostic.yml" in page and "/wiki/Diagnostic-Report" in page

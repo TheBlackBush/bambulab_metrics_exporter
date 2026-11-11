@@ -278,15 +278,31 @@
 
   function modelName(p) { return p.model ? (modelLabels[p.model] || p.model) : ""; }
 
+  function printerTag(p) {
+    if (p.model) { return modelName(p); }
+    var prefix = String(p.serial || "").slice(0, 3);
+    return "Unsupported printer" + (prefix ? " " + prefix : "");
+  }
+
+  // Model, situation, firmware, connection and exporter version: enough to tell reports
+  // apart in the issue list, with no names or serials beyond the model prefix.
   function issueTitle(printers) {
-    if (printers.length !== 1) { return "[" + printers.length + " printers] Diagnostic report"; }
-    var p = printers[0];
-    if (!p.model) {
-      var prefix = String(p.serial || "").slice(0, 3);
-      return "[Unsupported printer] " + (prefix ? "Serial prefix " + prefix : "Model not recognized");
+    var exporter = report.exporter && report.exporter.version ? "exporter " + report.exporter.version : "";
+    if (printers.length !== 1) {
+      var tags = printers.map(printerTag).join(", ");
+      var title = "[" + printers.length + " printers: " + tags + "] Diagnostic report";
+      if (title.length > 110) { title = "[" + printers.length + " printers] Diagnostic report"; }
+      return title + (exporter ? ", " + exporter : "");
     }
-    if (connectionStates[p.state]) { return "[" + modelName(p) + "] " + (stateLabels[p.state] || p.state); }
-    return "[" + modelName(p) + "] Diagnostic report";
+    var p = printers[0];
+    var what = !p.model ? "Model not recognized"
+      : connectionStates[p.state] ? (stateLabels[p.state] || p.state) : "Diagnostic report";
+    var details = [];
+    var fw = firmware(p);
+    if (fw) { details.push("firmware " + fw); }
+    details.push(p.transport === "cloud_mqtt" ? "Cloud" : "LAN");
+    if (exporter) { details.push(exporter); }
+    return "[" + printerTag(p) + "] " + what + ": " + details.join(", ");
   }
 
   function issueKind(printers) {
