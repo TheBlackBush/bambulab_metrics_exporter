@@ -12,7 +12,7 @@ included in the repository as `examples/grafana/dashboard.sample.json`.
 
 - Prometheus scraping the exporter ([Prometheus Setup](Prometheus-Setup)). The **Job** dropdown
   lists Prometheus jobs whose name contains `bambulab`, so keep that in the job name.
-- Exporter 0.3.0 or newer (older versions leave the newer panels empty).
+- Exporter 0.4.0 or newer (older versions leave the newer panels empty).
 - For the **AMS filament inventory** panel only: the free **Business Text** plugin and HTML
   rendering enabled:
   1. Install the plugin: `grafana-cli plugins install marcusolsson-dynamictext-panel`, or in

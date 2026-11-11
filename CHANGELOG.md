@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-11
+
 ### Added
 - Connection page: a printer whose model the exporter does not recognize gets an
   **Unsupported printer** label, with a link to the Diagnostics page to report it.

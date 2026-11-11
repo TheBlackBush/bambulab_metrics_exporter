@@ -49,7 +49,7 @@ The exporter never exits on connection problems: the web server stays up and the
 - Check port 8883: `nc -zv <printer_ip> 8883`
 - TLS cert verification is intentionally disabled
 
-**`/auth` returns 403 `host_not_allowed`**
+**`/auth` or `/diagnostics` returns 403 `host_not_allowed`**
 - The page only accepts IP addresses and local-network host names (DNS-rebinding protection)
 - Add the name you use (for example a reverse-proxy host) to `AUTH_ALLOWED_HOSTS`
 

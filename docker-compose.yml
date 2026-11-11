@@ -39,7 +39,7 @@ services:
       # BAMBULAB_REQUEST_PUSHALL: ${BAMBULAB_REQUEST_PUSHALL:-true} # request full snapshot each poll
       # POLLING_INTERVAL_SECONDS: ${POLLING_INTERVAL_SECONDS:-10} # poll interval
       # REQUEST_TIMEOUT_SECONDS: ${REQUEST_TIMEOUT_SECONDS:-8} # request timeout
-      # AUTH_ALLOWED_HOSTS: ${AUTH_ALLOWED_HOSTS:-} # extra host names for /auth (reverse proxy)
+      # AUTH_ALLOWED_HOSTS: ${AUTH_ALLOWED_HOSTS:-} # extra host names for /auth and /diagnostics (reverse proxy)
       # LOG_LEVEL: ${LOG_LEVEL:-INFO} # log verbosity
       # LISTEN_HOST: ${LISTEN_HOST:-0.0.0.0} # HTTP bind host
       # LISTEN_PORT: ${LISTEN_PORT:-9109} # HTTP port
