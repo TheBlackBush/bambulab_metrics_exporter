@@ -43,6 +43,7 @@ Watch prints, temperatures, filament and errors on a dashboard, keep history, an
 - **Several printers:** one exporter can monitor up to 32 printers, cloud and LAN mixed.
 - **Diagnostics:** a built-in page builds a sanitized report (no serials, addresses, names or
   credentials) and opens a prefilled GitHub issue, for new printers, missing metrics or problems.
+  Without a browser: `curl -o diagnostics.json "http://<exporter-host>:9109/diagnostics/report?download=1"`.
 - **Read-only:** it never sends control commands to the printer.
 - **Ready to use:** a [Grafana dashboard](https://grafana.com/grafana/dashboards/25033-bambulab-metrics/),
   Prometheus alert and recording rules, and an Unraid template.

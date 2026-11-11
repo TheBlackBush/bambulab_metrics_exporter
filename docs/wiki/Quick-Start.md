@@ -98,6 +98,12 @@ Good to know:
 
 The **Diagnostics** button on the status page (or `http://<docker-host>:9109/diagnostics`) runs a
 sanitized report and opens a GitHub issue with it. See [Diagnostic Report](Diagnostic-Report).
+Without a browser:
+
+```bash
+curl -o diagnostics.json "http://localhost:9109/diagnostics/report?download=1"
+```
+
 A printer marked **Unsupported printer** on the `/auth` page is a model the exporter does not
 recognize yet: that report is how it gets added.
 

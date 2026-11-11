@@ -152,6 +152,9 @@ docker logs -f bambulab-exporter
 curl http://localhost:9109/auth/status
 curl http://localhost:9109/metrics | grep bambulab_printer
 curl http://localhost:9109/ready
+
+# Diagnostic report as a file (sanitized, ready to attach to an issue)
+curl -o diagnostics.json "http://localhost:9109/diagnostics/report?download=1"
 ```
 
 ---
@@ -173,6 +176,10 @@ to a [new issue](https://github.com/TheBlackBush/bambulab_metrics_exporter/issue
 yourself.
 It holds the printer model, firmware, connection state, recent exporter logs and the printer's
 data, with serials, addresses, names and credentials removed.
+
+Without a browser, download the report with
+`curl -o diagnostics.json "http://localhost:9109/diagnostics/report?download=1"` and attach the
+file to the issue.
 
 If you add more logs (`LOG_LEVEL=DEBUG`), remove your serial number, IP addresses, access code,
 email and tokens first.
