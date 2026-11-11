@@ -246,8 +246,8 @@ Rack slots are `slot_id` 16-21 on the H2C (6 slots) and 16-24 on the H3C (9 slot
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `bambulab_hotend_rack_holder_position_info{position}` | Info Gauge | Holder position |
-| `bambulab_hotend_rack_holder_state_info{state}` | Info Gauge | Holder state |
+| `bambulab_hotend_rack_holder_position_info{position}` | Info Gauge | Holder position. H2C: `a_top`, `b_top`, `centre`. H3C (direct rack, `holder.info2` rack type above 0): `down`, `up`, `centre`. `unknown` otherwise |
+| `bambulab_hotend_rack_holder_state_info{state}` | Info Gauge | Holder state: `idle`, `hotend_centre`, `toolhead_centre`, `calibrate_hotend_rack`, `cut_material`, `unlock_hotend`, `lift_hotend_rack`, `place_hotend`, `pick_hotend`, `lock_hotend`. The H3C also reports `wait_hotend_heating`, `move` and `hotend_info_refresh`. `unknown` otherwise |
 | `bambulab_hotend_rack_slot_state_info{slot_id,state}` | Info Gauge | Slot state |
 | `bambulab_hotend_rack_hotend_info{slot_id,nozzle_type,nozzle_diameter}` | Info Gauge | Slot nozzle metadata |
 | `bambulab_hotend_rack_hotend_wear_ratio{slot_id}` | Gauge | Nozzle wear ratio |

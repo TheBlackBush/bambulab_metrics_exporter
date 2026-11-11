@@ -283,6 +283,31 @@ HOTEND_RACK_HOLDER_STATE_NAMES: dict[int, str] = {
     9: "lock_hotend",
 }
 
+# Direct-connected racks (H3C): `device.holder.info2` bits 1-4 give the rack type, and any
+# type above 0 is a direct rack (Bambu Studio DevNozzleRack). They name positions and
+# states differently from the H2C's A/B rack, which sends no `info2`.
+DIRECT_RACK_HOLDER_POSITION_NAMES: dict[int, str] = {
+    1: "down",
+    2: "up",
+    3: "centre",
+}
+
+DIRECT_RACK_HOLDER_STATE_NAMES: dict[int, str] = {
+    0: "idle",
+    1: "hotend_centre",
+    2: "toolhead_centre",
+    3: "calibrate_hotend_rack",
+    4: "wait_hotend_heating",
+    5: "cut_material",
+    6: "unlock_hotend",
+    7: "lift_hotend_rack",
+    8: "place_hotend",
+    9: "pick_hotend",
+    10: "lock_hotend",
+    11: "move",
+    12: "hotend_info_refresh",
+}
+
 
 def _extract_ams_info(ams_unit: dict[str, Any]) -> int | None:
     """Extract AMS info bitfield from known payload keys.
@@ -470,6 +495,12 @@ def parse_ams_dry_block_reasons(unit: dict[str, Any]) -> list[str]:
         if name not in reasons:
             reasons.append(name)
     return reasons
+
+
+def _is_direct_rack(holder: dict[str, Any]) -> bool:
+    """True for a direct-connected rack (rack type in `info2` bits 1-4 above 0)."""
+    info2 = to_int(holder.get("info2"))
+    return info2 is not None and info2 >= 0 and (info2 >> 1) & 0xF > 0
 
 
 def parse_ams_zones(unit: dict[str, Any]) -> list[dict[str, Any]]:
@@ -1863,7 +1894,11 @@ class PrinterSnapshot:
         pos = to_int(holder.get("pos"))
         if pos is None:
             return None
-        return HOTEND_RACK_HOLDER_POSITION_NAMES.get(pos, "unknown")
+        names = (
+            DIRECT_RACK_HOLDER_POSITION_NAMES if _is_direct_rack(holder)
+            else HOTEND_RACK_HOLDER_POSITION_NAMES
+        )
+        return names.get(pos, "unknown")
 
     @property
     def hotend_rack_holder_state_name(self) -> str | None:
@@ -1876,7 +1911,11 @@ class PrinterSnapshot:
         stat = to_int(holder.get("stat"))
         if stat is None:
             return None
-        return HOTEND_RACK_HOLDER_STATE_NAMES.get(stat, "unknown")
+        names = (
+            DIRECT_RACK_HOLDER_STATE_NAMES if _is_direct_rack(holder)
+            else HOTEND_RACK_HOLDER_STATE_NAMES
+        )
+        return names.get(stat, "unknown")
 
     @property
     def hotend_rack_slot_entries(self) -> list[dict[str, str]]:

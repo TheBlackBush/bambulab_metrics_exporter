@@ -8,7 +8,9 @@ All notable changes to this project are documented in this file.
 - H3C detection (serial prefix `32X`, model code `N10`, product name "Bambu Lab H3C"), with its
   9-slot hotend rack (`slot_id` 16-24) and the AMS 3H (`ams_model="ams_3h"`, `ams_series="gen_3"`,
   9 slots). Detected from a public sample payload, not validated on real hardware; door, lid and
-  fan details are not confirmed yet.
+  fan details are not confirmed yet. The H3C's direct rack names holder positions `down`, `up`
+  and `centre`, and adds the holder states `wait_hotend_heating`, `move` and
+  `hotend_info_refresh`; H2C names do not change.
 - AMS zone metrics for units that report humidity and drying per zone (AMS 3H):
   `bambulab_ams_zone_slot_info`, `bambulab_ams_zone_humidity`, `bambulab_ams_zone_humidity_index`,
   `bambulab_ams_zone_temperature_celsius`, `bambulab_ams_zone_heater_state_info`,

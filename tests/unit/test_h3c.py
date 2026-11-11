@@ -137,3 +137,21 @@ def test_ams_3h_zero_padded_id_still_uses_3h_bits() -> None:
     raw = {"print": {"ams": {"ams": [_ams_3h_unit(id="032", info="6")], "tray_exist_bits": "10000000"}}}
     present = PrinterSnapshot(connected=True, raw=raw).ams_slots_present
     assert present[("32", "0")] == 1.0
+
+
+@pytest.mark.parametrize(
+    ("holder", "position", "state"),
+    [
+        ({"info2": 16355, "pos": 2, "stat": 4}, "up", "wait_hotend_heating"),
+        ({"info2": 2, "pos": 1, "stat": 12}, "down", "hotend_info_refresh"),
+        ({"info2": 2, "pos": 9, "stat": 99}, "unknown", "unknown"),
+        # A/B rack (H2C): no info2, or rack type 0, keeps the existing names.
+        ({"pos": 2, "stat": 4}, "b_top", "cut_material"),
+        ({"info2": 1, "pos": 1, "stat": 9}, "a_top", "lock_hotend"),
+        ({"info2": "bad", "pos": 3, "stat": 0}, "centre", "idle"),
+    ],
+)
+def test_rack_holder_names_by_rack_type(holder: dict, position: str, state: str) -> None:
+    snap = PrinterSnapshot(connected=True, raw={"print": {"device": {"holder": holder}}})
+    assert snap.hotend_rack_holder_position_name == position
+    assert snap.hotend_rack_holder_state_name == state
