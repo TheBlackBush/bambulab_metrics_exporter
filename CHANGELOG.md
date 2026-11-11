@@ -4,6 +4,11 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- README: easier to scan, with a supported printers table by series (and which models are tested
+  on real hardware), a "How it works" table comparing LAN and Bambu Cloud setup, features grouped
+  by topic, a Grafana dashboard overview and a help section.
+
 ## [0.4.0] - 2026-11-11
 
 ### Added

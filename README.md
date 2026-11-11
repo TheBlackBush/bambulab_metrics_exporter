@@ -18,50 +18,109 @@
 [![Grafana Dashboard Downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgrafana.com%2Fapi%2Fdashboards%2F25033&query=%24.downloads&label=grafana%20downloads&style=for-the-badge&logo=grafana&logoColor=white)](https://grafana.com/grafana/dashboards/25033-bambulab-metrics)
 [![Ko-fi](https://img.shields.io/badge/support_me_on_ko--fi-F16061?style=for-the-badge&logo=kofi&logoColor=f5f5f5)](https://ko-fi.com/M4M11W3R7J)
 
-A Prometheus exporter for Bambu Lab 3D printers. It runs as a small Docker container, reads your
-printer's live status over your home network or through Bambu Cloud, and publishes it for
-[Prometheus](https://prometheus.io/) to collect and [Grafana](https://grafana.com/) to chart.
-Watch prints, temperatures, filament and errors on a dashboard, keep history, and get alerts.
+> A Prometheus exporter for **Bambu Lab** 3D printers.
+> It runs as a small Docker container, reads your printer's live status on your home network or
+> through Bambu Cloud, and publishes it for [Prometheus](https://prometheus.io/) to collect and
+> [Grafana](https://grafana.com/) to chart: prints, temperatures, fans, AMS filament, errors and
+> firmware, with history and alerts. It only reads; it never controls the printer.
 
-![Grafana dashboard sample](examples/grafana/images/bambulab-dashboard-0-full.png)
+![Grafana dashboard: printer status, print progress, temperatures, AMS and trends](examples/grafana/images/bambulab-dashboard-0-full.png)
 
-## Features
+<sub>The ready-made Grafana dashboard (grafana.com ID 25033) with an H2D. Your dashboard shows your
+own printers.</sub>
 
-- **Printer status:** connection, state and stage, errors (HMS) by severity, door, lid, lights,
-  camera, network, SD card or USB drive, firmware versions and available updates.
-- **Print progress:** percent, layers, time left, job source, file download progress, skipped
-  objects and fail reason.
-- **Temperatures and fans:** nozzle (per extruder and the active one on dual-nozzle printers),
-  bed, chamber and their targets, plus every fan and the airduct mode.
-- **AMS:** model, filament type and color per slot, remaining filament, humidity, temperature and
-  drying status, per zone on the AMS 3H.
-- **Extruders and nozzles:** filament change steps, filament sensors and buffer, nozzle type,
-  diameter and wear.
-- **Model aware:** detects the printer model and leaves out metrics for hardware it does not have.
-- **Easy setup:** connect the printer in your browser on the built-in `/auth` page (LAN or Bambu
-  Cloud login). Settings are stored encrypted and survive restarts.
-- **Several printers:** one exporter can monitor up to 32 printers, cloud and LAN mixed.
-- **Diagnostics:** a built-in page builds a sanitized report (no serials, addresses, names or
-  credentials) and opens a prefilled GitHub issue, for new printers, missing metrics or problems.
-- **Read-only:** it never sends control commands to the printer.
-- **Ready to use:** a [Grafana dashboard](https://grafana.com/grafana/dashboards/25033-bambulab-metrics/),
-  Prometheus alert and recording rules, and an Unraid template.
+Full documentation is in the **[wiki](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki)**.
+
+## Contents
+
+- [Supported printers](#supported-printers)
+- [How it works](#how-it-works)
+- [Features](#features)
+- [Quick start](#quick-start)
+- [Grafana dashboard](#grafana-dashboard)
+- [Documentation](#documentation)
+- [Help and feedback](#help-and-feedback)
+- [Development](#development)
+- [License](#license)
+
+---
 
 ## Supported printers
 
-X1, X1C, X1E, X2D, P1P, P1S, P2S, A1, A1 mini, A2L, H2D, H2D Pro, H2S, H2C and H3C are recognized.
-Real-world testing so far is on an **X1C**, and an **H2D** was checked on real hardware while idle
-and while printing. Other models are recognized from their data and may report some values
-differently. If you own another model and want to help, please
-[open an issue](https://github.com/TheBlackBush/bambulab_metrics_exporter/issues/new?template=diagnostic.yml)
-with a [diagnostic report](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Diagnostic-Report):
-run it on the exporter's Diagnostics page, with serials, addresses, names and credentials
-removed, and create the issue from there.
+| Series | Models | Tested on real hardware |
+|---|---|---|
+| A | A1, A1 mini, A2L | |
+| P | P1P, P1S, P2S | |
+| X | X1, X1 Carbon, X1E, X2D | X1 Carbon |
+| H | H2C, H2D, H2D Pro, H2S, H3C | H2D (idle and printing) |
 
-**Running several printers in one exporter?** This is new and has only been tested with simulated
-printers, so feedback is very welcome. Please
-[open an issue](https://github.com/TheBlackBush/bambulab_metrics_exporter/issues/new) and tell us
-what worked, including your printer models and whether they use cloud or LAN.
+AMS units: **AMS**, **AMS Lite**, **AMS 2 Pro**, **AMS HT** and **AMS 3H**, plus the external spool.
+
+Every model in the table is recognized, and the exporter leaves out metrics for hardware a model
+does not have (for example the chamber heater on a P1S). Models not yet tested on real hardware
+are recognized from their data and may report some values differently. The
+[Metrics Reference](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Metrics-Reference#supported-models)
+lists what each model has.
+
+**Own a model that is not tested yet, or one marked "Unsupported printer"?** Open the exporter's
+**Diagnostics** page and click **Create GitHub issue**. It sends a report with serial numbers,
+addresses, names and credentials removed, so the model can be checked or added.
+
+---
+
+## How it works
+
+```text
+Printer (LAN or Bambu Cloud)  ->  exporter :9109/metrics  ->  Prometheus  ->  Grafana
+```
+
+Bambu Lab printers publish their state over MQTT. The exporter listens to that feed, asks for a
+full update every 10 seconds, and turns it into Prometheus metrics.
+
+| Connection | What you provide | Good to know |
+|---|---|---|
+| **Local (LAN)** | Printer IP address, serial number and LAN access code (on the printer: Settings, Network) | Talks to the printer directly; no Bambu Cloud account needed |
+| **Bambu Cloud** | Your Bambu Lab account email and the code it emails you, then tick the printers to monitor | No IP or access code needed; the login renews itself and is stored encrypted |
+
+You set up both in your browser on the exporter's **Printer Connection** page (`/auth`), and you
+can mix them: one exporter monitors up to 32 printers.
+
+---
+
+## Features
+
+### Printer status
+Connection, state and stage, HMS errors by severity, door and top lid, lights, camera, Wi-Fi or
+wired network, SD card or USB drive, mounted tool head and accessories, firmware versions and
+available updates.
+
+### Print progress
+Percent, layers, time left, stage countdown, job source, file download progress, skipped objects
+and fail reason.
+
+### Temperatures and fans
+Nozzle (per extruder, and the active one on dual-nozzle printers), bed and chamber with their
+targets, every fan, and the airduct mode.
+
+### AMS and filament
+AMS model and status, filament type, color and remaining amount per slot, humidity and
+temperature, and drying (time left, target, phase and why drying cannot start). On the AMS 3H
+these are per zone.
+
+### Extruders and nozzles
+Filament change steps, filament sensors and buffer, nozzle type, diameter and wear, and the
+hotend rack on the H2C and H3C.
+
+### Built for homelabs
+- **Easy setup:** connect printers in the browser; settings are stored encrypted and survive
+  restarts.
+- **Model aware:** detects the model and skips hardware it does not have.
+- **Diagnostics:** a built-in page builds a sanitized report and opens a prefilled GitHub issue.
+- **Read-only:** never sends control commands to the printer.
+- **Ready to use:** Grafana dashboard, Prometheus alert and recording rules, and an Unraid
+  template.
+
+---
 
 ## Quick start
 
@@ -86,22 +145,43 @@ You need a machine that runs Docker, and Prometheus and Grafana to store and cha
      ghcr.io/theblackbush/bambulab_metrics_exporter:latest
    ```
 
-3. Open `http://<your-server-ip>:9109/auth`, choose **Local** (IP, serial number and LAN access
-   code) or **Bambu Cloud** (email and a code), and connect. No restart is needed.
+3. Open `http://<your-server-ip>:9109/auth`, choose **Local** or **Bambu Cloud**, and connect.
+   No restart is needed.
 
-4. Add `<your-server-ip>:9109` as a Prometheus scrape target and import Grafana dashboard
-   **25033**.
+4. Add `<your-server-ip>:9109` as a Prometheus scrape target (keep `bambulab` in the job name)
+   and import Grafana dashboard **25033**.
 
-The image is also on Docker Hub as `blackbush/bambulab_metrics_exporter`. Docker Compose, Unraid,
-environment-variable setup and every option are covered in the wiki:
+The image is also on Docker Hub as `blackbush/bambulab_metrics_exporter`, and an Unraid template
+is available. Docker Compose, Unraid and environment-variable setup are in the wiki:
 [Quick Start](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Quick-Start) and
 [Installation](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Installation).
 
-> The `/auth` page has no password of its own. Keep port 9109 on your home network.
+> The exporter's pages have no password of their own. Keep port 9109 on your home network.
+
+---
+
+## Grafana dashboard
+
+[BambuLab Metrics](https://grafana.com/grafana/dashboards/25033-bambulab-metrics/) on
+grafana.com (ID **25033**), also in [`examples/grafana/`](examples/grafana/):
+
+| Row | What it shows |
+|---|---|
+| Printer Status | Connection, model, state, errors, door, lid, lights, AI features, tool head, accessories |
+| Print Progress | Stage, time left, progress, layers, job name, speed, fail reason |
+| Temperatures | Nozzle, bed and chamber gauges scaled to the model, fans and trends |
+| Extruders & Nozzles | Per-extruder status, active nozzle, nozzle wear |
+| AMS | Spool cards with real filament colors, humidity, temperature, drying, AMS 3H zones |
+| Airduct, Health & Trends | Airduct fans, HMS errors, firmware per module, connection and Wi-Fi history |
+
+Use the **Job** and **Printer** dropdowns to switch printers. The AMS spool cards need the free
+Business Text plugin; see the
+[Grafana Dashboard](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Grafana-Dashboard)
+guide.
+
+---
 
 ## Documentation
-
-The [wiki](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki) has the full guides:
 
 | Page | What it covers |
 |------|----------------|
@@ -112,12 +192,25 @@ The [wiki](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki) has t
 | [Grafana Dashboard](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Grafana-Dashboard) | Import steps and panels |
 | [Metrics Reference](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Metrics-Reference) | Every metric, per-model support and PromQL examples |
 | [Troubleshooting](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Troubleshooting) | Common problems and fixes |
-| [Diagnostic Report](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Diagnostic-Report) | The report to attach to issues for new printers, metrics or fixes |
+| [Diagnostic Report](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Diagnostic-Report) | The report to send with issues for new printers, metrics or fixes |
 
-How the exporter works and its known limitations are on the
-[wiki home page](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki).
-Release notes are in [CHANGELOG.md](CHANGELOG.md), and examples (dashboard JSON, Prometheus
-rules, sample output) in [`examples/`](examples/).
+How the exporter works in detail and its known limitations are on the
+[wiki home page](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki). Release notes
+are in [CHANGELOG.md](CHANGELOG.md), and examples (dashboard JSON, Prometheus rules, sample output)
+in [`examples/`](examples/).
+
+---
+
+## Help and feedback
+
+- **Something wrong or missing?** Run the **Diagnostics** page and click **Create GitHub issue**,
+  or [open an issue](https://github.com/TheBlackBush/bambulab_metrics_exporter/issues/new?template=diagnostic.yml)
+  yourself. The [Troubleshooting](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Troubleshooting)
+  page covers the common problems.
+- **Running several printers in one exporter?** This has only been tested with simulated printers,
+  so feedback is very welcome: tell us your printer models and whether they use cloud or LAN.
+
+---
 
 ## Development
 
