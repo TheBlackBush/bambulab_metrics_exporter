@@ -26,4 +26,5 @@ jobs:
         run: |
           python -m compileall -q src tests
           ruff check src tests
+          mypy src
           pytest -q

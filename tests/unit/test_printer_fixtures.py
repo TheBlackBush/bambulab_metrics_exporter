@@ -416,7 +416,7 @@ def test_accessories(name: str, present: set[str]) -> None:
     got = {labels["accessory"]: v for labels, v in _samples(metrics, "bambulab_accessory_present")}
     assert set(got) == {
         "filament_buffer", "external_exhaust_fan", "fire_extinguisher", "rotary_attachment",
-        "filament_switch", "air_pump",
+        "filament_switch", "air_pump", "air_purifier",
     }
     assert {k for k, v in got.items() if v == 1.0} == present
 

@@ -9,8 +9,10 @@ All notable changes to this project are documented in this file.
   9-slot hotend rack (`slot_id` 16-24) and the AMS 3H (`ams_model="ams_3h"`, `ams_series="gen_3"`,
   9 slots). Detected from a public sample payload, not validated on real hardware; door, lid and
   fan details are not confirmed yet. The H3C's direct rack names holder positions `down`, `up`
-  and `centre`, and adds the holder states `wait_hotend_heating`, `move` and
-  `hotend_info_refresh`; H2C names do not change.
+  and `centre`.
+- `bambulab_accessory_present{accessory="air_purifier"}`: 1 when an air purifier is fitted,
+  detected from the `aps` module, "Air Purifier" in the module product name, or the printer's
+  "purifier in place" flag. A new series; existing accessory values do not change.
 - AMS zone metrics for units that report humidity and drying per zone (AMS 3H):
   `bambulab_ams_zone_slot_info`, `bambulab_ams_zone_humidity`, `bambulab_ams_zone_humidity_index`,
   `bambulab_ams_zone_temperature_celsius`, `bambulab_ams_zone_heater_state_info`,
@@ -22,6 +24,30 @@ All notable changes to this project are documented in this file.
   do not change.
 - Grafana: an AMS Zones table under the AMS row shows humidity, temperature and drying per zone
   for the AMS 3H. Re-import the sample dashboard to get it.
+
+### Changed
+- Pull request checks now also run strict mypy, as release builds already did.
+- Grafana: the bed temperature gauge scales to the printer model's maximum bed temperature
+  (80 °C A1 mini and A2L, 100 °C A1, P1P and P1S, 110 °C P2S, 120 °C for the rest) instead of
+  the bed target, so it no longer shows an empty scale while the bed is off.
+
+### Fixed
+- `bambulab_hotend_rack_holder_state_info`: H2C holder states 4 and up were named one step
+  off. State 4 is now `wait_hotend_heating`, and the names that follow move up by one
+  (`cut_material` is 5, ..., `lock_hotend` is 10); states 11 (`move`) and 12
+  (`hotend_info_refresh`) are new. Every rack type now uses this one list. Queries or alerts
+  that match an H2C holder state by name should be checked, since the same printer state now
+  carries its correct label.
+- Cloud re-authentication: credentials saved by `bambulab-reauth` right after the exporter
+  reported "re-authentication required" could go unnoticed until the 5-minute retry. They are
+  now picked up at once.
+- Malformed printer reports no longer cost a poll cycle: reports that are not valid UTF-8 JSON
+  objects are skipped with a short warning (no payload in the log), NaN or infinite values read
+  as missing, and non-numeric AMS or tray ids no longer stop the metrics update.
+
+### Removed
+- `RECONNECT_INTERVAL_SECONDS`: it never had an effect. A leftover value is ignored with a
+  warning at startup and is no longer written to `.env`.
 
 ## [0.3.1] - 2026-11-09
 

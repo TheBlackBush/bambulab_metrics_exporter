@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import Any
 
 # Home flag masks (full parity set currently modeled from upstream constants).
@@ -39,7 +40,8 @@ def to_int(value: Any) -> int | None:
     if isinstance(value, int):
         return value
     if isinstance(value, float):
-        return int(value)
+        # NaN and infinity are valid in Python's JSON parser but have no integer value.
+        return int(value) if math.isfinite(value) else None
     if isinstance(value, str):
         text = value.strip()
         if not text:

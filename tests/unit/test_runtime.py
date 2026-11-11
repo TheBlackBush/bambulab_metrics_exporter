@@ -370,6 +370,54 @@ def test_new_store_credentials_are_used_on_first_retry(tmp_path: Path, monkeypat
     assert "fresh_token" not in caplog.text
 
 
+def test_store_written_right_after_auth_required_is_not_missed(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Regression: a store written between the auth_required announcement and the start of
+    the credential wait was taken as the baseline and only seen after the 5-minute retry."""
+    from bambulab_metrics_exporter.credentials_store import save_encrypted_credentials
+
+    secret = "fake-development-key-never-use"
+    monkeypatch.setenv("BAMBULAB_SECRET_KEY", secret)
+    monkeypatch.setenv("BAMBULAB_TRANSPORT", "cloud_mqtt")
+    monkeypatch.setenv("BAMBULAB_SERIAL", "FAKE00TEST000001")
+    monkeypatch.setenv("BAMBULAB_CLOUD_USER_ID", "u")
+    monkeypatch.setenv("BAMBULAB_CLOUD_ACCESS_TOKEN", "stale_token")
+    monkeypatch.setenv("BAMBULAB_CONFIG_DIR", str(tmp_path))
+    seen_tokens: list[str] = []
+
+    def validate(s: Settings) -> None:
+        seen_tokens.append(s.bambulab_cloud_access_token)
+        if s.bambulab_cloud_access_token != "fresh_token":
+            raise ReauthRequiredError("token expired")
+
+    original_wait = rt.ExporterRuntime._wait_for_credentials
+
+    def write_then_wait(self: rt.ExporterRuntime, *args: object) -> None:
+        save_encrypted_credentials(
+            tmp_path / "credentials.enc.json",
+            secret,
+            {"BAMBULAB_CLOUD_USER_ID": "u", "BAMBULAB_CLOUD_ACCESS_TOKEN": "fresh_token"},
+        )
+        original_wait(self, *args)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(rt.ExporterRuntime, "_wait_for_credentials", write_then_wait)
+    runtime = rt.ExporterRuntime(
+        settings_factory=Settings,
+        validate=validate,
+        client_factory=lambda s: _Client(),
+        discover=lambda s: None,
+        store_poll_seconds=0.02,
+        auth_retry_seconds=300,
+    )
+    runtime.start()
+    try:
+        _wait_until(lambda: runtime.status()["state"] == rt.STATE_RUNNING)
+    finally:
+        runtime.stop()
+    assert seen_tokens == ["stale_token", "fresh_token"]
+
+
 # ---------------------------------------------------------------------------
 # Review fixes
 # ---------------------------------------------------------------------------

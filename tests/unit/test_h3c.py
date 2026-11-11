@@ -145,9 +145,11 @@ def test_ams_3h_zero_padded_id_still_uses_3h_bits() -> None:
         ({"info2": 16355, "pos": 2, "stat": 4}, "up", "wait_hotend_heating"),
         ({"info2": 2, "pos": 1, "stat": 12}, "down", "hotend_info_refresh"),
         ({"info2": 2, "pos": 9, "stat": 99}, "unknown", "unknown"),
-        # A/B rack (H2C): no info2, or rack type 0, keeps the existing names.
-        ({"pos": 2, "stat": 4}, "b_top", "cut_material"),
-        ({"info2": 1, "pos": 1, "stat": 9}, "a_top", "lock_hotend"),
+        # A/B rack (H2C): no info2, or rack type 0, keeps its position names; states are
+        # the same list for every rack.
+        ({"pos": 2, "stat": 4}, "b_top", "wait_hotend_heating"),
+        ({"info2": 1, "pos": 1, "stat": 10}, "a_top", "lock_hotend"),
+        ({"pos": 1, "stat": 11}, "a_top", "move"),
         ({"info2": "bad", "pos": 3, "stat": 0}, "centre", "idle"),
     ],
 )

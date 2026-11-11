@@ -2847,7 +2847,8 @@
               }
             ]
           },
-          "unit": "celsius"
+          "unit": "celsius",
+          "min": 0
         },
         "overrides": []
       },
@@ -2892,12 +2893,12 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "editorMode": "builder",
-          "expr": "max(bambulab_bed_target_temperature_celsius{job=\"$job\", printer_name=\"$printer\"})",
-          "instant": false,
-          "legendFormat": "Bed Target Temperature",
-          "range": true,
-          "refId": "B"
+          "editorMode": "code",
+          "expr": "(max(bambulab_printer_model_info{job=\"$job\", printer_name=\"$printer\", model=~\"A1MINI|A2L\"} == 1) * 80) or (max(bambulab_printer_model_info{job=\"$job\", printer_name=\"$printer\", model=~\"A1|P1P|P1S\"} == 1) * 100) or (max(bambulab_printer_model_info{job=\"$job\", printer_name=\"$printer\", model=~\"P2S\"} == 1) * 110) or (max(bambulab_printer_model_info{job=\"$job\", printer_name=\"$printer\"} == 1) * 120)",
+          "instant": true,
+          "range": false,
+          "legendFormat": "Max",
+          "refId": "Max"
         }
       ],
       "title": "Bed Temperature (C) ",
@@ -2905,21 +2906,19 @@
         {
           "id": "configFromData",
           "options": {
-            "applyTo": {
-              "id": "byName",
-              "options": "Bed Temperature"
-            },
-            "configRefId": "B",
+            "configRefId": "Max",
             "mappings": [
               {
-                "fieldName": "Bed Target Temperature",
-                "handlerKey": "max"
+                "fieldName": "Max",
+                "handlerKey": "max",
+                "reducerId": "lastNotNull"
               }
             ]
           }
         }
       ],
-      "type": "gauge"
+      "type": "gauge",
+      "description": "Bed temperature. The scale ends at the model's bed limit: 80 °C on the A1 mini and A2L, 100 °C on the A1, P1P and P1S, 110 °C on the P2S, 120 °C on other models."
     },
     {
       "datasource": {

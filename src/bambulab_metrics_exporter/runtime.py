@@ -226,11 +226,12 @@ class ExporterRuntime:
             self._wake.clear()
         return woken
 
-    def _wait_for_credentials(self) -> None:
+    def _wait_for_credentials(self, seen: tuple[float, int] | None) -> None:
         """Wait for the page (wake-up), a change of the encrypted store (CLI), or the
-        periodic retry, which also recovers from outages that looked like rejections."""
+        periodic retry, which also recovers from outages that looked like rejections.
+        `seen` is the store state read before the auth_required state was announced, so
+        a store written right after the announcement still counts as a change."""
         path = credentials_path(self.settings)
-        seen = _store_fingerprint(path)
         deadline = time.monotonic() + self._auth_retry_seconds
         while not self._stop.is_set():
             if self._wait(self._store_poll_seconds):
@@ -305,9 +306,10 @@ class ExporterRuntime:
         except ReauthRequiredError as exc:
             if self._stop.is_set():
                 return
+            store_now = _store_fingerprint(store)
             log_reauth_banner(f"Printer {self._masked()}: {exc}", port=settings.listen_port)
             self._set_state(STATE_AUTH_REQUIRED, f"Re-authentication required: {exc}")
-            if _store_fingerprint(store) != store_before and not self._store_retry_used:
+            if store_now != store_before and not self._store_retry_used:
                 # `bambulab-reauth` wrote new credentials while validation ran; use them
                 # now instead of waiting for the next periodic retry. Only once in a row,
                 # since a token refresh during validation also writes the store.
@@ -317,7 +319,7 @@ class ExporterRuntime:
                     apply_credentials(self.settings, payload)
                 logger.info("Encrypted credentials changed during validation; retrying")
                 return
-            self._wait_for_credentials()
+            self._wait_for_credentials(store_now)
             return
         except Exception as exc:  # noqa: BLE001 - retry later instead of exiting
             self._set_state(STATE_ERROR, str(exc))

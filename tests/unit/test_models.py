@@ -525,7 +525,7 @@ def test_hotend_rack_present_with_holder() -> None:
 
 
 def test_hotend_rack_holder_names() -> None:
-    snap = PrinterSnapshot(connected=True, raw={"print": {"device": {"holder": {"pos": 3, "stat": 7}}}})
+    snap = PrinterSnapshot(connected=True, raw={"print": {"device": {"holder": {"pos": 3, "stat": 8}}}})
     assert snap.hotend_rack_holder_position_name == "centre"
     assert snap.hotend_rack_holder_state_name == "place_hotend"
 

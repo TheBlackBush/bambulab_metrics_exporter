@@ -632,7 +632,7 @@ class TestMultiExtruderMetrics:
 class TestHotendRackMetrics:
     def test_hotend_rack_holder_info_metrics(self) -> None:
         m = ExporterMetrics(printer_name="test", serial="SN123")
-        m.update_from_snapshot(_snap({"device": {"holder": {"pos": 3, "stat": 7}}}))
+        m.update_from_snapshot(_snap({"device": {"holder": {"pos": 3, "stat": 8}}}))
         labels: dict = {"printer_name": "test", "serial": "SN123"}
         assert m.hotend_rack_holder_position_info.labels(**labels, position="centre")._value.get() == 1.0
         assert m.hotend_rack_holder_state_info.labels(**labels, state="place_hotend")._value.get() == 1.0
@@ -1709,8 +1709,9 @@ class TestFirmwareAccessoryStageEdgeCases:
         }
         m.update_from_snapshot(_snap(payload))
         got = {s["accessory"] for s in self._series(m, "bambulab_accessory_present")}
-        assert got == {"fire_extinguisher", "filament_switch"}
+        assert got == {"fire_extinguisher", "filament_switch", "air_purifier"}
         assert m.accessory_present.labels(**self.labels, accessory="filament_switch")._value.get() == 1.0
+        assert m.accessory_present.labels(**self.labels, accessory="air_purifier")._value.get() == 0.0
         m.update_from_snapshot(_snap({"aux": "zz"}))
         assert self._series(m, "bambulab_accessory_present") == []
 
@@ -1725,6 +1726,24 @@ class TestFirmwareAccessoryStageEdgeCases:
         assert self._buffer([{"name": "ahbc", "product_name": ""}]) == 1.0
         assert self._buffer([{"name": "ahbc/0"}]) == 1.0
         assert self._buffer([{"name": " AHBC "}]) == 1.0
+
+    def _purifier(self, raw: dict[str, object]) -> float:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        m.update_from_snapshot(PrinterSnapshot(connected=True, raw=raw))
+        return m.accessory_present.labels(**self.labels, accessory="air_purifier")._value.get()
+
+    def test_air_purifier_by_module_product_name_or_aux_bit(self) -> None:
+        assert self._purifier({"print": {}, "info": {"module": [{"name": "aps"}]}}) == 1.0
+        assert self._purifier(
+            {"print": {}, "info": {"module": [{"name": "x", "product_name": "Air Purifier"}]}}
+        ) == 1.0
+        # aux bit 37: purifier in place, also without a module list.
+        assert self._purifier({"print": {"aux": "2000000000"}}) == 1.0
+        assert self._purifier({"print": {"aux": "2801004"}}) == 0.0
+        # An empty device.aps block (H2D) does not mean a purifier is fitted.
+        assert self._purifier(
+            {"print": {"device": {"aps": {}}}, "info": {"module": [{"name": "ahb"}]}}
+        ) == 0.0
 
     def test_builtin_h2_buffer_board_is_not_an_accessory(self) -> None:
         # The H2 series reports its built-in buffer board as "ahb" with no product name.
@@ -2118,3 +2137,27 @@ class TestJobExtruderAndSpoolState:
             assert text.count(f"# TYPE {name} gauge") == 1
         expected = 'bambulab_job_state_info{printer_name="test",serial="SN123",state="running"}'
         assert f"{expected} 1.0" in text
+
+
+class TestMalformedPayloads:
+    """Bad values from the printer must not stop the metrics update."""
+
+    @pytest.mark.parametrize("bad_id", [None, "x", "", float("nan"), [], {}])
+    def test_bad_ams_and_tray_ids_do_not_raise(self, bad_id: object) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        payload = {
+            "ams": {"ams": [{"id": bad_id, "tray": [{"id": bad_id}, {"id": "1"}]}]},
+            "mc_percent": 40,
+        }
+        m.update_from_snapshot(_snap(payload))
+        labels = {"printer_name": "test", "serial": "SN123"}
+        assert m.print_progress_percent.labels(**labels)._value.get() == 40.0
+
+    @pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+    def test_non_finite_numbers_read_as_missing(self, bad: float) -> None:
+        m = ExporterMetrics(printer_name="test", serial="SN123")
+        payload = {"cooling_fan_speed": bad, "nozzle_temper": bad, "mc_percent": bad,
+                   "ams": {"ams": [{"id": bad, "tray": [{"id": bad}]}]}}
+        m.update_from_snapshot(_snap(payload))
+        labels = {"printer_name": "test", "serial": "SN123"}
+        assert math.isnan(m.nozzle_temp.labels(**labels)._value.get())
