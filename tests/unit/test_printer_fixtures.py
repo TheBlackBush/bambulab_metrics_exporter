@@ -16,7 +16,7 @@ FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "printers"
 _PREFIX = {
     "A1": "039", "A1MINI": "030", "A2L": "26A", "P1P": "01S", "P1S": "01P", "P2S": "22E",
     "X1": "00W", "X1C": "00M", "X1E": "03W", "X2D": "20P", "H2D": "094", "H2DPRO": "239",
-    "H2S": "093", "H2C": "31B",
+    "H2S": "093", "H2C": "31B", "H3C": "32X",
 }
 
 
@@ -582,3 +582,58 @@ def test_active_nozzle_matches_old_metric_on_single_extruder(name: str) -> None:
     new = _value(metrics, "bambulab_active_nozzle_temperature_celsius")
     if not (math.isnan(old) or math.isnan(new)):
         assert new == old
+
+
+def test_h3c_detection_and_capabilities() -> None:
+    _, snap, _ = _load("h3c")
+    assert snap.model_name == "H3C"
+    caps = snap.capabilities
+    assert caps.hotend_rack and caps.hotend_rack_slots == 9
+    assert caps.chamber_heater and not caps.dual_extruder and not caps.laser_cut
+
+
+def test_h3c_rack_reports_nine_slots() -> None:
+    _, snap, metrics = _load("h3c")
+    slots = {s["slot_id"] for s, _ in _samples(metrics, "bambulab_hotend_rack_slot_state_info")}
+    hotends = {s["slot_id"] for s, _ in _samples(metrics, "bambulab_hotend_rack_hotend_info")}
+    assert hotends == {str(i) for i in range(16, 25)}
+    assert slots == {str(i) for i in range(16, 25)}
+    # Rack hotends are not mounted nozzles.
+    assert all(int(e["slot_id"]) >= 16 for e in snap.hotend_rack_hotend_entries)
+
+
+def test_h2c_rack_keeps_six_slots() -> None:
+    _, _, metrics = _load("h2c")
+    slots = {s["slot_id"] for s, _ in _samples(metrics, "bambulab_hotend_rack_slot_state_info")}
+    assert slots <= {str(i) for i in range(16, 22)}
+
+
+def test_h3c_ams_3h_model_slots_and_zones() -> None:
+    _, _, metrics = _load("h3c")
+    units = _samples(metrics, "bambulab_ams_unit_info")
+    assert [(s["ams_id"], s["ams_model"], s["ams_series"]) for s, _ in units] == [
+        ("32", "ams_3h", "gen_3")
+    ]
+    # Spool presence: AMS 3H slots use tray_exist_bits 28 + slot ("30000000": slots 0, 1).
+    present = {s["slot_id"]: v for s, v in _samples(metrics, "bambulab_ams_slot_present")}
+    assert present["0"] == 1.0 and present["1"] == 1.0 and present["2"] == 0.0
+    assert len(present) == 9
+    # Humidity and temperature are per zone, not per unit.
+    assert _samples(metrics, "bambulab_ams_unit_humidity") == []
+    assert _samples(metrics, "bambulab_ams_unit_temperature_celsius") == []
+    humidity = {s["zone_id"]: v for s, v in _samples(metrics, "bambulab_ams_zone_humidity")}
+    assert humidity == {"0": 27.0, "1": 41.0}
+    index = {s["zone_id"]: v for s, v in _samples(metrics, "bambulab_ams_zone_humidity_index")}
+    assert index == {"0": 4.0, "1": 2.0}
+    temp = {s["zone_id"]: v for s, v in _samples(metrics, "bambulab_ams_zone_temperature_celsius")}
+    assert temp == {"0": 16.7, "1": 16.2}
+    zone_slots = {
+        (s["zone_id"], s["slot_id"]) for s, _ in _samples(metrics, "bambulab_ams_zone_slot_info")
+    }
+    assert {slot for zone, slot in zone_slots if zone == "0"} == {"5", "7"}
+    assert len(zone_slots) == 9
+    # Only the two-slot zone can dry; unit-level drying metrics stay empty.
+    assert {s["zone_id"] for s, _ in _samples(metrics, "bambulab_ams_zone_drying_remaining_seconds")} == {"0"}
+    assert {s["zone_id"] for s, _ in _samples(metrics, "bambulab_ams_zone_heater_state_info")} == {"0"}
+    assert _samples(metrics, "bambulab_ams_zone_drying_target_temperature_celsius") == []
+    assert _samples(metrics, "bambulab_ams_drying_remaining_seconds") == []

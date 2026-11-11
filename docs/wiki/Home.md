@@ -15,8 +15,8 @@ Grafana.
 **New here?** Start with the [Quick Start](Quick-Start): start the container with a secret key,
 then connect the printer in your browser.
 
-> **Supported printers:** X1, X1C, X1E, X2D, P1P, P1S, P2S, A1, A1 mini, A2L, H2D, H2D Pro, H2S
-> and H2C are recognized. Real-world testing so far is on an X1C, and an H2D was checked on real hardware while idle and while printing; if you own another model and
+> **Supported printers:** X1, X1C, X1E, X2D, P1P, P1S, P2S, A1, A1 mini, A2L, H2D, H2D Pro, H2S,
+> H2C and H3C are recognized. Real-world testing so far is on an X1C, and an H2D was checked on real hardware while idle and while printing; if you own another model and
 > want to help, please open an issue on GitHub.
 
 ---

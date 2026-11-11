@@ -320,6 +320,24 @@ bambulab_ams_unit_temperature_celsius{ams_id="0",printer_name="my-x1c",serial="0
 # HELP bambulab_ams_drying_blocked_reason_info Why this AMS cannot start drying now (drying_in_progress while it runs)
 # TYPE bambulab_ams_drying_blocked_reason_info gauge
 bambulab_ams_drying_blocked_reason_info{ams_id="0",printer_name="my-x1c",reason="drying_in_progress",serial="00MFAKE0TEST0001"} 1.0
+# HELP bambulab_ams_zone_slot_info AMS slot belonging to a humidity/drying zone (1 per slot)
+# TYPE bambulab_ams_zone_slot_info gauge
+# HELP bambulab_ams_zone_humidity AMS zone humidity in percent
+# TYPE bambulab_ams_zone_humidity gauge
+# HELP bambulab_ams_zone_humidity_index AMS zone humidity index (1-5, 5 is driest)
+# TYPE bambulab_ams_zone_humidity_index gauge
+# HELP bambulab_ams_zone_temperature_celsius AMS zone temperature
+# TYPE bambulab_ams_zone_temperature_celsius gauge
+# HELP bambulab_ams_zone_heater_state_info AMS zone dryer state as labeled info metric (zones that can dry)
+# TYPE bambulab_ams_zone_heater_state_info gauge
+# HELP bambulab_ams_zone_drying_remaining_seconds Remaining AMS zone drying time (0 when not drying)
+# TYPE bambulab_ams_zone_drying_remaining_seconds gauge
+# HELP bambulab_ams_zone_drying_target_temperature_celsius Configured AMS zone drying temperature
+# TYPE bambulab_ams_zone_drying_target_temperature_celsius gauge
+# HELP bambulab_ams_zone_drying_duration_seconds Configured AMS zone drying duration
+# TYPE bambulab_ams_zone_drying_duration_seconds gauge
+# HELP bambulab_ams_zone_drying_blocked_reason_info Why this AMS zone cannot start drying now (drying_in_progress while it runs)
+# TYPE bambulab_ams_zone_drying_blocked_reason_info gauge
 # HELP bambulab_sdcard_status_info SD card status as labeled info metric
 # TYPE bambulab_sdcard_status_info gauge
 bambulab_sdcard_status_info{printer_name="my-x1c",serial="00MFAKE0TEST0001",status="present"} 1.0

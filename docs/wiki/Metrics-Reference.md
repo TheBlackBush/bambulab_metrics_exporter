@@ -20,10 +20,11 @@ for hardware a model does not have report NaN.
 | A2L | `26A` | no | no | no | no | no | 1 | no | no |
 | H2D / H2D Pro | `094` / `239` | yes | yes | stat | yes | yes | 2 | no | yes |
 | H2S | `093` | yes | yes | stat | yes | yes | 1 | no | yes |
-| H2C | `31B` (early units `094`) | yes | yes | stat | yes | yes | 2 | yes | yes |
+| H2C | `31B` (early units `094`) | yes | yes | stat | yes | yes | 2 | yes (6 slots) | yes |
+| H3C | `32X` | yes | yes | auto | not confirmed | yes | 1 | yes (9 slots) | no |
 | R1 (laser) | `35F` | no | no | auto | no | no | none | no | yes |
 
-Unknown models export whatever the payload carries.
+Unknown models export whatever the payload carries. The H3C (tool changer, model code `N10`) is detected from a public sample payload only; its door and lid sources are not confirmed.
 
 ## Exporter Health
 
@@ -85,7 +86,7 @@ Unknown models export whatever the payload carries.
 | `bambulab_bed_temperature_celsius` | Gauge | Current bed temperature |
 | `bambulab_bed_target_temperature_celsius` | Gauge | Target bed temperature |
 | `bambulab_chamber_temperature_celsius` | Gauge | Chamber temperature (`device.ctc` on new firmware, unpacked; `chamber_temper` on older firmware). NaN on models without a chamber sensor (A1, A1 mini, A2L, P1P, P1S) |
-| `bambulab_chamber_target_temperature_celsius` | Gauge | Chamber heater target (0 while the heater is off). Only on models with a chamber heater (X1E, X2D, H2D, H2D Pro, H2S, H2C); NaN otherwise |
+| `bambulab_chamber_target_temperature_celsius` | Gauge | Chamber heater target (0 while the heater is off). Only on models with a chamber heater (X1E, X2D, H2D, H2D Pro, H2S, H2C, H3C); NaN otherwise |
 | `bambulab_chamber_heater_state` | Gauge | Chamber heater state: 0 idle, 1 heating, 2 holding, 3 cooling. NaN on models without a chamber heater |
 
 ---
@@ -135,17 +136,19 @@ Fan values: raw levels 0–15 → nearest-10 percent normalization.
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `bambulab_ams_unit_info{ams_id,ams_model,ams_series}` | Info Gauge | AMS unit identity |
+| `bambulab_ams_unit_info{ams_id,ams_model,ams_series}` | Info Gauge | AMS unit identity. `ams_model` is `ams_1`, `ams_lite`, `ams_2_pro`, `ams_ht`, `ams_3h` or `unknown`; `ams_series` is `gen_1`, `gen_2`, `gen_3` (AMS 3H) or `unknown` |
 | `bambulab_ams_unit_humidity{ams_id}` | Gauge | AMS humidity raw value. Not exported for AMS Lite (no sensor) |
 | `bambulab_ams_unit_humidity_index{ams_id}` | Gauge | AMS humidity index (1–5). Not exported for AMS Lite |
 | `bambulab_ams_unit_temperature_celsius{ams_id}` | Gauge | AMS temperature. Not exported for AMS Lite |
+
+The AMS 3H (H3C, unit id 32) reports humidity, temperature and drying per zone instead, so its unit humidity, temperature and drying metrics are not exported. See [Zones](#zones-ams-3h).
 
 ### Slots
 
 | Metric | Type | Description |
 |--------|------|-------------|
 | `bambulab_ams_slot_active{ams_id,slot_id}` | Gauge | 1 for the slot loaded in the active extruder (per-extruder `snow` on new firmware, `tray_now` on older firmware; AMS HT units use ids 128+) |
-| `bambulab_ams_slot_present{ams_id,slot_id}` | Gauge | 1 when a spool sits in the slot, with or without an RFID tag; 0 when the slot is empty (`ams.tray_exist_bits`). AMS, AMS lite and AMS 2 Pro (ids 0-3) and AMS HT (ids 128-135) only; units with other ids, such as the A2L's, are left out |
+| `bambulab_ams_slot_present{ams_id,slot_id}` | Gauge | 1 when a spool sits in the slot, with or without an RFID tag; 0 when the slot is empty (`ams.tray_exist_bits`). AMS, AMS lite and AMS 2 Pro (ids 0-3), AMS HT (ids 128-135) and AMS 3H (9 slots) only; units with other ids, such as the A2L's, are left out |
 | `bambulab_ams_slot_remaining_percent{ams_id,slot_id}` | Gauge | Remaining filament %. NaN when unknown (the printer reports -1 for spools without an estimate) |
 | `bambulab_ams_slot_tray_info{ams_id,slot_id,tray_type,tray_color}` | Info Gauge | Filament type and color |
 
@@ -160,6 +163,22 @@ Fan values: raw levels 0–15 → nearest-10 percent normalization.
 | `bambulab_ams_drying_target_temperature_celsius{ams_id}` | Gauge | Configured drying temperature (`dry_setting.dry_temperature`). Omitted when unset or on older firmware |
 | `bambulab_ams_drying_duration_seconds{ams_id}` | Gauge | Configured drying duration (`dry_setting.dry_duration`, hours in the payload). Omitted when unset |
 | `bambulab_ams_drying_blocked_reason_info{ams_id,reason}` | Info Gauge | Why this AMS cannot start drying now (`dry_sf_reason`, a list of codes), one series per reason with value 1. `reason` is one of `task_occupied`, `insufficient_power`, `ams_busy`, `consumable_at_ams_outlet`, `initiating_ams_drying`, `not_supported_in_2d_mode`, `drying_in_progress`, `upgrading`, `insufficient_power_need_plugin_power`, `closing_ams_drying`, `filament_at_ams_outlet_manual_unload`, `unknown`. `drying_in_progress` only means a drying run is active. Omitted when no reason is reported |
+
+### Zones (AMS 3H)
+
+The AMS 3H splits its 9 slots into humidity and drying zones (`zone_info`; 2 zones on the units seen so far). `zone_id` is 0-7. Only a zone that holds exactly two slots can dry, so the dryer metrics below appear for that zone only. Detected from a public sample payload, not validated on real hardware.
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `bambulab_ams_zone_slot_info{ams_id,zone_id,slot_id}` | Info Gauge | 1 for each slot in the zone |
+| `bambulab_ams_zone_humidity{ams_id,zone_id}` | Gauge | Zone humidity in percent (`humidity_raw`) |
+| `bambulab_ams_zone_humidity_index{ams_id,zone_id}` | Gauge | Zone humidity index (1-5, 5 is driest) |
+| `bambulab_ams_zone_temperature_celsius{ams_id,zone_id}` | Gauge | Zone temperature |
+| `bambulab_ams_zone_heater_state_info{ams_id,zone_id,state}` | Info Gauge | Zone dryer state, same values as `bambulab_ams_heater_state_info` |
+| `bambulab_ams_zone_drying_remaining_seconds{ams_id,zone_id}` | Gauge | Remaining drying time, 0 when not drying |
+| `bambulab_ams_zone_drying_target_temperature_celsius{ams_id,zone_id}` | Gauge | Configured drying temperature. Omitted when unset |
+| `bambulab_ams_zone_drying_duration_seconds{ams_id,zone_id}` | Gauge | Configured drying duration. Omitted when unset |
+| `bambulab_ams_zone_drying_blocked_reason_info{ams_id,zone_id,reason}` | Info Gauge | Why the zone cannot start drying now, same reasons as `bambulab_ams_drying_blocked_reason_info` |
 
 ---
 
@@ -223,10 +242,12 @@ For example, a color change on one nozzle of an H2D went `switch_extruder`, `cut
 
 ## Hotend Rack
 
+Rack slots are `slot_id` 16-21 on the H2C (6 slots) and 16-24 on the H3C (9 slots); a printer of unknown model reports 6, or more when a higher slot is docked.
+
 | Metric | Type | Description |
 |--------|------|-------------|
-| `bambulab_hotend_rack_holder_position_info{position}` | Info Gauge | Holder position |
-| `bambulab_hotend_rack_holder_state_info{state}` | Info Gauge | Holder state |
+| `bambulab_hotend_rack_holder_position_info{position}` | Info Gauge | Holder position. H2C: `a_top`, `b_top`, `centre`. H3C (direct rack, `holder.info2` rack type above 0): `down`, `up`, `centre`. `unknown` otherwise |
+| `bambulab_hotend_rack_holder_state_info{state}` | Info Gauge | Holder state: `idle`, `hotend_centre`, `toolhead_centre`, `calibrate_hotend_rack`, `cut_material`, `unlock_hotend`, `lift_hotend_rack`, `place_hotend`, `pick_hotend`, `lock_hotend`. The H3C also reports `wait_hotend_heating`, `move` and `hotend_info_refresh`. `unknown` otherwise |
 | `bambulab_hotend_rack_slot_state_info{slot_id,state}` | Info Gauge | Slot state |
 | `bambulab_hotend_rack_hotend_info{slot_id,nozzle_type,nozzle_diameter}` | Info Gauge | Slot nozzle metadata |
 | `bambulab_hotend_rack_hotend_wear_ratio{slot_id}` | Gauge | Nozzle wear ratio |
