@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-11
+
 ### Added
 - Connection page: a printer whose model the exporter does not recognize gets an
   **Unsupported printer** label, with a link to the Diagnostics page to report it.
@@ -42,6 +44,8 @@ All notable changes to this project are documented in this file.
   do not change.
 - Grafana: an AMS Zones table under the AMS row shows humidity, temperature and drying per zone
   for the AMS 3H. Re-import the sample dashboard to get it.
+- Grafana screenshots in `examples/grafana/images/` (also used by the README) are retaken and
+  show the AMS Zones table; the Grafana.com README mentions it and needs exporter 0.4.0+.
 
 ### Changed
 - Pull request checks now also run strict mypy, as release builds already did.

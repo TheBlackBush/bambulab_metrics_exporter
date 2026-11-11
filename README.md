@@ -34,13 +34,15 @@ Watch prints, temperatures, filament and errors on a dashboard, keep history, an
 - **Temperatures and fans:** nozzle (per extruder and the active one on dual-nozzle printers),
   bed, chamber and their targets, plus every fan and the airduct mode.
 - **AMS:** model, filament type and color per slot, remaining filament, humidity, temperature and
-  drying status.
+  drying status, per zone on the AMS 3H.
 - **Extruders and nozzles:** filament change steps, filament sensors and buffer, nozzle type,
   diameter and wear.
 - **Model aware:** detects the printer model and leaves out metrics for hardware it does not have.
 - **Easy setup:** connect the printer in your browser on the built-in `/auth` page (LAN or Bambu
   Cloud login). Settings are stored encrypted and survive restarts.
 - **Several printers:** one exporter can monitor up to 32 printers, cloud and LAN mixed.
+- **Diagnostics:** a built-in page builds a sanitized report (no serials, addresses, names or
+  credentials) and opens a prefilled GitHub issue, for new printers, missing metrics or problems.
 - **Read-only:** it never sends control commands to the printer.
 - **Ready to use:** a [Grafana dashboard](https://grafana.com/grafana/dashboards/25033-bambulab-metrics/),
   Prometheus alert and recording rules, and an Unraid template.

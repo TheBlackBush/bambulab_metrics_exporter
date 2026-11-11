@@ -12,7 +12,7 @@ Panels for hardware your printer does not have show a placeholder ("No heater", 
 |---|---|
 | Grafana | Built with 12.4, tested on 13.3 |
 | Prometheus | 2.40+ |
-| [bambulab_metrics_exporter](https://github.com/TheBlackBush/bambulab_metrics_exporter) | 0.3.0+ (older versions leave the newer panels empty) |
+| [bambulab_metrics_exporter](https://github.com/TheBlackBush/bambulab_metrics_exporter) | 0.4.0+ (older versions leave the newer panels empty) |
 | Business Text plugin (`marcusolsson-dynamictext-panel`) | 6.x |
 
 ### Business Text plugin (AMS inventory panel)
@@ -119,7 +119,7 @@ Nozzle, bed and chamber gauges, chamber target and heater state (X1E, X2D, H2 se
 An Extruder Status table with one row per extruder: filament change step, feed direction, filament sensor, loaded AMS slot, nozzle type and diameter, nozzle fitted, filament in the buffer. Plus the active nozzle (left or right) on dual-nozzle printers, its type and diameter, nozzle print time and wear.
 
 ### AMS
-AMS model, AMS status, auto refill, tangle detection setting, spools per unit, dryer state, the **AMS filament inventory** (Business Text spool cards for every AMS unit plus the external spool), AMS temperature and humidity, and drying status for AMS 2 Pro and AMS HT units: time left, target, phase, set duration and why drying cannot start.
+AMS model, AMS status, auto refill, tangle detection setting, spools per unit, dryer state, the **AMS filament inventory** (Business Text spool cards for every AMS unit plus the external spool), AMS temperature and humidity, drying status for AMS 2 Pro and AMS HT units (time left, target, phase, set duration and why drying cannot start), and an AMS Zones table with humidity, temperature and drying per zone for the AMS 3H on the H3C.
 
 ### Airduct, Lights & Storage
 Airduct mode and per-fan speeds (P2S, X2D, H2 series), light states, and timelapse storage.

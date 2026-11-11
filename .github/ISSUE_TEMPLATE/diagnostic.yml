@@ -57,7 +57,7 @@ body:
     attributes:
       label: Exporter version
       description: Shown at the top of the status page, and in the report.
-      placeholder: "0.3.1"
+      placeholder: "0.4.0"
     validations:
       required: true
   - type: dropdown

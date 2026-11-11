@@ -389,7 +389,7 @@ secrets.
 | `REQUEST_TIMEOUT_SECONDS` | optional; `8.0` | Positive float for snapshot/cloud requests | no | `8` |
 | `LISTEN_HOST` | optional; `0.0.0.0` | Uvicorn bind host | no | `127.0.0.1` |
 | `LISTEN_PORT` | optional; `9109` | Uvicorn TCP port integer | no | `9109` |
-| `AUTH_ALLOWED_HOSTS` | optional; empty | Extra Host names accepted by `/auth`, comma separated (IPs and local names always allowed) | operational | `exporter.example.invalid` |
+| `AUTH_ALLOWED_HOSTS` | optional; empty | Extra Host names accepted by `/auth` and `/diagnostics`, comma separated (IPs and local names always allowed) | operational | `exporter.example.invalid` |
 | `PRINTER_NAME_LABEL` | optional; empty | Canonical stable operator override for `printer_name` label | operational/user text | `test-printer` |
 | `BAMBULAB_PRINTER_NAME` | optional; empty | Discovered/persisted printer name and fallback label | operational/user text | `Test Printer` |
 | `BAMBULAB_PRINTER_MODEL` | optional; empty | Discovered/persisted model; normalized model-detection hint after serial prefix | operational | `X1C` |
@@ -784,7 +784,7 @@ Agents must not:
 
 Evidence at the time this manual was created:
 
-- Version `0.3.1`; Python 3.11+ package with FastAPI, Paho MQTT, Prometheus client,
+- Version `0.4.0`; Python 3.11+ package with FastAPI, Paho MQTT, Prometheus client,
   Pydantic settings, Uvicorn, cryptography/Fernet, and dotenv.
 - Local and cloud MQTT modes work through the same client architecture. Cloud supports OTP
   authentication, encrypted credential persistence, and refresh-token recovery. Model

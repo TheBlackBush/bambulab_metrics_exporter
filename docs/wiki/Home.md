@@ -83,10 +83,12 @@ Once running, the exporter exposes:
 | `GET /` | Status page: health, printer connection, last update |
 | `GET /auth` | Printer connection page: local or Bambu Cloud login |
 | `GET /auth/status` | Connection state as JSON |
+| `GET /diagnostics` | Diagnostics page: run, copy or download a sanitized report, or open a GitHub issue with it ([Diagnostic Report](Diagnostic-Report)) |
+| `GET /diagnostics/report` | The diagnostic report as JSON (`?download=1` for a file) |
 | `GET /metrics` | Prometheus metrics |
 | `GET /health` | Liveness check |
 | `GET /ready` | Readiness check |
 
-> The `/auth` page has no login of its own. Keep port 9109 on a trusted network.
+> The `/auth` and `/diagnostics` pages have no login of their own. Keep port 9109 on a trusted network.
 
 Default port: **9109**
