@@ -196,7 +196,7 @@ def test_log_web_endpoints(caplog) -> None:
 
     caplog.set_level(logging.INFO)
     main.log_web_endpoints(Settings(listen_host="0.0.0.0", listen_port=9110))
-    for path in ("/", "/auth", "/metrics", "/health", "/ready"):
+    for path in ("/", "/auth", "/diagnostics", "/metrics", "/health", "/ready"):
         assert f"http://<docker-host>:9110{path}" in caplog.text
     assert "9110 is the container port" in caplog.text
 

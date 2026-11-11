@@ -13,7 +13,7 @@ All notable changes to this project are documented in this file.
   GitHub issue** (copies the report and opens the issue form with the version, model and
   firmware filled in). Use it for new printers, missing features or metrics, wrong values and
   connection problems. The JSON is also at `GET /diagnostics/report` (`?download=1` for a
-  file). It holds the exporter version, each
+  file). The startup log lists the page with the other web addresses. It holds the exporter version, each
   printer's state, detected model, capabilities, metrics without a value, firmware modules,
   the printer's latest data and the last 200 exporter log lines. Serial numbers (except the
   model prefix), IP and MAC addresses, Wi-Fi and printer names, job and file names, account and
