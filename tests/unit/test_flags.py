@@ -39,3 +39,11 @@ def test_decode_stat_flags() -> None:
 def test_decode_stat_flags_lid_open_bit() -> None:
     decoded = decode_stat_flags("47A58008")
     assert decoded["lid_open"] is True
+
+
+def test_to_int_non_finite_floats_are_none() -> None:
+    from bambulab_metrics_exporter.flags import to_int
+
+    assert to_int(float("nan")) is None
+    assert to_int(float("inf")) is None
+    assert to_int(2.9) == 2

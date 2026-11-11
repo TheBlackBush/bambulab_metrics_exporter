@@ -2,7 +2,7 @@
 
 Real-time monitoring for BambuLab 3D printers: printer status, print progress, temperatures, fans, extruders and nozzles, AMS filament inventory and drying, HMS errors, firmware, airduct, lights and accessories. Use the **Job** and **Printer** dropdowns at the top to switch between printers; AMS units, extruders and fans are picked up automatically.
 
-Panels for hardware your printer does not have show a placeholder ("No heater", "No dryer", "N/A") instead of an error. The nozzle gauge scales to the printer model's nozzle limit.
+Panels for hardware your printer does not have show a placeholder ("No heater", "No dryer", "N/A") instead of an error. The nozzle and bed gauges scale to the printer model's temperature limits.
 
 ---
 

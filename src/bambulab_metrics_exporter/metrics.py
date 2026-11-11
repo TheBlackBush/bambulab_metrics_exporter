@@ -4,6 +4,7 @@ import math
 
 from prometheus_client import CollectorRegistry, Gauge
 
+from bambulab_metrics_exporter.flags import to_int
 from bambulab_metrics_exporter.models import (
     AMS_MODELS_WITH_DRYER,
     AMS_MODELS_WITHOUT_SENSORS,
@@ -939,7 +940,7 @@ class ExporterMetrics:
 
         for ams in snapshot.ams_units_with_model:
             ams_id = str(ams.get("id", "0"))
-            ams_id_int = int(ams.get("id", 0))
+            ams_id_int = to_int(ams.get("id", 0))
             ams_model = str(ams.get("ams_model", "unknown"))
             ams_series = str(ams.get("ams_series", "unknown"))
             # AMS unit info metric
@@ -1018,7 +1019,7 @@ class ExporterMetrics:
             trays = [t for t in raw_trays if isinstance(t, dict)] if isinstance(raw_trays, list) else []
             for tray in trays:
                 tray_id = str(tray.get("id", "-1"))
-                tray_id_int = int(tray.get("id", -1))
+                tray_id_int = to_int(tray.get("id", -1))
                 is_active = (ams_id_int == _active_ams_id) and (tray_id_int == _active_slot_id)
                 self.ams_slot_active.labels(**labels, ams_id=ams_id, slot_id=tray_id).set(
                     1.0 if is_active else 0.0

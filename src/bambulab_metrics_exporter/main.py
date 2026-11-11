@@ -111,10 +111,22 @@ def log_web_endpoints(settings: Settings) -> None:
     log_banner(logger, "BAMBU LAB METRICS EXPORTER WEB UI", lines)
 
 
+# Settings that were documented once but never had an effect. They are ignored; a warning
+# tells operators they can remove them.
+_REMOVED_SETTINGS: tuple[str, ...] = ("RECONNECT_INTERVAL_SECONDS",)
+
+
+def _warn_removed_settings() -> None:
+    for key in _REMOVED_SETTINGS:
+        if key in os.environ:
+            logger.warning("%s has no effect and is ignored; you can remove it", key)
+
+
 def run() -> None:
     _safe_load_dotenv()
     # Configure logging before anything else logs (overrides, bootstrap).
     configure_logging(os.getenv("LOG_LEVEL", "INFO"))
+    _warn_removed_settings()
     apply_overrides_to_env()
     store = PrinterStore()
     # A page login with no printer ticked yet still needs its token: the picker uses it.

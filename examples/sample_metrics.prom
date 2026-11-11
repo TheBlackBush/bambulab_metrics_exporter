@@ -117,6 +117,7 @@ bambulab_accessory_present{accessory="fire_extinguisher",printer_name="my-x1c",s
 bambulab_accessory_present{accessory="rotary_attachment",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
 bambulab_accessory_present{accessory="filament_switch",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
 bambulab_accessory_present{accessory="air_pump",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
+bambulab_accessory_present{accessory="air_purifier",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 0.0
 # HELP bambulab_light_mode_info Light mode per light (on, off, flashing, unknown)
 # TYPE bambulab_light_mode_info gauge
 bambulab_light_mode_info{light="chamber_light",mode="off",printer_name="my-x1c",serial="00MFAKE0TEST0001"} 1.0

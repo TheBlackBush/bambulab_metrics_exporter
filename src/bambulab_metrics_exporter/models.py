@@ -43,8 +43,7 @@ PRODUCT_NAME_TO_PRINTER: dict[str, str] = {
 }
 
 # Serial prefix → model (priorities 2 and 3). The first three characters of a
-# printer serial identify the model; this mirrors the sn_prefix values in Bambu
-# Studio's resources/printers/*.json.
+# printer serial identify the model.
 _SN_PREFIX_TO_PRINTER: dict[str, str] = {
     "00W": "X1",
     "00M": "X1C",
@@ -166,8 +165,8 @@ _TOOL_HEAD_TYPES: dict[str, str] = {
 }
 TOOL_HEADS: tuple[str, ...] = ("none", *_TOOL_HEAD_TYPES.values(), "other")
 
-# Accessories and how they are detected: get_version product_name substring (Bambu
-# Studio DevFirmware), plus payload flags where the printer reports one.
+# Accessories and how they are detected: get_version product_name substring, plus
+# payload flags where the printer reports one.
 ACCESSORY_PRODUCT_NAMES: dict[str, str] = {
     "filament_buffer": "Filament Buffer",
     "external_exhaust_fan": "Exhaust Fan",
@@ -175,14 +174,21 @@ ACCESSORY_PRODUCT_NAMES: dict[str, str] = {
     "rotary_attachment": "Rotary",
     "filament_switch": "Filament Track",
     "air_pump": "Air Pump",
+    "air_purifier": "Air Purifier",
 }
 # get_version module names that identify an accessory even without a product name. The
 # external buffer reports as "ahbc". The H2 series' built-in buffer board reports as plain
-# "ahb" and is part of the printer, so it is deliberately not matched.
+# "ahb" and is part of the printer, so it is deliberately not matched. Older firmware
+# reports the air purifier as "aps" with an empty product name.
 ACCESSORY_MODULE_NAMES: dict[str, str] = {
     "filament_buffer": "ahbc",
+    "air_purifier": "aps",
 }
-_AUX_FILAMENT_SWITCH_BIT = 29
+# Accessory "in place" bits in the print.aux hex string.
+_AUX_ACCESSORY_BITS: dict[str, int] = {
+    "filament_switch": 29,
+    "air_purifier": 37,
+}
 
 _FIRMWARE_VERSION_RE = re.compile(r"^\d{2}\.\d{2}\.\d{2}\.\d{2}$")
 _MODULE_NAME_RE = re.compile(r"^[a-z0-9_-]{1,16}(/\d{1,3})?$")
@@ -270,29 +276,8 @@ HOTEND_RACK_HOLDER_POSITION_NAMES: dict[int, str] = {
     3: "centre",
 }
 
+# Holder states (`device.holder.stat`), the same list for every rack type.
 HOTEND_RACK_HOLDER_STATE_NAMES: dict[int, str] = {
-    0: "idle",
-    1: "hotend_centre",
-    2: "toolhead_centre",
-    3: "calibrate_hotend_rack",
-    4: "cut_material",
-    5: "unlock_hotend",
-    6: "lift_hotend_rack",
-    7: "place_hotend",
-    8: "pick_hotend",
-    9: "lock_hotend",
-}
-
-# Direct-connected racks (H3C): `device.holder.info2` bits 1-4 give the rack type, and any
-# type above 0 is a direct rack (Bambu Studio DevNozzleRack). They name positions and
-# states differently from the H2C's A/B rack, which sends no `info2`.
-DIRECT_RACK_HOLDER_POSITION_NAMES: dict[int, str] = {
-    1: "down",
-    2: "up",
-    3: "centre",
-}
-
-DIRECT_RACK_HOLDER_STATE_NAMES: dict[int, str] = {
     0: "idle",
     1: "hotend_centre",
     2: "toolhead_centre",
@@ -306,6 +291,15 @@ DIRECT_RACK_HOLDER_STATE_NAMES: dict[int, str] = {
     10: "lock_hotend",
     11: "move",
     12: "hotend_info_refresh",
+}
+
+# Direct-connected racks (H3C): `device.holder.info2` bits 1-4 give the rack type, and any
+# type above 0 is a direct rack. They name positions
+# differently from the H2C's A/B rack, which sends no `info2`.
+DIRECT_RACK_HOLDER_POSITION_NAMES: dict[int, str] = {
+    1: "down",
+    2: "up",
+    3: "centre",
 }
 
 
@@ -508,7 +502,7 @@ def parse_ams_zones(unit: dict[str, Any]) -> list[dict[str, Any]]:
     (`zone_info[]`, AMS 3H). Each zone keeps its own `humidity` (index 1-5),
     `humidity_raw` (%), `temp` (°C), `info` (dryer state bits, as on the unit) and
     `dry_time` / `dry_setting` / `dry_sf_reason` (as on an AMS 2 Pro). A zone can dry
-    only when it holds exactly two slots, as Bambu Studio decides. Zones with an id
+    only when it holds exactly two slots. Zones with an id
     outside 0-7 or a malformed entry are skipped."""
     raw = unit.get("zone_info")
     if not isinstance(raw, list):
@@ -661,17 +655,18 @@ STG_CUR_NAMES: dict[int, str] = {
 
 
 def _to_float(value: Any) -> float | None:
+    """Float from a number or numeric string; None for anything else, including NaN and
+    infinity (valid in Python's JSON parser, but never a real reading)."""
     if isinstance(value, (int, float)):
-        return float(value)
-    if isinstance(value, str):
-        text = value.strip()
-        if not text:
-            return None
+        result = float(value)
+    elif isinstance(value, str) and value.strip():
         try:
-            return float(text)
+            result = float(value.strip())
         except ValueError:
             return None
-    return None
+    else:
+        return None
+    return result if math.isfinite(result) else None
 
 
 def _unpack_temperature(value: Any) -> tuple[float | None, float | None]:
@@ -1409,9 +1404,12 @@ class PrinterSnapshot:
         aux = self.print_block.get("aux")
         if isinstance(aux, str):
             try:
-                flags["filament_switch"] = bool(int(aux, 16) >> _AUX_FILAMENT_SWITCH_BIT & 1)
+                aux_bits = int(aux, 16)
             except ValueError:
                 pass
+            else:
+                for accessory, bit in _AUX_ACCESSORY_BITS.items():
+                    flags[accessory] = bool(aux_bits >> bit & 1)
         out: dict[str, float] = {}
         for accessory, product in ACCESSORY_PRODUCT_NAMES.items():
             in_modules = any(product in name for name in names) or (
@@ -1911,11 +1909,7 @@ class PrinterSnapshot:
         stat = to_int(holder.get("stat"))
         if stat is None:
             return None
-        names = (
-            DIRECT_RACK_HOLDER_STATE_NAMES if _is_direct_rack(holder)
-            else HOTEND_RACK_HOLDER_STATE_NAMES
-        )
-        return names.get(stat, "unknown")
+        return HOTEND_RACK_HOLDER_STATE_NAMES.get(stat, "unknown")
 
     @property
     def hotend_rack_slot_entries(self) -> list[dict[str, str]]:

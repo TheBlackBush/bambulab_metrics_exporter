@@ -6,6 +6,8 @@ import logging
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import pytest
+
 from bambulab_metrics_exporter.client.cloud_mqtt import CloudMqttBambuClient
 from bambulab_metrics_exporter.client.local_mqtt import LocalMqttBambuClient, _deep_merge_in_place
 from bambulab_metrics_exporter.config import Settings
@@ -147,6 +149,33 @@ def test_on_message_invalid_json(monkeypatch) -> None:
     msg = SimpleNamespace(topic="device/SERIALX/report", payload=b"not-json")
     client._on_message(None, None, msg)
     assert client._latest_state == {}
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        b"\xff\xfe not utf-8",
+        b'{"print": {"mc_percent": 1}',  # truncated
+        b"[1, 2]",
+        b'"text"',
+        b"42",
+        b"null",
+        b"",
+    ],
+)
+def test_on_message_ignores_malformed_reports_and_keeps_state(raw: bytes, caplog) -> None:
+    client = LocalMqttBambuClient(_settings())
+    good = json.dumps({"print": {"mc_percent": 55}}).encode("utf-8")
+    client._on_message(None, None, SimpleNamespace(topic="device/SERIAL1/report", payload=good))
+    with caplog.at_level(logging.WARNING):
+        client._on_message(None, None, SimpleNamespace(topic="device/SERIAL1/report", payload=raw))
+    assert client._latest_state == {"print": {"mc_percent": 55}}
+    assert "Ignoring an MQTT report" in caplog.text
+    assert "Traceback" not in caplog.text
+    # Later valid reports still merge.
+    later = json.dumps({"print": {"layer_num": 3}}).encode("utf-8")
+    client._on_message(None, None, SimpleNamespace(topic="device/SERIAL1/report", payload=later))
+    assert client._latest_state["print"] == {"mc_percent": 55, "layer_num": 3}
 
 
 # ---------------------------------------------------------------------------

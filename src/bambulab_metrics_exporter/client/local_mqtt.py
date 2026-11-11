@@ -153,8 +153,14 @@ class LocalMqttBambuClient(BambuClient):
             return
         try:
             payload = json.loads(msg.payload.decode("utf-8"))
-        except json.JSONDecodeError:
-            logger.exception("Failed to decode MQTT payload")
+        except (UnicodeDecodeError, ValueError) as exc:
+            # No traceback and no payload content: reports are untrusted device data.
+            logger.warning("Ignoring an MQTT report that is not valid JSON (%s)", type(exc).__name__)
+            return
+        if not isinstance(payload, dict):
+            logger.warning(
+                "Ignoring an MQTT report that is not a JSON object (%s)", type(payload).__name__
+            )
             return
 
         with self._lock:

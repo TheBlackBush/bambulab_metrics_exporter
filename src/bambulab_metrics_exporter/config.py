@@ -32,7 +32,6 @@ class Settings(BaseSettings):
 
     polling_interval_seconds: float = 10.0
     request_timeout_seconds: float = 8.0
-    reconnect_interval_seconds: float = 5.0
 
     listen_host: str = "0.0.0.0"
     listen_port: int = 9109
