@@ -332,6 +332,10 @@ def test_diagnostics_page_runs_and_shares_the_report() -> None:
     for element in ('id="run"', 'id="copy"', 'id="download"', 'id="issue"', 'id="report"'):
         assert element in page
     assert 'fetch("/diagnostics/report"' in page
+    # The issue link carries title, summary and fields, and the report when it fits.
+    for snippet in ('["title", issueTitle(', '["description", issueDescription(',
+                    '["report", reportField]', "maxIssueUrl", "download();"):
+        assert snippet in page
     assert "issues/new?template=diagnostic.yml" in page and "/wiki/Diagnostic-Report" in page
     assert 'href="/diagnostics/report?download=1"' in page  # no-JavaScript fallback
     # Report text is put on the page as text, never parsed as HTML.

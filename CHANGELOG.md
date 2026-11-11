@@ -10,8 +10,9 @@ All notable changes to this project are documented in this file.
   `/auth/status` printer entries gain a `model` field (empty when not recognized).
 - Diagnostics page (`/diagnostics`, linked from the status page and the `/auth` page): **Run
   diagnostics** shows a sanitized report on the page, with **Copy**, **Download** and **Create
-  GitHub issue** (copies the report and opens the issue form with the version, model and
-  firmware filled in). Use it for new printers, missing features or metrics, wrong values and
+  GitHub issue** (opens the issue form with a title, a summary and the version, model, firmware
+  and connection filled in; a small report goes in too, a full one is copied and downloaded for
+  pasting or dragging in). Use it for new printers, missing features or metrics, wrong values and
   connection problems. The JSON is also at `GET /diagnostics/report` (`?download=1` for a
   file). The startup log lists the page with the other web addresses. It holds the exporter version, each
   printer's state, detected model, capabilities, metrics without a value, firmware modules,

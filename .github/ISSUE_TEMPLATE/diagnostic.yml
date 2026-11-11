@@ -7,7 +7,7 @@ body:
       value: |
         Thanks for helping improve the exporter. The **diagnostic report** shows exactly what your printer sends, so a new model, feature or metric can be added, or a wrong value fixed, without access to your printer.
 
-        **Get the report:** open the exporter's **Diagnostics** page (`http://exporter-host:9109/diagnostics`, or the **Diagnostics** button on the status page) and click **Run diagnostics**. **Create GitHub issue** there copies the report and opens this form with the version, model and firmware filled in: paste the report into the box below. Access codes, tokens, serial numbers, IP addresses and names are removed; check the report before you post it.
+        **Get the report:** open the exporter's **Diagnostics** page (`http://exporter-host:9109/diagnostics`, or the **Diagnostics** button on the status page) and click **Run diagnostics**. **Create GitHub issue** there opens this form with the title, a summary and the fields filled in. A small report is filled in too; a full one is copied and downloaded, so paste it (Ctrl+V) or drag the file into the box below. Access codes, tokens, serial numbers, IP addresses and names are removed; check the report before you post it.
 
         For the best report, run it **while the problem is visible** (for example during a print, while drying, or with the accessory fitted). Step-by-step guide: [Diagnostic Report](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Diagnostic-Report).
   - type: dropdown

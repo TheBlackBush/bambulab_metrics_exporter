@@ -271,9 +271,66 @@
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
   }
 
-  function issueUrl() {
+  // GitHub answers very long links with an error, so the report only goes into the link
+  // when the whole link stays under this length.
+  var maxIssueUrl = 7500;
+  var connectionStates = { error: true, auth_required: true, setup_required: true };
+
+  function modelName(p) { return p.model ? (modelLabels[p.model] || p.model) : ""; }
+
+  function issueTitle(printers) {
+    if (printers.length !== 1) { return "[" + printers.length + " printers] Diagnostic report"; }
+    var p = printers[0];
+    if (!p.model) {
+      var prefix = String(p.serial || "").slice(0, 3);
+      return "[Unsupported printer] " + (prefix ? "Serial prefix " + prefix : "Model not recognized");
+    }
+    if (connectionStates[p.state]) { return "[" + modelName(p) + "] " + (stateLabels[p.state] || p.state); }
+    return "[" + modelName(p) + "] Diagnostic report";
+  }
+
+  function issueKind(printers) {
+    if (printers.length !== 1) { return ""; }
+    if (!printers[0].model) { return "New or untested printer model"; }
+    if (connectionStates[printers[0].state]) { return "Connection or setup problem"; }
+    return "";
+  }
+
+  function cell(value) { return String(value).replace(/\|/g, "\\|").replace(/\n/g, " "); }
+
+  function issueDescription(printers) {
+    var lines = [
+      "**Summary from the diagnostic report** (exporter " + (report.exporter && report.exporter.version || "?")
+        + ", " + (report.generated_at || "") + ")",
+      ""
+    ];
+    if (!printers.length) {
+      lines.push("No printer is configured yet.");
+    } else {
+      lines.push("| Printer | Model | State | Connection | Firmware | Metrics without a value |");
+      lines.push("|---|---|---|---|---|---|");
+      printers.forEach(function (p) {
+        var model = modelName(p) || "not recognized (serial prefix " + String(p.serial || "").slice(0, 3) + ")";
+        if (p.model && p.model_source === "serial_or_setting") { model += " (from the serial)"; }
+        lines.push("| " + [p.index, model, stateLabels[p.state] || p.state,
+          p.transport === "cloud_mqtt" ? "Bambu Cloud" : "LAN", firmware(p) || "unknown",
+          p.empty_metrics ? p.empty_metrics.length : "no data yet"].map(cell).join(" | ") + " |");
+      });
+      printers.forEach(function (p) {
+        if (p.message) { lines.push("", "Printer " + p.index + ": `" + cell(p.message).replace(/`/g, "'") + "`"); }
+      });
+    }
+    lines.push("", "**What happened, or what is missing?**", "",
+      "<!-- For a wrong value: what the exporter shows and what the printer screen shows. "
+      + "For a new metric: which value, and where you see it (printer screen, Bambu Studio or Handy). -->", "");
+    return lines.join("\n");
+  }
+
+  function buildIssueUrl(reportField) {
     var printers = report.printers || [];
-    var params = [["title", "[Printer/Metric]: "]];
+    var params = [["title", issueTitle(printers)], ["description", issueDescription(printers)]];
+    var kind = issueKind(printers);
+    if (kind) { params.push(["kind", kind]); }
     if (report.exporter && report.exporter.version) { params.push(["version", report.exporter.version]); }
     if (printers.length === 1) {
       var p = printers[0];
@@ -282,9 +339,19 @@
       if (fw) { params.push(["firmware", fw]); }
       params.push(["transport", p.transport === "cloud_mqtt" ? "Bambu Cloud" : "LAN (local MQTT)"]);
     }
+    params.push(["report", reportField]);
     return issueBase + params.map(function (pair) {
       return "&" + encodeURIComponent(pair[0]) + "=" + encodeURIComponent(pair[1]);
     }).join("");
+  }
+
+  // The report in the link when it fits (compact JSON), otherwise a note in its place.
+  function issuePlan() {
+    var inline = buildIssueUrl("```json\n" + JSON.stringify(report) + "\n```");
+    if (inline.length <= maxIssueUrl) { return { url: inline, inline: true }; }
+    var note = "The report was copied to your clipboard and downloaded as " + fileName()
+      + ". Replace this text: paste the report here (Ctrl+V or Cmd+V), or drag the file into this box.";
+    return { url: buildIssueUrl(note), inline: false };
   }
 
   el("run").addEventListener("click", function () {
@@ -303,9 +370,11 @@
         el("report").textContent = body;
         el("result").hidden = false;
         var size = Math.round(body.length / 1024);
-        el("hint").textContent = body.length > maxPaste
-          ? "The report is " + size + " KB, too large to paste into an issue: download it and drag the file into the issue."
-          : "The report is " + size + " KB. Create GitHub issue copies it and opens the issue form; paste it into the Diagnostic report box.";
+        el("hint").textContent = issuePlan().inline
+          ? "The report is " + size + " KB. Create GitHub issue opens the issue form with the title, summary and report filled in."
+          : body.length > maxPaste
+            ? "The report is " + size + " KB, too large to paste. Create GitHub issue fills in the title and summary and downloads the report: drag the file into the issue."
+            : "The report is " + size + " KB. Create GitHub issue fills in the title and summary, and copies and downloads the report: paste it (Ctrl+V) or drag the file into the issue.";
         status("Report ready (" + report.generated_at + ").", "ok");
       })
       .catch(function (error) {
@@ -327,30 +396,38 @@
     status("Downloaded " + fileName() + ".", "ok");
   });
 
+  function openIssue(url) {
+    var tab = window.open(url, "_blank");
+    if (tab) { tab.opener = null; return true; }
+    status("The browser blocked the new tab. Allow pop-ups for this page, or ", "bad");
+    var link = document.createElement("a");
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = "open the issue form";
+    el("status").appendChild(link);
+    el("status").appendChild(document.createTextNode("."));
+    return false;
+  }
+
   el("issue").addEventListener("click", function () {
-    // Copy first: once the new tab has focus, the clipboard is no longer writable. The
-    // fallback copy is synchronous, and the clipboard API resolves well within the click's
-    // activation window, so the tab still opens without a pop-up warning.
-    copyReport(function (ok, reason) {
-      var tab = window.open(issueUrl(), "_blank");
-      if (tab) { tab.opener = null; }
-      if (ok) {
-        status("Report copied. In the issue form, paste it into the Diagnostic report box.", "ok");
-      } else {
-        download();
-        status((reason === "large" ? "The report is too large to paste, so it was downloaded"
-          : "The clipboard is blocked, so the report was downloaded")
-          + ": drag the file into the Diagnostic report box.", "wait");
+    var plan = issuePlan();
+    if (plan.inline) {
+      // Small report: title, description, fields and the report itself are in the link.
+      if (openIssue(plan.url)) {
+        status("Issue form opened with the report filled in. Check it, then submit.", "ok");
       }
-      if (!tab) {
-        status("The browser blocked the new tab. Allow pop-ups for this page, or ", "bad");
-        var link = document.createElement("a");
-        link.href = issueUrl();
-        link.target = "_blank";
-        link.rel = "noopener noreferrer";
-        link.textContent = "open the issue form";
-        el("status").appendChild(link);
-        el("status").appendChild(document.createTextNode("."));
+      return;
+    }
+    // Large report: links cannot carry it and pages cannot attach files to GitHub, so put
+    // it on the clipboard and in a file before the new tab takes focus.
+    download();
+    copyReport(function (ok) {
+      if (openIssue(plan.url)) {
+        status(ok
+          ? "Report copied and downloaded as " + fileName() + ". In the issue form, paste it into the Diagnostic report box (Ctrl+V), or drag the file there."
+          : "Report downloaded as " + fileName() + ". In the issue form, drag the file into the Diagnostic report box.",
+          ok ? "ok" : "wait");
       }
     });
   });
