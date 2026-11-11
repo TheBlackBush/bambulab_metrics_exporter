@@ -15,9 +15,9 @@ Grafana.
 **New here?** Start with the [Quick Start](Quick-Start): start the container with a secret key,
 then connect the printer in your browser.
 
-> **Supported printers:** X1, X1C, X1E, X2D, P1P, P1S, P2S, A1, A1 mini, A2L, H2D, H2D Pro, H2S
-> and H2C are recognized. Real-world testing so far is on an X1C, and an H2D was checked on real hardware while idle and while printing; if you own another model and
-> want to help, please open an issue on GitHub.
+> **Supported printers:** X1, X1C, X1E, X2D, P1P, P1S, P2S, A1, A1 mini, A2L, H2D, H2D Pro, H2S,
+> H2C and H3C are recognized. Real-world testing so far is on an X1C, and an H2D was checked on real hardware while idle and while printing; if you own another model and
+> want to help, please open an issue on GitHub with a [Diagnostic Report](Diagnostic-Report).
 
 ---
 
@@ -32,6 +32,7 @@ then connect the printer in your browser.
 | [Grafana Dashboard](Grafana-Dashboard) | Dashboard import steps and sample panels |
 | [Metrics Reference](Metrics-Reference) | Full metric list grouped by category |
 | [Troubleshooting](Troubleshooting) | Common issues and fixes |
+| [Diagnostic Report](Diagnostic-Report) | The report to attach to issues for new printers, metrics or fixes |
 
 ---
 
@@ -82,10 +83,12 @@ Once running, the exporter exposes:
 | `GET /` | Status page: health, printer connection, last update |
 | `GET /auth` | Printer connection page: local or Bambu Cloud login |
 | `GET /auth/status` | Connection state as JSON |
+| `GET /diagnostics` | Diagnostics page: run, copy or download a sanitized report, or open a GitHub issue with it ([Diagnostic Report](Diagnostic-Report)) |
+| `GET /diagnostics/report` | The diagnostic report as JSON (`?download=1` for a file) |
 | `GET /metrics` | Prometheus metrics |
 | `GET /health` | Liveness check |
 | `GET /ready` | Readiness check |
 
-> The `/auth` page has no login of its own. Keep port 9109 on a trusted network.
+> The `/auth` and `/diagnostics` pages have no login of their own. Keep port 9109 on a trusted network.
 
 Default port: **9109**

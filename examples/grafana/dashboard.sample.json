@@ -2847,7 +2847,8 @@
               }
             ]
           },
-          "unit": "celsius"
+          "unit": "celsius",
+          "min": 0
         },
         "overrides": []
       },
@@ -2892,12 +2893,12 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "editorMode": "builder",
-          "expr": "max(bambulab_bed_target_temperature_celsius{job=\"$job\", printer_name=\"$printer\"})",
-          "instant": false,
-          "legendFormat": "Bed Target Temperature",
-          "range": true,
-          "refId": "B"
+          "editorMode": "code",
+          "expr": "(max(bambulab_printer_model_info{job=\"$job\", printer_name=\"$printer\", model=~\"A1MINI|A2L\"} == 1) * 80) or (max(bambulab_printer_model_info{job=\"$job\", printer_name=\"$printer\", model=~\"A1|P1P|P1S\"} == 1) * 100) or (max(bambulab_printer_model_info{job=\"$job\", printer_name=\"$printer\", model=~\"P2S\"} == 1) * 110) or (max(bambulab_printer_model_info{job=\"$job\", printer_name=\"$printer\"} == 1) * 120)",
+          "instant": true,
+          "range": false,
+          "legendFormat": "Max",
+          "refId": "Max"
         }
       ],
       "title": "Bed Temperature (C) ",
@@ -2905,21 +2906,19 @@
         {
           "id": "configFromData",
           "options": {
-            "applyTo": {
-              "id": "byName",
-              "options": "Bed Temperature"
-            },
-            "configRefId": "B",
+            "configRefId": "Max",
             "mappings": [
               {
-                "fieldName": "Bed Target Temperature",
-                "handlerKey": "max"
+                "fieldName": "Max",
+                "handlerKey": "max",
+                "reducerId": "lastNotNull"
               }
             ]
           }
         }
       ],
-      "type": "gauge"
+      "type": "gauge",
+      "description": "Bed temperature. The scale ends at the model's bed limit: 80 °C on the A1 mini and A2L, 100 °C on the A1, P1P and P1S, 110 °C on the P2S, 120 °C on other models."
     },
     {
       "datasource": {
@@ -5630,7 +5629,7 @@
       "panels": [],
       "gridPos": {
         "x": 0,
-        "y": 69,
+        "y": 73,
         "w": 24,
         "h": 1
       }
@@ -5646,7 +5645,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 70,
+        "y": 74,
         "w": 3,
         "h": 4
       },
@@ -5710,7 +5709,7 @@
       },
       "gridPos": {
         "x": 3,
-        "y": 70,
+        "y": 74,
         "w": 6,
         "h": 4
       },
@@ -5774,7 +5773,7 @@
       },
       "gridPos": {
         "x": 9,
-        "y": 70,
+        "y": 74,
         "w": 9,
         "h": 4
       },
@@ -5865,7 +5864,7 @@
       },
       "gridPos": {
         "x": 18,
-        "y": 70,
+        "y": 74,
         "w": 6,
         "h": 4
       },
@@ -5925,7 +5924,7 @@
       "panels": [],
       "gridPos": {
         "x": 0,
-        "y": 74,
+        "y": 78,
         "w": 24,
         "h": 1
       }
@@ -5941,7 +5940,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 75,
+        "y": 79,
         "w": 5,
         "h": 6
       },
@@ -6004,7 +6003,7 @@
       },
       "gridPos": {
         "x": 5,
-        "y": 75,
+        "y": 79,
         "w": 5,
         "h": 6
       },
@@ -6067,7 +6066,7 @@
       },
       "gridPos": {
         "x": 10,
-        "y": 75,
+        "y": 79,
         "w": 3,
         "h": 3
       },
@@ -6148,7 +6147,7 @@
       },
       "gridPos": {
         "x": 13,
-        "y": 75,
+        "y": 79,
         "w": 3,
         "h": 6
       },
@@ -6269,7 +6268,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 75,
+        "y": 79,
         "w": 8,
         "h": 6
       },
@@ -6332,7 +6331,7 @@
       },
       "gridPos": {
         "x": 10,
-        "y": 78,
+        "y": 82,
         "w": 3,
         "h": 3
       },
@@ -6388,7 +6387,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 81,
+        "y": 85,
         "w": 24,
         "h": 1
       },
@@ -6453,7 +6452,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 82,
+        "y": 86,
         "w": 5,
         "h": 6
       },
@@ -6558,7 +6557,7 @@
       },
       "gridPos": {
         "x": 5,
-        "y": 82,
+        "y": 86,
         "w": 5,
         "h": 6
       },
@@ -6658,7 +6657,7 @@
       },
       "gridPos": {
         "x": 10,
-        "y": 82,
+        "y": 86,
         "w": 5,
         "h": 6
       },
@@ -6704,7 +6703,7 @@
       },
       "gridPos": {
         "x": 15,
-        "y": 82,
+        "y": 86,
         "w": 9,
         "h": 6
       },
@@ -6817,7 +6816,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 88,
+        "y": 92,
         "w": 7,
         "h": 6
       },
@@ -6928,7 +6927,7 @@
       },
       "gridPos": {
         "x": 7,
-        "y": 88,
+        "y": 92,
         "w": 8,
         "h": 6
       },
@@ -6986,7 +6985,7 @@
       },
       "gridPos": {
         "x": 15,
-        "y": 88,
+        "y": 92,
         "w": 9,
         "h": 6
       },
@@ -7044,7 +7043,7 @@
       "panels": [],
       "gridPos": {
         "x": 0,
-        "y": 94,
+        "y": 98,
         "w": 24,
         "h": 1
       }
@@ -7060,7 +7059,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 95,
+        "y": 99,
         "w": 4,
         "h": 4
       },
@@ -7140,7 +7139,7 @@
       },
       "gridPos": {
         "x": 4,
-        "y": 95,
+        "y": 99,
         "w": 4,
         "h": 4
       },
@@ -7213,7 +7212,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 95,
+        "y": 99,
         "w": 16,
         "h": 4
       },
@@ -7264,6 +7263,328 @@
           "values": false
         },
         "showPercentChange": false
+      }
+    },
+    {
+      "id": 121,
+      "type": "table",
+      "title": "AMS Zones (AMS 3H)",
+      "description": "Humidity, temperature and drying per AMS zone. Only the AMS 3H (H3C) reports zones; only its two-slot zone can dry.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 69,
+        "w": 24,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "count by (ams_id, zone_id) (bambulab_ams_zone_slot_info{job=\"$job\", printer_name=\"$printer\"})",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "A",
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (ams_id, zone_id) (bambulab_ams_zone_humidity{job=\"$job\", printer_name=\"$printer\"})",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "B",
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (ams_id, zone_id) (bambulab_ams_zone_humidity_index{job=\"$job\", printer_name=\"$printer\"})",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "C",
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (ams_id, zone_id) (bambulab_ams_zone_temperature_celsius{job=\"$job\", printer_name=\"$printer\"})",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "D",
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (ams_id, zone_id, state) (bambulab_ams_zone_heater_state_info{job=\"$job\", printer_name=\"$printer\"} == 1)",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "E",
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (ams_id, zone_id) (bambulab_ams_zone_drying_remaining_seconds{job=\"$job\", printer_name=\"$printer\"})",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "F",
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (ams_id, zone_id) (bambulab_ams_zone_drying_target_temperature_celsius{job=\"$job\", printer_name=\"$printer\"})",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto",
+          "refId": "G",
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value #E": true
+            },
+            "indexByName": {
+              "ams_id": 0,
+              "zone_id": 1,
+              "Value #A": 2,
+              "Value #B": 3,
+              "Value #C": 4,
+              "Value #D": 5,
+              "state": 6,
+              "Value #F": 7,
+              "Value #G": 8
+            },
+            "renameByName": {
+              "ams_id": "AMS",
+              "zone_id": "Zone",
+              "Value #A": "Slots",
+              "Value #B": "Humidity",
+              "Value #C": "Humidity Level",
+              "Value #D": "Temperature",
+              "state": "Dryer",
+              "Value #F": "Drying Time Left",
+              "Value #G": "Drying Target"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "minWidth": 70
+          },
+          "noValue": "No AMS zones"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Slots"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "noValue",
+                "value": "-"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Humidity"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "noValue",
+                "value": "-"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Humidity Level"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "noValue",
+                "value": "-"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Temperature"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "celsius"
+              },
+              {
+                "id": "noValue",
+                "value": "-"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Dryer"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "string"
+              },
+              {
+                "id": "noValue",
+                "value": "-"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "off": {
+                        "text": "Off",
+                        "index": 0
+                      },
+                      "self_check": {
+                        "text": "Self check",
+                        "index": 1
+                      },
+                      "drying": {
+                        "text": "Drying",
+                        "index": 2
+                      },
+                      "cooling": {
+                        "text": "Cooling",
+                        "index": 3
+                      },
+                      "stopped": {
+                        "text": "Stopped",
+                        "index": 4
+                      },
+                      "error": {
+                        "text": "Error",
+                        "index": 5
+                      },
+                      "thermal_runaway": {
+                        "text": "Thermal runaway",
+                        "index": 6
+                      },
+                      "test_mode": {
+                        "text": "Test mode",
+                        "index": 7
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Drying Time Left"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dtdurations"
+              },
+              {
+                "id": "noValue",
+                "value": "-"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Drying Target"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "celsius"
+              },
+              {
+                "id": "noValue",
+                "value": "-"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
       }
     }
   ],

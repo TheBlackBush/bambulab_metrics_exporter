@@ -196,7 +196,7 @@ def test_log_web_endpoints(caplog) -> None:
 
     caplog.set_level(logging.INFO)
     main.log_web_endpoints(Settings(listen_host="0.0.0.0", listen_port=9110))
-    for path in ("/", "/auth", "/metrics", "/health", "/ready"):
+    for path in ("/", "/auth", "/diagnostics", "/metrics", "/health", "/ready"):
         assert f"http://<docker-host>:9110{path}" in caplog.text
     assert "9110 is the container port" in caplog.text
 
@@ -301,3 +301,20 @@ def test_no_page_login_and_no_cloud_printer_needs_no_tokens(monkeypatch, tmp_pat
     monkeypatch.setenv("BAMBULAB_CONFIG_DIR", str(tmp_path))
     monkeypatch.setenv("BAMBULAB_TRANSPORT", "local_mqtt")
     assert _run_collecting_force(monkeypatch) == [False]
+
+
+def test_removed_reconnect_setting_only_warns(monkeypatch, caplog) -> None:
+    from bambulab_metrics_exporter import main
+    from bambulab_metrics_exporter.config import Settings
+    from bambulab_metrics_exporter.env_sync import ALLOWED_ENV_KEYS
+
+    monkeypatch.setenv("RECONNECT_INTERVAL_SECONDS", "5")
+    with caplog.at_level(logging.WARNING):
+        main._warn_removed_settings()
+    assert "RECONNECT_INTERVAL_SECONDS has no effect" in caplog.text
+    assert "RECONNECT_INTERVAL_SECONDS" not in ALLOWED_ENV_KEYS
+    Settings()  # the leftover variable does not break settings
+    monkeypatch.delenv("RECONNECT_INTERVAL_SECONDS")
+    caplog.clear()
+    main._warn_removed_settings()
+    assert caplog.text == ""

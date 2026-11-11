@@ -12,7 +12,7 @@ included in the repository as `examples/grafana/dashboard.sample.json`.
 
 - Prometheus scraping the exporter ([Prometheus Setup](Prometheus-Setup)). The **Job** dropdown
   lists Prometheus jobs whose name contains `bambulab`, so keep that in the job name.
-- Exporter 0.3.0 or newer (older versions leave the newer panels empty).
+- Exporter 0.4.0 or newer (older versions leave the newer panels empty).
 - For the **AMS filament inventory** panel only: the free **Business Text** plugin and HTML
   rendering enabled:
   1. Install the plugin: `grafana-cli plugins install marcusolsson-dynamictext-panel`, or in
@@ -58,7 +58,8 @@ All other panels use built-in Grafana panel types.
 - **AMS**: AMS model and status, auto refill, tangle detection setting, spools per unit, dryer
   state, filament inventory (Business Text spool cards), AMS temperature and humidity, drying
   time left and target, drying phase (heating or dehumidifying), set drying duration, why drying
-  cannot start, AMS temperature trend
+  cannot start, AMS temperature trend, and an AMS Zones table (AMS 3H on the H3C: humidity,
+  temperature and drying per zone; "No AMS zones" on other printers)
 - **Airduct, Lights & Storage**: airduct mode and fan speeds, light states, timelapse storage
 - **Health & Firmware**: active HMS errors by severity and module, firmware update available,
   firmware upgrade progress, printer and module firmware versions

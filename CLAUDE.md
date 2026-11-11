@@ -136,6 +136,20 @@ Important boundaries:
   `message`, plus `wait_seconds` for send-code) with no flash, and without that header they
   redirect to `/auth` as before (no-JavaScript fallback).
   Preserve endpoint contracts.
+- `src/bambulab_metrics_exporter/diagnostics.py`: the diagnostic report and the payload
+  sanitizer shared with `sanitize_fixture.py`. `api.py` serves the page `GET /diagnostics`
+  (`templates/diagnostics.html`: run, show, copy, download, open a prefilled GitHub issue;
+  linked from `/` and `/auth`) and the JSON `GET /diagnostics/report` (`?download=1`), both
+  behind the `/auth` Host guard. Inputs come from
+  `ExporterRuntime.diagnostics_inputs()` / `PrinterFleet.diagnostics_inputs()` and
+  `PollingCollector.last_snapshot`; recent log lines from `RecentLogHandler` (installed by
+  `configure_logging`). Everything leaving it is sanitized: serials keep only the 3-character
+  model prefix; addresses, names, job/file/account ids and credentials are removed. Add any new
+  identifying payload field to the sanitizer and `tests/unit/test_diagnostics.py`. Users attach
+  the report through `.github/ISSUE_TEMPLATE/diagnostic.yml`; wiki page `Diagnostic-Report.md`.
+  `diagnostics.detect_model` names the model without printer data (serial prefix or configured
+  model); `ExporterRuntime.detected_model()` feeds the `model` field of
+  `PrinterFleet.printers_status()`, and an empty value shows **Unsupported printer** on `/auth`.
 - `src/bambulab_metrics_exporter/cloud_auth.py`: Bambu Cloud HTTP/OTP CLI, token refresh,
   device discovery, bounded HTTP retry/backoff, and credential output. Never expose
   response bodies, emails, tokens, codes, or device IDs carelessly.
@@ -162,7 +176,8 @@ Important boundaries:
 - `tests/fixtures/printers/`: one sanitized real payload per model (14: 12 from public
   MIT-licensed sample data, attribution in its README; one from the maintainer's X1C and one from the maintainer's H2D), checked by
   `tests/unit/test_printer_fixtures.py`. Add new captures only through
-  `sanitize_fixture.py` and review the output; never commit a raw capture.
+  `sanitize_fixture.py` (it uses the sanitizer in `diagnostics.py`) and review the output;
+  never commit a raw capture.
 
 ## Packaging, deployment, and automation
 
@@ -179,8 +194,8 @@ Important boundaries:
   local default.
 - `unraid-bambulab-metrics-exporter.xml`: supported Unraid template. Coordinate ports,
   paths, variables, secret masking, and image behavior with Docker changes.
-- `.github/workflows/ci.yml`: compile, Ruff, and full pytest checks on pull requests to
-  `main` and `develop`.
+- `.github/workflows/ci.yml`: compile, Ruff, strict mypy and full pytest checks on pull
+  requests to `main` and `develop`.
 - `.github/workflows/docker-publish.yml`: release-only full checks (including mypy), then
   amd64/arm64 build and publish (`<version>` and `latest` tags) to GHCR and, when
   `DOCKERHUB_USERNAME` (repository variable or secret) and the `DOCKERHUB_TOKEN` secret are set,
@@ -250,8 +265,8 @@ configuration and reachable printer/cloud services and may update `.env`.
   firmware 01.02.00.00 never answers a TLS 1.3 ClientHello.
 - The client subscribes at QoS 1 to `device/<serial>/report` after a successful connection.
   Paho's network loop owns callbacks and may handle underlying reconnects, but this code
-  configures no explicit retry/backoff policy. `RECONNECT_INTERVAL_SECONDS` is currently
-  unused; do not claim it controls reconnect behavior.
+  configures no explicit retry/backoff policy. `RECONNECT_INTERVAL_SECONDS` was removed
+  (it never had an effect); `main.py` only logs a warning when it is still set.
 - By default, each fetch publishes one QoS 1 `pushall` snapshot request to
   `device/<serial>/request`, and each successful connect publishes one QoS 1 `get_version`
   request (module list with product names, used for model detection). These are the only
@@ -325,8 +340,8 @@ make lint                 # Ruff check of src and tests
 .venv/bin/python -m compileall -q src tests
 ```
 
-Mypy is strict and excludes tests. PR CI runs compileall, Ruff, and pytest; release CI also
-runs mypy. There is no configured formatter command or Make target. Keep style consistent
+Mypy is strict and excludes tests. PR CI and release CI run compileall, Ruff, mypy and
+pytest. There is no configured formatter command or Make target. Keep style consistent
 and Ruff-clean, but do not claim `make format` exists. There is also no repository-provided
 dependency scanner, security scanner, container linter, or docs validator.
 
@@ -372,10 +387,9 @@ secrets.
 | `BAMBULAB_SECRET_KEY` | required to persist/recover cloud credentials; empty | Stable high-entropy encryption secret | **secret** | `fake-development-key-never-use` |
 | `POLLING_INTERVAL_SECONDS` | optional; `10.0` | Positive float between collector cycles | no | `10` |
 | `REQUEST_TIMEOUT_SECONDS` | optional; `8.0` | Positive float for snapshot/cloud requests | no | `8` |
-| `RECONNECT_INTERVAL_SECONDS` | optional; `5.0` | Declared and persisted but currently unused by runtime reconnect logic | no | `5` |
 | `LISTEN_HOST` | optional; `0.0.0.0` | Uvicorn bind host | no | `127.0.0.1` |
 | `LISTEN_PORT` | optional; `9109` | Uvicorn TCP port integer | no | `9109` |
-| `AUTH_ALLOWED_HOSTS` | optional; empty | Extra Host names accepted by `/auth`, comma separated (IPs and local names always allowed) | operational | `exporter.example.invalid` |
+| `AUTH_ALLOWED_HOSTS` | optional; empty | Extra Host names accepted by `/auth` and `/diagnostics`, comma separated (IPs and local names always allowed) | operational | `exporter.example.invalid` |
 | `PRINTER_NAME_LABEL` | optional; empty | Canonical stable operator override for `printer_name` label | operational/user text | `test-printer` |
 | `BAMBULAB_PRINTER_NAME` | optional; empty | Discovered/persisted printer name and fallback label | operational/user text | `Test Printer` |
 | `BAMBULAB_PRINTER_MODEL` | optional; empty | Discovered/persisted model; normalized model-detection hint after serial prefix | operational | `X1C` |
@@ -535,7 +549,7 @@ use fakes and remain offline.
 Run `make test` for repository-wide coverage before completion. The configured gate is 90%
 for `src/bambulab_metrics_exporter`; the suite on the cloud re-auth branch had 568 passing
 tests and 97.24% coverage. Subset commands are useful during iteration but are not a substitute for
-the full suite. Run mypy for production changes even though PR CI currently omits it.
+the full suite. Run mypy for production changes; PR CI fails on type errors.
 
 # Documentation Requirements
 
@@ -770,11 +784,11 @@ Agents must not:
 
 Evidence at the time this manual was created:
 
-- Version `0.3.1`; Python 3.11+ package with FastAPI, Paho MQTT, Prometheus client,
+- Version `0.4.0`; Python 3.11+ package with FastAPI, Paho MQTT, Prometheus client,
   Pydantic settings, Uvicorn, cryptography/Fernet, and dotenv.
 - Local and cloud MQTT modes work through the same client architecture. Cloud supports OTP
   authentication, encrypted credential persistence, and refresh-token recovery. Model
-  detection recognizes A1/A1 Mini/A2L, P1P/P1S/P2S, H2C/H2D/H2D Pro/H2S, X1/X1C/X1E/X2D and
+  detection recognizes A1/A1 Mini/A2L, P1P/P1S/P2S, H2C/H2D/H2D Pro/H2S/H3C, X1/X1C/X1E/X2D and
   AMS variants; only X1C is stated as real-world validated (the H2D was checked on real hardware while idle and while printing). The serial prefix (payload
   `print.sn` or configured `BAMBULAB_SERIAL`) is the main identity source because pushall
   omits identity fields. `print.device.type` is a mode bitmask and `print.model_id` an
@@ -791,18 +805,17 @@ Evidence at the time this manual was created:
 Important technical debt and high-risk areas:
 
 - MQTT certificate verification is disabled for both transports.
-- MQTT has no explicit reconnect/backoff configuration; `RECONNECT_INTERVAL_SECONDS` is
-  unused. Cumulative state survives disconnect, readiness is sticky, and health is unconditional.
-- MQTT decode does not safely handle malformed UTF-8 or valid non-object JSON. Some AMS/tray
-  integer conversions can raise on malformed payloads.
+- MQTT has no explicit reconnect/backoff configuration. Cumulative state survives disconnect,
+  readiness is sticky, and health is unconditional.
+- Malformed reports (bad UTF-8, invalid or non-object JSON) are skipped with a warning, and
+  NaN/infinity read as missing. Keep new parsers tolerant the same way.
 - Collector failure/recovery, reconnect/resubscribe, duplicate metric registration, secret
   redaction lack explicit focused tests. Multi-printer operation is tested with fakes only.
 - `models.py` and `metrics.py` are large and tightly coupled; auth/persistence spans several
   modules. Changes need sequential coordination.
 - Deployment documentation has obsolete label variables and gaps around refresh tokens and
   credential filenames. README future work and cloud troubleshooting lag implemented refresh.
-- PR CI omits mypy; mypy runs only on release. No formatter, security scanner, docs validator,
-  or Kubernetes validator is configured.
+- No formatter, security scanner, docs validator, or Kubernetes validator is configured.
 
 Implementation plans are kept locally in `.claude/plans/` (git-ignored, may be absent). If a
 plan for the area you are working on exists there, read it first.
@@ -810,10 +823,7 @@ plan for the area you are working on exists there, read it first.
 Recommended next tasks, each as a separately scoped change:
 
 1. Correct stale environment/deployment/wiki documentation without changing runtime behavior.
-2. Add malformed MQTT payload and collector failure/recovery regression tests, then make
-   parsing safer with focused fixes.
-3. Decide whether to implement bounded MQTT reconnect behavior or remove the inactive setting.
-4. Design and test a deliberate TLS verification migration rather than silently toggling it.
-5. Audit legacy high-cardinality labels and raw cloud error/serial logging with a compatibility
+2. Add collector failure/recovery regression tests.
+3. Design and test a deliberate TLS verification migration rather than silently toggling it.
+4. Audit legacy high-cardinality labels and raw cloud error/serial logging with a compatibility
    and redaction plan.
-6. Add PR-time strict mypy validation if maintainers want release-equivalent checks earlier.

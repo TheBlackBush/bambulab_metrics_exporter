@@ -82,7 +82,7 @@ BAMBULAB_SECRET_KEY=a3f1c8e2d4b7901234567890abcdef1234567890abcdef1234567890abcd
 | `REQUEST_TIMEOUT_SECONDS` | no | `8` | Per-cycle timeout (seconds) |
 | `LISTEN_HOST` | no | `0.0.0.0` | HTTP bind host |
 | `LISTEN_PORT` | no | `9109` | HTTP port |
-| `AUTH_ALLOWED_HOSTS` | no | empty | Extra host names allowed for the `/auth` page, comma separated (for example a reverse-proxy name). IP addresses, `localhost`, single-word names (`tower`) and local-network names (`.local`, `.lan`, `.home`, `.internal`, `.home.arpa`) are always allowed; other names get `403` to block DNS-rebinding attacks |
+| `AUTH_ALLOWED_HOSTS` | no | empty | Extra host names allowed for the `/auth` and `/diagnostics` pages, comma separated (for example a reverse-proxy name). IP addresses, `localhost`, single-word names (`tower`) and local-network names (`.local`, `.lan`, `.home`, `.internal`, `.home.arpa`) are always allowed; other names get `403` to block DNS-rebinding attacks |
 
 ---
 
