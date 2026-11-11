@@ -5,6 +5,23 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added
+- Connection page: a printer whose model the exporter does not recognize gets an
+  **Unsupported printer** label, with a link to the Diagnostics page to report it.
+  `/auth/status` printer entries gain a `model` field (empty when not recognized).
+- Diagnostics page (`/diagnostics`, linked from the status page and the `/auth` page): **Run
+  diagnostics** shows a sanitized report on the page, with **Copy**, **Download** and **Create
+  GitHub issue** (copies the report and opens the issue form with the version, model and
+  firmware filled in). Use it for new printers, missing features or metrics, wrong values and
+  connection problems. The JSON is also at `GET /diagnostics/report` (`?download=1` for a
+  file). It holds the exporter version, each
+  printer's state, detected model, capabilities, metrics without a value, firmware modules,
+  the printer's latest data and the last 200 exporter log lines. Serial numbers (except the
+  model prefix), IP and MAC addresses, Wi-Fi and printer names, job and file names, account and
+  job ids, emails and credentials are removed. It also works without a printer connection: the
+  summary then shows the connection error, the model taken from the serial number, and
+  "no data yet". Both routes have the same host check as `/auth`;
+  building the report sends nothing to the printer. A new issue form asks for the report, and
+  the wiki has a Diagnostic Report page.
 - H3C detection (serial prefix `32X`, model code `N10`, product name "Bambu Lab H3C"), with its
   9-slot hotend rack (`slot_id` 16-24) and the AMS 3H (`ams_model="ams_3h"`, `ams_series="gen_3"`,
   9 slots). Detected from a public sample payload, not validated on real hardware; door, lid and

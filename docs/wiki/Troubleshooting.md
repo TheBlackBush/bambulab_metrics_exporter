@@ -156,8 +156,23 @@ curl http://localhost:9109/ready
 
 ---
 
+## "Unsupported printer" on the Connection Page
+
+The exporter does not recognize the printer's model, from its serial number or from the data it
+sends. It still exports the metrics it can read, but model-specific ones (chamber, rack, extra
+fans) may be missing or wrong. Click **Run diagnostics** under the label and send the report with
+a GitHub issue, so the model can be added.
+
+---
+
 ## Getting Help
 
-Open an issue: https://github.com/TheBlackBush/bambulab_metrics_exporter/issues
+Open the **Diagnostics** page (button on the status page, or `/diagnostics`), run a
+[Diagnostic Report](Diagnostic-Report), check it, and click **Create GitHub issue**, or attach it
+to a [new issue](https://github.com/TheBlackBush/bambulab_metrics_exporter/issues/new?template=diagnostic.yml)
+yourself.
+It holds the printer model, firmware, connection state, recent exporter logs and the printer's
+data, with serials, addresses, names and credentials removed.
 
-Include: printer model + firmware, transport mode (local or cloud), and logs with `LOG_LEVEL=DEBUG`. Remove your serial number, IP addresses, access code, email and tokens first.
+If you add more logs (`LOG_LEVEL=DEBUG`), remove your serial number, IP addresses, access code,
+email and tokens first.

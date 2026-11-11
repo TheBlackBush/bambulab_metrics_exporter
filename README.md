@@ -51,7 +51,10 @@ X1, X1C, X1E, X2D, P1P, P1S, P2S, A1, A1 mini, A2L, H2D, H2D Pro, H2S, H2C and H
 Real-world testing so far is on an **X1C**, and an **H2D** was checked on real hardware while idle
 and while printing. Other models are recognized from their data and may report some values
 differently. If you own another model and want to help, please
-[open an issue](https://github.com/TheBlackBush/bambulab_metrics_exporter/issues/new).
+[open an issue](https://github.com/TheBlackBush/bambulab_metrics_exporter/issues/new?template=diagnostic.yml)
+with a [diagnostic report](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Diagnostic-Report):
+run it on the exporter's Diagnostics page, with serials, addresses, names and credentials
+removed, and create the issue from there.
 
 **Running several printers in one exporter?** This is new and has only been tested with simulated
 printers, so feedback is very welcome. Please
@@ -107,6 +110,7 @@ The [wiki](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki) has t
 | [Grafana Dashboard](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Grafana-Dashboard) | Import steps and panels |
 | [Metrics Reference](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Metrics-Reference) | Every metric, per-model support and PromQL examples |
 | [Troubleshooting](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Troubleshooting) | Common problems and fixes |
+| [Diagnostic Report](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki/Diagnostic-Report) | The report to attach to issues for new printers, metrics or fixes |
 
 How the exporter works and its known limitations are on the
 [wiki home page](https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki).

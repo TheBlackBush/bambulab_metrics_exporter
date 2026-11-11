@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation and troubleshooting
+    url: https://github.com/TheBlackBush/bambulab_metrics_exporter/wiki
+    about: Setup guides, every metric, and fixes for common problems.
