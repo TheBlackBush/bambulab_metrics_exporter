@@ -8,6 +8,7 @@ from collections.abc import Callable
 from bambulab_metrics_exporter.client.base import BambuClient
 from bambulab_metrics_exporter.config import Settings
 from bambulab_metrics_exporter.metrics import ExporterMetrics
+from bambulab_metrics_exporter.models import PrinterSnapshot
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,9 @@ class PollingCollector:
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._ready = False
+        # Last snapshot fetched, for the diagnostic report. Snapshots are deep copies of
+        # the client state, so readers never share data with the MQTT thread.
+        self.last_snapshot: PrinterSnapshot | None = None
 
     @property
     def ready(self) -> bool:
@@ -55,6 +59,7 @@ class PollingCollector:
                     # Stopped (reconfigure/shutdown) during the fetch: the registry may
                     # already belong to the next collector.
                     return
+                self.last_snapshot = snapshot
                 self._metrics.update_from_snapshot(snapshot)
                 success = True
                 if snapshot.raw:

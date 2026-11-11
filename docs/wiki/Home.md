@@ -17,7 +17,7 @@ then connect the printer in your browser.
 
 > **Supported printers:** X1, X1C, X1E, X2D, P1P, P1S, P2S, A1, A1 mini, A2L, H2D, H2D Pro, H2S,
 > H2C and H3C are recognized. Real-world testing so far is on an X1C, and an H2D was checked on real hardware while idle and while printing; if you own another model and
-> want to help, please open an issue on GitHub.
+> want to help, please open an issue on GitHub with a [Diagnostic Report](Diagnostic-Report).
 
 ---
 
@@ -32,6 +32,7 @@ then connect the printer in your browser.
 | [Grafana Dashboard](Grafana-Dashboard) | Dashboard import steps and sample panels |
 | [Metrics Reference](Metrics-Reference) | Full metric list grouped by category |
 | [Troubleshooting](Troubleshooting) | Common issues and fixes |
+| [Diagnostic Report](Diagnostic-Report) | The report to attach to issues for new printers, metrics or fixes |
 
 ---
 

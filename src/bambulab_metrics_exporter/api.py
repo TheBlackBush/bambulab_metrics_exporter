@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 import ipaddress
+import json
 import logging
 import os
 import re
@@ -38,6 +39,7 @@ from bambulab_metrics_exporter.auth_actions import (
     select_cloud_printers,
 )
 from bambulab_metrics_exporter.config import Settings
+from bambulab_metrics_exporter.diagnostics import PrinterDiagnostics, build_report
 from bambulab_metrics_exporter.metrics import ExporterMetrics
 from bambulab_metrics_exporter.overrides import (
     clear_overrides,
@@ -328,6 +330,18 @@ def _page_text(text: str) -> str:
     return html.escape(text, quote=True).replace("{", "&#123;")
 
 
+def _unsupported_html(printer: dict[str, str]) -> str:
+    """Badge for a printer whose model the exporter does not recognize."""
+    if printer.get("model", "unknown") or not printer.get("serial"):
+        return ""
+    return (
+        '<span class="unsupported"><span class="pill bad">Unsupported printer</span>'
+        '<span class="hint">Model not recognized, so some metrics may be missing. '
+        '<a href="/diagnostics">Run diagnostics</a> and send the report to add it.'
+        "</span></span>"
+    )
+
+
 def _printer_rows(printers: list[dict[str, str]]) -> str:
     """Monitored printers; only masked serials reach this unauthenticated page."""
     rows = []
@@ -343,7 +357,8 @@ def _printer_rows(printers: list[dict[str, str]]) -> str:
             '<form method="post" action="/auth/printers/remove" class="printer-row">'
             f'<input type="hidden" name="printer_id" value="{_page_text(printer["id"])}">'
             f'<span class="step">{_page_text(printer["name"])} '
-            f'<span class="hint">{_page_text(printer["serial"])}, {where}</span>{message}</span>'
+            f'<span class="hint">{_page_text(printer["serial"])}, {where}</span>{message}'
+            f"{_unsupported_html(printer)}</span>"
             f'<span class="pill {css}">{_page_text(label)}</span>'
             '<button type="submit" class="danger small">Remove</button></form>'
         )
@@ -384,6 +399,19 @@ def _cloud_picker(
         + "".join(rows)
         + '<button type="submit">Save selection</button></form>'
     )
+
+
+# Status and /auth page links to the diagnostic report (runtime builds only).
+_REPO_URL = "https://github.com/TheBlackBush/bambulab_metrics_exporter"
+_DIAGNOSTICS_WIKI = f"{_REPO_URL}/wiki/Diagnostic-Report"
+_DIAGNOSTICS_ISSUE = f"{_REPO_URL}/issues/new?template=diagnostic.yml"
+_DIAGNOSTICS_TEMPLATE = (_TEMPLATE_DIR / "diagnostics.html").read_text(encoding="utf-8")
+_DIAGNOSTICS_BUTTON = (
+    '<a class="btn tonal" href="/diagnostics">'
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Diagnostics</a>'
+)
 
 
 def build_app(
@@ -475,6 +503,7 @@ def build_app(
             .replace("{{MODE_BADGE}}", mode_badge)
             .replace("{{ALERT}}", _ALERTS.get(state, ""))
             .replace("{{PRINTERS}}", _printers_html(listed))
+            .replace("{{DIAGNOSTICS_BUTTON}}", _DIAGNOSTICS_BUTTON if runtime else "")
             .replace("{{HEALTH_STATUS}}", health_status)
             .replace("{{HEALTH_CLASS}}", health_class)
             .replace("{{READY_STATUS}}", ready_status)
@@ -735,6 +764,35 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
         if lister is not None:
             status["printers"] = lister()
         return status
+
+    @app.get("/diagnostics", response_class=HTMLResponse)
+    def diagnostics_page(request: Request) -> HTMLResponse:
+        """Page that runs the report and offers copy, download and a GitHub issue."""
+        guard(request)
+        page = (
+            _DIAGNOSTICS_TEMPLATE
+            .replace("{{VERSION}}", __version__)
+            .replace("{{ISSUE_URL}}", _DIAGNOSTICS_ISSUE)
+            .replace("{{WIKI_URL}}", _DIAGNOSTICS_WIKI)
+        )
+        return HTMLResponse(content=page, headers={"Cache-Control": "no-store"})
+
+    @app.get("/diagnostics/report")
+    def diagnostics_report(request: Request, download: bool = False) -> Response:
+        """Sanitized diagnostic report as JSON; `?download=1` sends it as a file."""
+        guard(request)
+        inputs: Callable[[], list[PrinterDiagnostics]] | None = getattr(
+            runtime, "diagnostics_inputs", None
+        )
+        report = build_report(inputs() if inputs is not None else [])
+        body = json.dumps(report, indent=1, allow_nan=False) + "\n"
+        headers = {"Cache-Control": "no-store"}
+        if download:
+            stamp = time.strftime("%Y%m%d-%H%M%S", time.gmtime())
+            headers["Content-Disposition"] = (
+                f'attachment; filename="bambulab-exporter-diagnostics-{stamp}.json"'
+            )
+        return Response(content=body, media_type="application/json", headers=headers)
 
     def saved(persisted: bool, message: str) -> ActionResult:
         return ActionResult(True, message, persist_note(persisted), applied=True)

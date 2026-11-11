@@ -113,6 +113,17 @@
   button.tonal { background: #2c2c2c; color: var(--text); border-color: #3d3d3d; }
   button.tonal:hover { background: #363636; border-color: #4d4d4d; }
 
+  /* A download link that looks like a tonal button. */
+  a.button-link {
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem;
+    background: #2c2c2c; color: var(--text); border: 1px solid #3d3d3d; border-radius: 8px;
+    padding: 0.6rem 0.95rem; font-size: 0.9rem; font-weight: 600; text-decoration: none;
+    white-space: nowrap; transition: background 0.15s, border-color 0.15s;
+  }
+  a.button-link:hover { background: #363636; border-color: #4d4d4d; }
+  a.button-link:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+  a.button-link svg { width: 1rem; height: 1rem; flex: none; }
+
   button.danger { background: transparent; color: #f87171; border-color: rgba(239, 68, 68, 0.4); }
   button.danger:hover { background: var(--red-dim); border-color: rgba(239, 68, 68, 0.65); }
   button.danger:focus-visible { outline-color: var(--red); }
@@ -123,6 +134,7 @@
   .input-row input { flex: 1; min-width: 0; }
   .input-row button { flex: none; white-space: nowrap; }
 
+  div.row-form { display: flex; }
   .row-form { flex-direction: row; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.9rem; }
   .row-form .step { flex: 1 1 220px; line-height: 1.45; }
 
@@ -141,6 +153,9 @@
   .printer-row { display: flex; flex-direction: row; align-items: center; gap: 0.6rem; padding: 0.4rem 0; }
   .printer-row .step { flex: 1; min-width: 0; overflow-wrap: anywhere; }
   .printer-message { display: block; }
+  .unsupported { display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.5rem; margin-top: 0.35rem; }
+  .unsupported .pill { font-size: 0.72rem; padding: 0.15rem 0.55rem; }
+  .unsupported a { color: var(--green); }
   .device-list { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 1rem; }
   .device-row { display: flex; align-items: center; gap: 0.6rem; }
   .small { padding: 0.25rem 0.6rem; font-size: 0.8rem; }
@@ -235,6 +250,17 @@
         Reset to env vars
       </button>
     </form>
+  </div>
+
+  <div class="card">
+    <div class="row-form">
+      <span class="step">Printer new or untested, a metric missing or wrong? Run a diagnostic
+        report and send it with a GitHub issue.</span>
+      <a class="button-link" href="/diagnostics">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        Diagnostics
+      </a>
+    </div>
   </div>
 
   <div class="links">
