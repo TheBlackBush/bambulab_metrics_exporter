@@ -5,9 +5,9 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Fixed
-- Grafana: the timelapse storage panel showed only the free space on an unscaled bar, so the bar
-  was always full. It is now **Timelapse Storage Used** (percent full per storage, green below
-  75%, orange to 90%, red above) next to a new **Timelapse Storage Free** value.
+- Grafana: the Timelapse Storage Free bar had no maximum, so it was always full. Each storage's
+  bar is now scaled to its total size: it shows the share still free (green, orange below 25%,
+  red below 10%) next to the free space.
 - Grafana: the AMS inventory panel now marks the external spool as active (green dot) while the
   printer feeds from it. Re-import the sample dashboard to get the fix.
 
