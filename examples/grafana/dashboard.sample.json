@@ -5930,11 +5930,13 @@
           "unit": "bytes",
           "decimals": 1,
           "custom": {
-            "align": "auto",
+            "align": "right",
             "cellOptions": {
               "type": "auto"
             },
-            "inspect": false
+            "inspect": false,
+            "minWidth": 40,
+            "width": 72
           },
           "color": {
             "mode": "thresholds"
@@ -5954,7 +5956,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Used"
+              "options": "Usage"
             },
             "properties": [
               {
@@ -6002,8 +6004,12 @@
                 }
               },
               {
-                "id": "custom.minWidth",
-                "value": 140
+                "id": "custom.width",
+                "value": null
+              },
+              {
+                "id": "custom.align",
+                "value": "left"
               }
             ]
           },
@@ -6037,7 +6043,11 @@
               },
               {
                 "id": "custom.width",
-                "value": 80
+                "value": 70
+              },
+              {
+                "id": "custom.align",
+                "value": "left"
               }
             ]
           }
@@ -6063,8 +6073,8 @@
             },
             "renameByName": {
               "storage": "Storage",
-              "Value #Pct": "Used",
-              "Value #Used": "Used space",
+              "Value #Pct": "Usage",
+              "Value #Used": "Used",
               "Value #Free": "Free",
               "Value #Total": "Total"
             }
