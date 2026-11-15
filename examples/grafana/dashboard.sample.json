@@ -5863,8 +5863,8 @@
     {
       "id": 82,
       "type": "bargauge",
-      "title": "Timelapse Storage Free",
-      "description": "",
+      "title": "Timelapse Storage Used",
+      "description": "How full each timelapse storage is (internal, or external for a USB drive or SD card). The free space is next to it.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
@@ -5872,7 +5872,7 @@
       "gridPos": {
         "x": 18,
         "y": 74,
-        "w": 6,
+        "w": 3,
         "h": 4
       },
       "targets": [
@@ -5882,19 +5882,94 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "bambulab_timelapse_storage_free_bytes{job=\"$job\", printer_name=\"$printer\"}",
           "instant": true,
           "range": false,
-          "legendFormat": "{{storage}}",
-          "refId": "A"
+          "refId": "A",
+          "expr": "100 * (1 - bambulab_timelapse_storage_free_bytes{job=\"$job\", printer_name=\"$printer\"} / bambulab_timelapse_storage_total_bytes{job=\"$job\", printer_name=\"$printer\"})",
+          "legendFormat": "{{storage}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 75
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "noValue": "No storage"
+        },
+        "overrides": []
+      },
+      "options": {
+        "displayMode": "basic",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "left",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 122,
+      "type": "stat",
+      "title": "Timelapse Storage Free",
+      "description": "Free timelapse storage space per storage.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 21,
+        "y": 74,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "instant": true,
+          "range": false,
+          "refId": "A",
+          "expr": "bambulab_timelapse_storage_free_bytes{job=\"$job\", printer_name=\"$printer\"}",
+          "legendFormat": "{{storage}}"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "bytes",
-          "min": 0,
+          "decimals": 1,
           "color": {
-            "mode": "continuous-GrYlRd"
+            "mode": "fixed",
+            "fixedColor": "text"
           },
           "thresholds": {
             "mode": "absolute",
@@ -5904,16 +5979,19 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "No storage"
         },
         "overrides": []
       },
       "options": {
-        "displayMode": "gradient",
-        "orientation": "horizontal",
-        "showUnfilled": true,
-        "valueMode": "color",
-        "namePlacement": "left",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "value_and_name",
+        "wideLayout": true,
+        "showPercentChange": false,
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
