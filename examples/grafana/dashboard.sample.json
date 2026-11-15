@@ -5862,9 +5862,9 @@
     },
     {
       "id": 82,
-      "type": "bargauge",
-      "title": "Timelapse Storage Free",
-      "description": "Free timelapse storage per storage (internal, or external for a USB drive or SD card). The bar is the share still free: green, orange below 25%, red below 10%.",
+      "type": "table",
+      "title": "Timelapse Storage",
+      "description": "Timelapse storage per storage (internal, or external for a USB drive or SD card). The bar is the share used: green, orange from 85%, red from 95%.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
@@ -5876,6 +5876,30 @@
         "h": 4
       },
       "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "Pct",
+          "expr": "100 * (1 - max by (storage) (bambulab_timelapse_storage_free_bytes{job=\"$job\", printer_name=\"$printer\"}) / max by (storage) (bambulab_timelapse_storage_total_bytes{job=\"$job\", printer_name=\"$printer\"}))"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "Used",
+          "expr": "max by (storage) (bambulab_timelapse_storage_total_bytes{job=\"$job\", printer_name=\"$printer\"}) - max by (storage) (bambulab_timelapse_storage_free_bytes{job=\"$job\", printer_name=\"$printer\"})"
+        },
         {
           "datasource": {
             "type": "prometheus",
@@ -5905,24 +5929,22 @@
         "defaults": {
           "unit": "bytes",
           "decimals": 1,
-          "min": 0,
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
           "color": {
             "mode": "thresholds"
           },
           "thresholds": {
-            "mode": "percentage",
+            "mode": "absolute",
             "steps": [
               {
-                "color": "red",
+                "color": "text",
                 "value": null
-              },
-              {
-                "color": "orange",
-                "value": 10
-              },
-              {
-                "color": "green",
-                "value": 25
               }
             ]
           },
@@ -5932,42 +5954,94 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "external"
+              "options": "Used"
             },
             "properties": [
               {
-                "id": "displayName",
-                "value": "External"
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 85
+                    },
+                    {
+                      "color": "red",
+                      "value": 95
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 140
               }
             ]
           },
           {
             "matcher": {
               "id": "byName",
-              "options": "internal"
+              "options": "Storage"
             },
             "properties": [
               {
-                "id": "displayName",
-                "value": "Internal"
+                "id": "unit",
+                "value": "string"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "external": {
+                        "text": "External",
+                        "index": 0
+                      },
+                      "internal": {
+                        "text": "Internal",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 80
               }
             ]
           }
         ]
-      },
-      "options": {
-        "displayMode": "basic",
-        "orientation": "horizontal",
-        "showUnfilled": true,
-        "valueMode": "color",
-        "namePlacement": "top",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
       },
       "transformations": [
         {
@@ -5977,33 +6051,33 @@
         {
           "id": "organize",
           "options": {
-            "includeByName": {
-              "storage": true,
-              "Value #Free": true,
-              "Value #Total": true
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "storage": 0,
+              "Value #Pct": 1,
+              "Value #Used": 2,
+              "Value #Free": 3,
+              "Value #Total": 4
+            },
+            "renameByName": {
+              "storage": "Storage",
+              "Value #Pct": "Used",
+              "Value #Used": "Used space",
+              "Value #Free": "Free",
+              "Value #Total": "Total"
             }
           }
-        },
-        {
-          "id": "rowsToFields",
-          "options": {
-            "mappings": [
-              {
-                "fieldName": "storage",
-                "handlerKey": "field.name"
-              },
-              {
-                "fieldName": "Value #Free",
-                "handlerKey": "field.value"
-              },
-              {
-                "fieldName": "Value #Total",
-                "handlerKey": "max"
-              }
-            ]
-          }
         }
-      ]
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      }
     },
     {
       "id": 68,
