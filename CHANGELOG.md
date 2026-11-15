@@ -4,6 +4,10 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- Grafana: the AMS inventory panel now marks the external spool as active (green dot) while the
+  printer feeds from it. Re-import the sample dashboard to get the fix.
+
 ### Changed
 - README: easier to scan, with a supported printers table by series (and which models are tested
   on real hardware), a "How it works" table comparing LAN and Bambu Cloud setup, features grouped
