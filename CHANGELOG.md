@@ -5,6 +5,9 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- Grafana: the Timelapse Storage Free bar had no maximum, so it was always full. It is now a
+  **Timelapse Storage** table, one row per storage: the share used as a bar (green, orange from
+  85%, red from 95%), and the used, free and total space.
 - Grafana: the AMS inventory panel now marks the external spool as active (green dot) while the
   printer feeds from it. Re-import the sample dashboard to get the fix.
 

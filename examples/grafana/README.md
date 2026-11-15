@@ -122,7 +122,7 @@ An Extruder Status table with one row per extruder: filament change step, feed d
 AMS model, AMS status, auto refill, tangle detection setting, spools per unit, dryer state, the **AMS filament inventory** (Business Text spool cards for every AMS unit plus the external spool), AMS temperature and humidity, drying status for AMS 2 Pro and AMS HT units (time left, target, phase, set duration and why drying cannot start), and an AMS Zones table with humidity, temperature and drying per zone for the AMS 3H on the H3C.
 
 ### Airduct, Lights & Storage
-Airduct mode and per-fan speeds (P2S, X2D, H2 series), light states, and timelapse storage.
+Airduct mode and per-fan speeds (P2S, X2D, H2 series), light states, and timelapse storage (a used bar with the used, free and total space).
 
 ### Health & Firmware
 Active HMS errors by severity and by module, firmware update available, firmware upgrade progress, printer firmware version and a firmware table for every module (mainboard, toolhead, AMS units, ...).
