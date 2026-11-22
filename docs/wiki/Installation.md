@@ -94,6 +94,36 @@ A ready-to-import Unraid template is included: `unraid-bambulab-metrics-exporter
 
 ---
 
+## Docker networking
+
+The default bridge network is all the exporter needs: it connects out to the printer (LAN) or
+to Bambu Cloud, and Docker handles that without extra settings.
+
+One limit: on a bridge network the container does not receive the announcements printers
+broadcast on the LAN (SSDP, UDP port 2021). Publishing the port (`-p 2021:2021/udp`) does not
+change that, because Docker only forwards traffic addressed to the host itself. Today this only
+affects the `ssdp` section of the [diagnostic report](Diagnostic-Report#lan-announcements),
+which then shows `none`. To let the container see the announcements, use host networking:
+
+```yaml
+services:
+  bambulab-metrics-exporter:
+    network_mode: host
+```
+
+or `docker run --network host ...`. With host networking, `ports:` is ignored: the exporter
+listens on port 9109 of the host directly (change it with `LISTEN_PORT`).
+
+**Printer IP keeps changing (DHCP)?** No host networking is needed for that:
+
+- Use a host name instead of an IP (`BAMBULAB_HOST`, or the IP field on the `/auth` page), if
+  your router or local DNS gives the printer a stable name.
+- Or enter the new IP on the `/auth` page with the same serial and access code: the exporter
+  updates that printer and reconnects without a restart.
+- Bambu Cloud mode does not depend on the printer's IP at all.
+
+---
+
 ## Environment-variable setup (optional)
 
 Instead of the `/auth` page, the printer can be configured with env vars. Settings saved on the

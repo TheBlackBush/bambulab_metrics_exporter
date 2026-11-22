@@ -194,12 +194,44 @@
     row.appendChild(span);
   }
 
+  // LAN announcements (SSDP): whether the printers' broadcasts reach the exporter.
+  function announcementLine(s) {
+    if (!s) { return ""; }
+    var devices = s.devices || [];
+    if (s.status === "received") {
+      var matched = devices.filter(function (d) { return d.printer_index; })
+        .map(function (d) { return "printer " + d.printer_index; });
+      return devices.length + (devices.length === 1 ? " printer" : " printers") + " heard"
+        + (matched.length ? " (" + matched.join(", ") + ")" : ", none of them set up here");
+    }
+    if (s.status === "none") {
+      return "none in " + s.listen_seconds + " s" + (report.exporter && report.exporter.in_docker
+        ? " (expected on a Docker bridge network; LAN and cloud connections are not affected)"
+        : "");
+    }
+    if (s.status === "unavailable") {
+      return "could not listen on UDP " + s.port + (s.error ? " (" + s.error + ")" : "");
+    }
+    if (s.status === "busy") { return "skipped, another diagnostics run was listening"; }
+    return String(s.status);
+  }
+
+  function renderAnnouncements(box) {
+    var line = announcementLine(report.ssdp);
+    if (!line) { return; }
+    var row = document.createElement("div");
+    row.className = "printer";
+    addCell(row, "LAN announcements", line);
+    box.appendChild(row);
+  }
+
   function renderSummary() {
     var box = el("summary");
     box.textContent = "";
     var printers = report.printers || [];
     if (!printers.length) {
       box.textContent = "No printer is configured yet.";
+      renderAnnouncements(box);
       return;
     }
     printers.forEach(function (p) {
@@ -223,6 +255,7 @@
       }
       box.appendChild(row);
     });
+    renderAnnouncements(box);
   }
 
   function fallbackCopy(value) {
@@ -373,7 +406,8 @@
   el("run").addEventListener("click", function () {
     var button = el("run");
     button.disabled = true;
-    status("Running diagnostics...", "wait");
+    status("Running diagnostics (listens up to {{SSDP_SECONDS}} s for printer announcements)...",
+      "wait");
     fetch("/diagnostics/report", { credentials: "same-origin", cache: "no-store" })
       .then(function (response) {
         if (!response.ok) { throw new Error("HTTP " + response.status); }
