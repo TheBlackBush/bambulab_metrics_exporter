@@ -463,3 +463,21 @@ def test_saving_the_list_keeps_auto_for_the_env_printer(
         assert fleet.configs()[0].host == "auto"
     finally:
         fleet.stop()
+
+
+def test_printers_status_shows_the_address_an_auto_printer_uses() -> None:
+    store = PrinterStore()
+    store.save([replace(A, host="auto"), B, C1])
+    fleet = PrinterFleet(
+        store, settings_factory=_base, validate=lambda s: None, client_factory=_Client,
+        discovery=_Discovery(),
+    )
+    fleet.start()
+    try:
+        _running(fleet)
+        rows = {row["name"]: row for row in fleet.printers_status()}
+        assert (rows["Alpha"]["host_mode"], rows["Alpha"]["address"]) == ("auto", "192.168.1.50")
+        assert (rows["Beta"]["host_mode"], rows["Beta"]["address"]) == ("fixed", "")
+        assert (rows["Cloud One"]["host_mode"], rows["Cloud One"]["address"]) == ("", "")
+    finally:
+        fleet.stop()

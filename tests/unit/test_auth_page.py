@@ -4,13 +4,14 @@ from __future__ import annotations
 import http.client
 import logging
 import os
+import re
 import threading
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
-from bambulab_metrics_exporter import api, auth_actions, overrides
+from bambulab_metrics_exporter import api, auth_actions, overrides, ssdp
 from bambulab_metrics_exporter.api import _send_code_button, build_app
 from bambulab_metrics_exporter.auth_actions import (
     AuthInputError,
@@ -280,10 +281,10 @@ def test_auth_page_cloud_tab_selected_in_cloud_mode() -> None:
 
 
 def test_auth_page_shows_automatic_address_for_auto_host() -> None:
-    client, _ = _client(Settings(bambulab_serial="FAKE00TEST000001", bambulab_host="auto"))
-    page = client.get("/auth").text
-    assert "Local, automatic address" in page
-    assert "Local, auto<" not in page
+    client, runtime = _client(Settings(bambulab_serial="FAKE00TEST000001", bambulab_host="auto"))
+    assert "Local, auto (not found yet)" in client.get("/auth").text
+    runtime.lan_address = lambda: "192.168.1.50"
+    assert "Local, auto (found at 192.168.1.50)" in client.get("/auth").text
 
 
 def test_auth_page_local_form_explains_auto_host() -> None:
@@ -2445,3 +2446,236 @@ def test_unreadable_note_stays_while_choosing_printers(monkeypatch) -> None:
     client.post("/auth/cloud/login", data=_LOGIN, headers=_JSON)
     card = _status_card(client.get("/auth").text)
     assert "Select your printers below." in card and "could not be read" in card
+
+
+# ---------------------------------------------------------------------------
+# printer scan
+# ---------------------------------------------------------------------------
+
+SCAN_SERIAL = "00MFAKETEST0001"
+
+
+def _announcement(serial: str = SCAN_SERIAL, source: str = "192.168.1.50",
+                  extra: tuple[tuple[str, str], ...] = ()) -> ssdp.Packet:
+    fields = (("NT", "urn:bambulab-com:device:3dprinter:1"), ("USN", serial),
+              ("Location", source), *extra)
+    return ssdp.Packet(0.0, source, "NOTIFY * HTTP/1.1", fields)
+
+
+def _announce(monkeypatch, *packets: ssdp.Packet, status: str = "") -> list[tuple[str, ...]]:
+    calls: list[tuple[str, ...]] = []
+
+    def capture(wanted, **_options):
+        calls.append(tuple(wanted))
+        return ssdp.Capture(
+            status or ("received" if packets else "none"), 8.0, 8.0, tuple(packets), 0
+        )
+
+    monkeypatch.setattr(ssdp, "capture", capture)
+    return calls
+
+
+def _scan(client: TestClient) -> dict:
+    response = client.post("/auth/scan", headers=_JSON)
+    assert response.status_code == 200 and response.headers["cache-control"] == "no-store"
+    return response.json()
+
+
+def _pick(client: TestClient) -> str:
+    return _scan(client)["printers"][0]["pick"]
+
+
+def test_scan_lists_masked_printers_with_pick_ids(monkeypatch) -> None:
+    calls = _announce(monkeypatch, _announcement())
+    client, _ = _client()
+    response = client.post("/auth/scan", headers=_JSON)
+    body = response.json()
+    assert calls == [()]
+    assert body["ok"] is True and body["status"] == "received"
+    [printer] = body["printers"]
+    assert printer["model"] == "X1C" and printer["serial"] == "00M************"
+    assert printer["address"] == "192.168.1.50" and printer["monitored"] is False
+    assert re.fullmatch(r"[A-Za-z0-9_-]{16}", printer["pick"])
+    assert SCAN_SERIAL not in response.text
+
+
+def test_scan_marks_printers_already_monitored(monkeypatch) -> None:
+    _announce(monkeypatch, _announcement(S1, "192.168.1.51"), _announcement())
+    marks = {p["address"]: p["monitored"] for p in _scan(_client()[0])["printers"]}
+    assert marks == {"192.168.1.51": True, "192.168.1.50": False}
+
+
+def test_scan_marks_printers_on_the_saved_list(monkeypatch) -> None:
+    _announce(monkeypatch, _announcement(S3))
+    client, runtime = _fleet_client(monkeypatch, devices=[])
+    runtime.list = [LAN3]
+    [printer] = _scan(client)["printers"]
+    assert printer["monitored"] is True and printer["model"] == ""
+
+
+def test_scan_that_hears_nothing_explains_host_networking(monkeypatch) -> None:
+    _announce(monkeypatch)
+    body = _scan(_client()[0])
+    assert body["ok"] is False and body["status"] == "none" and body["printers"] == []
+    assert "network_mode: host" in body["message"] and "enter its IP address" in body["message"]
+
+
+def test_scan_with_only_unpickable_printers_asks_for_the_address(monkeypatch) -> None:
+    _announce(monkeypatch, _announcement(), _announcement(source="192.168.1.60"))
+    body = _scan(_client()[0])
+    assert body["status"] == "received" and all(not p["pick"] for p in body["printers"])
+    assert "Pick your printer" not in body["message"]
+    assert "more than one address" in body["message"] and "IP address" in body["message"]
+
+
+def test_scan_with_only_unusable_packets_is_empty(monkeypatch) -> None:
+    _announce(monkeypatch, _announcement(source="203.0.113.5"))
+    body = _scan(_client()[0])
+    assert body["status"] == "none" and body["printers"] == []
+
+
+def test_scan_names_the_errno_when_the_port_cannot_be_opened() -> None:
+    body = _scan(_client()[0])  # conftest blocks UDP 2021 with EACCES
+    assert body["status"] == "unavailable" and "EACCES" in body["message"]
+
+
+def test_scan_pauses_between_scans(monkeypatch) -> None:
+    calls = _announce(monkeypatch)
+    client, _ = _client()
+    _scan(client)
+    again = _scan(client)
+    assert again["status"] == "cooldown" and 1 <= again["wait_seconds"] <= 10
+    assert "Try again in" in again["message"] and len(calls) == 1
+
+
+def test_scan_while_a_diagnostics_capture_listens_is_busy(monkeypatch) -> None:
+    calls = _announce(monkeypatch, status="busy")
+    client, _ = _client()
+    assert "diagnostic report" in _scan(client)["message"]
+    assert _scan(client)["status"] == "busy" and len(calls) == 2
+
+
+def test_scan_keeps_the_guards(monkeypatch) -> None:
+    calls = _announce(monkeypatch, _announcement())
+    client, _ = _client()
+    cross = client.post("/auth/scan", headers={**_JSON, "Origin": "https://evil.example.invalid"})
+    bad_host = client.post(
+        "/auth/scan",
+        headers={**_JSON, "Host": "evil.example:9109", "Origin": "http://evil.example:9109"},
+    )
+    assert cross.status_code == 403 and bad_host.status_code == 403
+    assert client.get("/auth/scan").status_code == 405
+    assert calls == []
+
+
+def test_scan_never_returns_packet_text(monkeypatch) -> None:
+    hostile = _announcement(
+        S2, extra=(("DevModel.bbl", "<script>x</script>"), ("DevName.bbl", "Garage <b>"))
+    )
+    _announce(monkeypatch, hostile)
+    response = _client()[0].post("/auth/scan", headers=_JSON)
+    assert "<script>" not in response.text and "Garage" not in response.text
+    assert response.json()["printers"][0]["model"] == ""
+
+
+def test_picked_printer_is_added_with_auto_by_default(monkeypatch) -> None:
+    _announce(monkeypatch, _announcement())
+    client, runtime = _fleet_client(monkeypatch, devices=[])
+    response = client.post(
+        "/auth/printers/add-local",
+        data={"pick": _pick(client), "host": "", "serial": "", "access_code": ACCESS_CODE},
+        headers=_JSON,
+    )
+    assert response.json()["ok"] is True
+    [config] = runtime.list
+    assert (config.serial, config.host) == (SCAN_SERIAL, "auto")
+    assert SCAN_SERIAL not in response.text
+
+
+def test_picked_printer_keeps_the_found_address_when_asked(monkeypatch) -> None:
+    _announce(monkeypatch, _announcement())
+    client, runtime = _fleet_client(monkeypatch, devices=[])
+    client.post(
+        "/auth/printers/add-local",
+        data={"pick": _pick(client), "host": "192.168.1.50", "access_code": ACCESS_CODE},
+        headers=_JSON,
+    )
+    assert runtime.list[0].host == "192.168.1.50"
+
+
+def test_picked_printer_on_the_env_form(monkeypatch) -> None:
+    _announce(monkeypatch, _announcement())
+    client, runtime = _client()
+    response = client.post(
+        "/auth/local",
+        data={"pick": _pick(client), "host": "auto", "access_code": ACCESS_CODE},
+        headers=_JSON,
+    )
+    assert response.json()["ok"] is True and runtime.reconfigured == 1
+    assert os.environ["BAMBULAB_SERIAL"] == SCAN_SERIAL
+    assert os.environ["BAMBULAB_HOST"] == "auto"
+
+
+def test_unknown_pick_is_refused_and_changes_nothing(monkeypatch) -> None:
+    client, runtime = _fleet_client(monkeypatch, devices=[])
+    response = client.post(
+        "/auth/printers/add-local",
+        data={"pick": "A" * 16, "host": "auto", "serial": S3, "access_code": ACCESS_CODE},
+        headers=_JSON,
+    )
+    body = response.json()
+    assert body["ok"] is False and "expired" in body["message"]
+    assert runtime.list == [] and runtime.updates == []
+
+
+def test_printer_row_shows_the_address_an_auto_printer_found(monkeypatch) -> None:
+    client, runtime = _fleet_client(monkeypatch, devices=[])
+    runtime.list = [
+        PrinterConfig(serial=S3, transport="local_mqtt", host="auto", access_code=ACCESS_CODE)
+    ]
+    rows = runtime.printers_status
+    runtime.printers_status = lambda: [
+        {**row, "host_mode": "auto", "address": "192.168.1.50"} for row in rows()
+    ]
+    assert "LAN, auto (found at 192.168.1.50)" in _status_card(client.get("/auth").text)
+    runtime.printers_status = lambda: [
+        {**row, "host_mode": "auto", "address": ""} for row in rows()
+    ]
+    assert "LAN, auto (not found yet)" in _status_card(client.get("/auth").text)
+
+
+def test_printer_row_for_a_fixed_host_is_unchanged(monkeypatch) -> None:
+    client, runtime = _fleet_client(monkeypatch, devices=[])
+    runtime.list = [LAN3]
+    rows = runtime.printers_status
+    runtime.printers_status = lambda: [
+        {**row, "host_mode": "fixed", "address": ""} for row in rows()
+    ]
+    card = _status_card(client.get("/auth").text)
+    assert f"{auth_actions.mask_serial(S3)}, LAN</span>" in card and "auto (" not in card
+
+
+def test_lan_form_has_a_hidden_scan_panel_and_keeps_manual_entry() -> None:
+    page = _client()[0].get("/auth").text
+    assert '<div class="scan" id="scan-panel" hidden>' in page
+    assert '<button type="button" class="tonal" id="scan-button">' in page
+    assert '<input type="hidden" name="pick" id="local-pick" value="" autocomplete="off">' in page
+    assert 'name="host" id="local-host" required' in page
+    assert 'name="serial" id="local-serial" required' in page
+    assert "Keep finding it if the address changes" in page
+    assert "about 8 seconds" in page and "{{SCAN_SECONDS}}" not in page
+
+
+def test_page_script_scans_with_json_and_renders_text_only() -> None:
+    script = _script(_client()[0].get("/auth").text)
+    assert '"/auth/scan"' in script and '"Accept": "application/json"' in script
+    assert "innerHTML" not in script and "insertAdjacentHTML" not in script
+    assert 'scanPanel.removeAttribute("hidden")' in script
+    assert 'form.id === "local-form"' in script and "clearPick()" in script
+
+
+def test_page_script_keeps_rows_on_cooldown_and_busy() -> None:
+    script = _script(_client()[0].get("/auth").text)
+    assert 'data.status === "cooldown" || data.status === "busy"' in script
+    assert "innerHTML" not in script and "insertAdjacentHTML" not in script
+    assert script.count("setTimeout") == 2  # countdown and poll only

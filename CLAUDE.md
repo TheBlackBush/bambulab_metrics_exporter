@@ -91,7 +91,8 @@ Important boundaries:
   lifecycle (states `starting`, `connecting`, `running`, `setup_required`, `auth_required`,
   `error`). It validates, starts the collector, retries every 60 s, waits for credentials,
   and rebuilds settings/metrics/client on `reconfigure()`. The process never exits on
-  connection problems.
+  connection problems. `lan_address()` is the address an `auto` printer uses now;
+  `PrinterFleet.printers_status()` adds `host_mode` and `address`.
 - `fleet.py` and `printers.py`: `PrinterFleet` (runtimes per printer, merged `/metrics` collector,
   combined status and readiness, `update()`, `reset_to_env()`) and `PrinterConfig`/`PrinterStore`
   (`printers.enc.json`, `mask_serial`, `MAX_PRINTERS`). Add per-printer behavior here, not in the
@@ -125,7 +126,12 @@ Important boundaries:
   shutdown tests.
 - `src/bambulab_metrics_exporter/api.py`: FastAPI landing page and `/metrics`, `/health`,
   `/ready`, plus `/auth` (HTML), `/auth/status` (JSON) and form posts `/auth/local`,
-  `/auth/cloud/send-code`, `/auth/cloud/login`, `/auth/reset` when built with a runtime.
+  `/auth/cloud/send-code`, `/auth/cloud/login`, `/auth/reset`,
+  `/auth/scan` when built with a runtime.
+  `POST /auth/scan` (JSON only, Host guard and same-origin check) runs `lan_scan.PrinterScanner`:
+  one `ssdp.capture` window, one scan at a time, 10 s between scans; it returns masked serials,
+  addresses, known model names and pick ids (5 minutes). The LAN form posts `pick` instead of the
+  serial; the server fills in the serial, and `auto` for an empty host.
   `/health` is process liveness; `/ready` becomes ready after a nonempty payload (sticky).
   `/auth` is unauthenticated by maintainer decision; keep its protections: escaped output, no
   stored secrets rendered, same-origin check, Host allowlist (`_host_allowed`, DNS rebinding,
@@ -156,6 +162,9 @@ Important boundaries:
 - `src/bambulab_metrics_exporter/discovery.py`: shared, lazily started UDP 2021 listener for
   `BAMBULAB_HOST=auto`; keeps fresh announcing addresses per watched serial, two addresses mean
   a conflict (no connect). Consumed by `ExporterRuntime`; packets are never logged.
+- `src/bambulab_metrics_exporter/lan_scan.py`: the `/auth` printer scan. Turns a capture into
+  printers (serial from `USN`, trusted address via `ssdp.announced_address`, model only when
+  known); shares the capture lock with the diagnostic report (`busy`).
 - `src/bambulab_metrics_exporter/cloud_auth.py`: Bambu Cloud HTTP/OTP CLI, token refresh,
   device discovery, bounded HTTP retry/backoff, and credential output. Never expose
   response bodies, emails, tokens, codes, or device IDs carelessly.

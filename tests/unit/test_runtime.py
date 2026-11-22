@@ -906,3 +906,37 @@ def test_offline_printer_with_the_same_address_keeps_its_client() -> None:
         assert len(seen) == 1
     finally:
         runtime.stop()
+
+
+def test_auto_host_reports_the_address_it_uses() -> None:
+    runtime, _ = _auto_runtime(_Discovery(dsc.Lookup(dsc.FOUND, "192.168.1.50")))
+    assert runtime.lan_address() == ""
+    runtime.start()
+    try:
+        _wait_until(lambda: runtime.status()["state"] == rt.STATE_RUNNING)
+        assert runtime.lan_address() == "192.168.1.50"
+    finally:
+        runtime.stop()
+
+
+def test_auto_host_without_an_announcement_reports_no_address() -> None:
+    runtime, _ = _auto_runtime(_Discovery(dsc.Lookup(dsc.WAITING)))
+    runtime.start()
+    try:
+        _wait_until(lambda: runtime.status()["state"] == rt.STATE_ERROR)
+        assert runtime.lan_address() == ""
+    finally:
+        runtime.stop()
+
+
+def test_fixed_host_reports_no_discovered_address() -> None:
+    runtime = rt.ExporterRuntime(
+        settings_factory=lambda: _local(), validate=lambda s: None,
+        client_factory=lambda s: _Client(), discover=lambda s: None,
+    )
+    runtime.start()
+    try:
+        _wait_until(lambda: runtime.status()["state"] == rt.STATE_RUNNING)
+        assert runtime.lan_address() == ""
+    finally:
+        runtime.stop()

@@ -15,13 +15,14 @@ from prometheus_client.metrics_core import Metric
 
 from bambulab_metrics_exporter.client.base import BambuClient
 from bambulab_metrics_exporter.client.factory import build_client
-from bambulab_metrics_exporter.config import Settings
+from bambulab_metrics_exporter.config import Settings, is_auto_host
 from bambulab_metrics_exporter.diagnostics import PrinterDiagnostics
 from bambulab_metrics_exporter.discovery import LanDiscovery
 from bambulab_metrics_exporter.metrics import ExporterMetrics
 from bambulab_metrics_exporter.overrides import lock as overrides_lock
 from bambulab_metrics_exporter.printers import (
     TRANSPORT_CLOUD,
+    TRANSPORT_LOCAL,
     PrinterConfig,
     PrinterStore,
     mask_serial,
@@ -303,6 +304,11 @@ class PrinterFleet:
             if config is None and not settings.bambulab_serial:
                 continue
             serial = config.serial if config else str(settings.bambulab_serial)
+            transport = config.transport if config else str(settings.bambulab_transport)
+            host = config.host if config else str(settings.bambulab_host or "")
+            host_mode = ""
+            if transport == TRANSPORT_LOCAL:
+                host_mode = "auto" if is_auto_host(host) else "fixed"
             out.append({
                 "id": printer_id,
                 "name": config.label if config else (
@@ -311,11 +317,14 @@ class PrinterFleet:
                     or mask_serial(serial)
                 ),
                 "serial": mask_serial(serial),
-                "transport": config.transport if config else str(settings.bambulab_transport),
+                "transport": transport,
                 "state": status["state"],
                 "message": status["message"],
                 # Empty when the exporter does not recognize the printer model.
                 "model": runtime.detected_model() or "",
+                # LAN printers: "auto" or "fixed"; the announced address an auto printer uses.
+                "host_mode": host_mode,
+                "address": runtime.lan_address(),
             })
         return out
 

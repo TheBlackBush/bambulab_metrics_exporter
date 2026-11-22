@@ -46,9 +46,10 @@ printer is connected.
 
 Open `http://<docker-host>:9109/auth` (also linked from the status page) and choose:
 
-- **Local (LAN):** printer IP, serial number and LAN access code. Typing `auto` as the IP finds
-  the printer from its LAN announcements (Docker needs host networking; see
-  [Installation](Installation#automatic-address-auto)).
+- **Local (LAN):** click **Find printers on my network**, pick your printer with **Use** and
+  enter its LAN access code. Or type the printer IP, serial number and LAN access code. Typing
+  `auto` as the IP finds the printer from its LAN announcements (Docker needs host networking;
+  see [Installation](Installation#automatic-address-auto)).
 - **Bambu Cloud:** account email, **Send code**, then the emailed code and **Log in**. The
   page then lists the account's printers to choose from; no serial is typed.
 
@@ -69,7 +70,12 @@ You should see `bambulab_printer_connected 1`.
 
 Open `http://<docker-host>:9109/auth` (also linked as **Printer Connection** on the status page).
 
-- **Local (LAN):** enter the printer IP, serial number and LAN access code.
+- **Local (LAN):** **Find printers on my network** listens about 8 seconds and lists the printers
+  it hears: model, the first 3 characters of the serial, IP address, and **Already monitored**
+  for printers on the list. **Use** fills in the form; type the LAN access code and save.
+  **Keep finding it if the address changes** (on by default) saves the host as `auto`; turn it
+  off to save the address found now. Or enter the printer IP, serial number and LAN access code
+  yourself. The scan only listens; it sends nothing to printers.
 - **Bambu Cloud:** enter your account email, click **Send code**, then enter the emailed code in
   the same form and click **Log in**. Then tick the account printers to monitor and save; a
   single-printer account is added automatically.
