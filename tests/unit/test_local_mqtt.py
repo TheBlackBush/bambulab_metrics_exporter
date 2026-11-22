@@ -448,3 +448,42 @@ def test_paho_prints_topics_only_at_debug(caplog) -> None:
     with caplog.at_level(logging.DEBUG):
         client._client._send_publish(2, topic, b"{}", 1)
     assert "device/" in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# certificate check (auto hosts)
+# ---------------------------------------------------------------------------
+
+def test_auto_host_client_checks_the_certificate_in_the_handshake(monkeypatch, tmp_path) -> None:
+    import ssl
+
+    from certgen import make_leaf
+
+    from bambulab_metrics_exporter.certificates import CertificateCheck, CheckedContext, PinStore
+
+    fake = _FakeMQTTClient()
+    monkeypatch.setattr("bambulab_metrics_exporter.client.local_mqtt.mqtt.Client", lambda *a, **k: fake)
+    pins = PinStore(tmp_path / "pins.json")
+    check = CertificateCheck("SERIALX", pins, anchors=())
+    client = LocalMqttBambuClient(_settings(serial="SERIALX").with_certificate_check(check, {}))
+
+    context = fake.tls_context
+    assert isinstance(context, CheckedContext) and context.certificate_check is check
+    assert context.maximum_version == ssl.TLSVersion.TLSv1_2
+    assert context.verify_mode == ssl.CERT_NONE and context.check_hostname is False
+
+    leaf = make_leaf("SERIALX")
+    check.verify(leaf.der)
+    client._on_connect(fake, None, None, 5, None)  # access code refused: no pin
+    assert pins.get("SERIALX") is None
+    client._on_connect(fake, None, None, 0, None)
+    assert pins.get("SERIALX") == check.last.fingerprint
+
+
+def test_fixed_host_client_keeps_the_plain_context(monkeypatch) -> None:
+    from bambulab_metrics_exporter.certificates import CheckedContext
+
+    fake = _FakeMQTTClient()
+    monkeypatch.setattr("bambulab_metrics_exporter.client.local_mqtt.mqtt.Client", lambda *a, **k: fake)
+    LocalMqttBambuClient(_settings(serial="SERIALX"))
+    assert not isinstance(fake.tls_context, CheckedContext)

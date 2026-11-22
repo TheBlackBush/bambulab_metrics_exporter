@@ -5,6 +5,7 @@ import os
 import threading
 from pathlib import Path
 
+from bambulab_metrics_exporter.certificates import CertificateRejected
 from bambulab_metrics_exporter.client.factory import build_client
 from bambulab_metrics_exporter.cloud_auth import (
     CloudAuthError,
@@ -64,6 +65,9 @@ def _probe(settings: Settings) -> str:
         if snapshot.connected and snapshot.raw:
             return PROBE_OK
         return PROBE_REJECTED if getattr(client, "auth_rejected", False) else PROBE_UNREACHABLE
+    except CertificateRejected:
+        # The handshake stopped before CONNECT; its message is the reason to show.
+        raise
     except Exception:
         logger.exception("Connectivity probe failed")
         return PROBE_REJECTED if getattr(client, "auth_rejected", False) else PROBE_UNREACHABLE

@@ -10,6 +10,7 @@ from typing import Any
 
 import paho.mqtt.client as mqtt
 
+from bambulab_metrics_exporter.certificates import CertificateCheck, checked_context
 from bambulab_metrics_exporter.client.base import BambuClient
 from bambulab_metrics_exporter.config import Settings
 from bambulab_metrics_exporter.models import PrinterSnapshot
@@ -36,7 +37,9 @@ class LocalMqttBambuClient(BambuClient):
         else:
             self._client = mqtt.Client()
         self._client.username_pw_set(settings.bambulab_username, settings.bambulab_access_code)
-        self._client.tls_set_context(_tls_context())
+        # Only for a printer found with `auto`; fixed hosts and the cloud keep the old TLS.
+        self._certificate_check = settings.certificate_check
+        self._client.tls_set_context(_tls_context(self._certificate_check))
         self._client.tls_insecure_set(True)
         self._client.enable_logger(logger)
 
@@ -131,6 +134,8 @@ class LocalMqttBambuClient(BambuClient):
         with self._lock:
             self._connected = True
             self._auth_rejected = False
+        if self._certificate_check is not None:
+            self._certificate_check.connected()
         logger.info("MQTT connected")
         _client.subscribe(self._topic_report, qos=1)
         if self._settings.bambulab_request_pushall:
@@ -168,14 +173,16 @@ class LocalMqttBambuClient(BambuClient):
             self._last_message_ts = time.time()
 
 
-def _tls_context() -> ssl.SSLContext:
+def _tls_context(check: CertificateCheck | None = None) -> ssl.SSLContext:
     """TLS for printer and cloud brokers.
 
-    Certificate and hostname checks stay disabled (documented compatibility behavior).
+    OpenSSL certificate and hostname checks stay disabled (documented compatibility behavior
+    for fixed hosts and the cloud). With `check` (a printer found with `auto`), the leaf
+    certificate is checked inside the handshake instead, before CONNECT (certificates.py).
     The maximum version is TLS 1.2: P2S firmware 01.02.00.00 never answers a TLS 1.3
     ClientHello, so the handshake would hang. Every Bambu broker supports TLS 1.2.
     """
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT) if check is None else checked_context(check)
     context.check_hostname = False
     context.verify_mode = ssl.CERT_NONE
     context.maximum_version = ssl.TLSVersion.TLSv1_2
