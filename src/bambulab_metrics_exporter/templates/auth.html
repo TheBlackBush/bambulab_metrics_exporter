@@ -197,6 +197,7 @@
     <form method="post" action="{{LOCAL_ACTION}}">
       <label class="field">Printer IP address or host name
         <input type="text" name="host" required autocomplete="off" placeholder="192.168.1.50">
+        <span class="hint">Or <code>auto</code> to find the printer from its LAN announcements (in Docker this needs <code>network_mode: host</code>).</span>
       </label>
       <label class="field">Serial number
         <input type="text" name="serial" required autocomplete="off" spellcheck="false">

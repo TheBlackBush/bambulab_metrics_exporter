@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from bambulab_metrics_exporter import __version__, ssdp
+from bambulab_metrics_exporter.config import is_auto_host
 
 if TYPE_CHECKING:
     from bambulab_metrics_exporter.config import Settings
@@ -482,6 +483,7 @@ def _printer_report(
             "polling_interval_seconds": settings.polling_interval_seconds,
             "request_timeout_seconds": settings.request_timeout_seconds,
             "request_pushall": settings.bambulab_request_pushall,
+            "host_auto": is_auto_host(str(settings.bambulab_host or "")),
             "configured_model": settings.bambulab_printer_model or None,
         },
     }

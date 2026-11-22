@@ -38,7 +38,7 @@ from bambulab_metrics_exporter.auth_actions import (
     remove_printer,
     select_cloud_printers,
 )
-from bambulab_metrics_exporter.config import Settings
+from bambulab_metrics_exporter.config import Settings, is_auto_host
 from bambulab_metrics_exporter.diagnostics import PrinterDiagnostics, build_report
 from bambulab_metrics_exporter.metrics import ExporterMetrics
 from bambulab_metrics_exporter.overrides import (
@@ -576,6 +576,8 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
         current = runtime.settings
         if current.bambulab_transport == "cloud_mqtt":
             where = "Bambu Cloud"
+        elif is_auto_host(current.bambulab_host):
+            where = "Local, automatic address"
         else:
             where = f"Local, {current.bambulab_host or 'no host set'}"
         printer = mask_serial(current.bambulab_serial) or "no printer set"

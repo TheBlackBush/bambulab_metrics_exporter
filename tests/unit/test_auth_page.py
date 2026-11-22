@@ -279,6 +279,18 @@ def test_auth_page_cloud_tab_selected_in_cloud_mode() -> None:
     assert 'id="mode-cloud" checked' in client.get("/auth").text
 
 
+def test_auth_page_shows_automatic_address_for_auto_host() -> None:
+    client, _ = _client(Settings(bambulab_serial="FAKE00TEST000001", bambulab_host="auto"))
+    page = client.get("/auth").text
+    assert "Local, automatic address" in page
+    assert "Local, auto<" not in page
+
+
+def test_auth_page_local_form_explains_auto_host() -> None:
+    client, _ = _client()
+    assert "Or <code>auto</code>" in client.get("/auth").text
+
+
 def test_auth_status_json() -> None:
     client, _ = _client()
     assert client.get("/auth/status").json()["state"] == "auth_required"

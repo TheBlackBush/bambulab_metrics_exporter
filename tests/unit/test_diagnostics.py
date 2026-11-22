@@ -44,6 +44,13 @@ def _settings(**kw: Any) -> Settings:
     return Settings(**base)
 
 
+def test_report_settings_say_whether_the_host_is_auto() -> None:
+    auto = build_report([_item(None, bambulab_host="auto")])["printers"][0]
+    fixed = build_report([_item(None)])["printers"][0]
+    assert auto["settings"]["host_auto"] is True
+    assert fixed["settings"]["host_auto"] is False
+
+
 def _raw() -> dict[str, Any]:
     return {
         "print": {
