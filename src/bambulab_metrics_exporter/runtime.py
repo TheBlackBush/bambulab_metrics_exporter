@@ -15,6 +15,7 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
+from bambulab_metrics_exporter.certificates import CertificateCheck, CertificateFacts, PinStore
 from bambulab_metrics_exporter.client.base import BambuClient
 from bambulab_metrics_exporter.client.factory import build_client
 from bambulab_metrics_exporter.cloud_auth import get_bind_devices
@@ -137,6 +138,7 @@ class ExporterRuntime:
         discovery_wait_seconds: float = DISCOVERY_WAIT_SECONDS,
         rediscover_after_seconds: float = REDISCOVER_AFTER_SECONDS,
         address_check_seconds: float = ADDRESS_CHECK_SECONDS,
+        pins: PinStore | None = None,
     ) -> None:
         self._settings_factory = settings_factory
         self._validate = validate
@@ -153,6 +155,8 @@ class ExporterRuntime:
         self._discovery_wait_seconds = discovery_wait_seconds
         self._rediscover_after_seconds = rediscover_after_seconds
         self._address_check_seconds = address_check_seconds
+        # Certificate pins for `auto` printers; the fleet passes one shared store.
+        self._pins = pins or PinStore()
 
         self._lock = threading.Lock()
         self._wake = threading.Event()
@@ -162,6 +166,7 @@ class ExporterRuntime:
         self.state = STATE_STARTING
         self.message = ""
         self._address = ""
+        self._check: CertificateCheck | None = None
         try:
             self.settings = settings_factory()
         except Exception as exc:  # noqa: BLE001 - invalid env must not stop the web server
@@ -200,13 +205,39 @@ class ExporterRuntime:
         with self._lock:
             return self._address
 
+    def certificate(self) -> CertificateFacts | None:
+        """The latest certificate check of an `auto` printer. None for a fixed host, a cloud
+        printer, or before the first handshake of this connection attempt."""
+        with self._lock:
+            check = self._check
+        return check.last if check is not None else None
+
+    def trust_certificate(self, fingerprint: str) -> bool:
+        """Pin the changed certificate the /auth page showed, then reconnect. False when the
+        latest check did not reject that certificate as changed."""
+        with self._lock:
+            check = self._check
+        if check is None or not check.trust(fingerprint):
+            return False
+        logger.warning(
+            "Printer %s: a new certificate was trusted on the /auth page; reconnecting",
+            self._masked(),
+        )
+        self.reconfigure()
+        return True
+
     def diagnostics_inputs(self) -> list[PrinterDiagnostics]:
         """Raw inputs for the diagnostic report (sanitized by the report builder)."""
         with self._lock:
             settings, state, message = self.settings, self.state, self.message
             collector = self.collector
         snapshot = collector.last_snapshot if collector is not None else None
-        return [PrinterDiagnostics(settings, state, message, self.ready, snapshot, self.metrics)]
+        return [
+            PrinterDiagnostics(
+                settings, state, message, self.ready, snapshot, self.metrics,
+                certificate=self.certificate(),
+            )
+        ]
 
     def start(self) -> None:
         self._thread = threading.Thread(target=self._run, name="exporter-runtime", daemon=True)
@@ -253,6 +284,10 @@ class ExporterRuntime:
         with self._lock:
             self.state = state
             self.message = message
+
+    def _set_check(self, check: CertificateCheck | None) -> None:
+        with self._lock:
+            self._check = check
 
     def _set_address(self, address: str) -> None:
         with self._lock:
@@ -350,17 +385,26 @@ class ExporterRuntime:
             )
             self._wait(self._retry_seconds)
             return None
+        # Checked in every TLS handshake to this address, before CONNECT sends the access code.
+        check = CertificateCheck(str(settings.bambulab_serial), self._pins)
+        self._set_check(check)
         self._set_address(found.address)
-        return settings.model_copy(update={"bambulab_host": found.address})
+        return settings.with_certificate_check(check, {"bambulab_host": found.address})
 
     def _watch_address(self, collector: PollingCollector, address: str) -> None:
         """Paho keeps reconnecting to the address it has. Once the printer has been
         unreachable for rediscover_after_seconds and announces another address, return so
-        the next run connects there. Returns early on reconfigure() or stop()."""
+        the next run connects there. Also returns when paho's reconnect met a rejected certificate, so the state and the /auth page say so. Returns early on reconfigure() or stop()."""
         serial = str(self.settings.bambulab_serial)
         down_since: float | None = None
         while not self._stop.is_set():
             if self._wait(self._address_check_seconds):
+                return
+            certificate = self.certificate()
+            if certificate is not None and certificate.rejected:
+                logger.warning(
+                    "Printer %s: the printer certificate was rejected on reconnect", self._masked()
+                )
                 return
             snapshot = collector.last_snapshot
             # No snapshot yet: the first fetch is still running, so nothing is known.
@@ -382,6 +426,7 @@ class ExporterRuntime:
     def _run_once(self) -> None:
         self._stop_collector()
         self._set_address("")
+        self._set_check(None)
         try:
             settings = self._load_settings()
         except Exception as exc:  # noqa: BLE001 - invalid env must not kill the server
