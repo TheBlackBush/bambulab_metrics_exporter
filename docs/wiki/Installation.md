@@ -144,10 +144,20 @@ found). The printer list shows the address it found, for example `LAN, auto (fou
   169.254.0.0/16). If two devices announce the same serial, it does not connect and says so.
 - After the printer has been offline for 2 minutes, the exporter connects to a new announced
   address if there is one.
-- Security trade-off: the exporter does not check the printer's certificate yet. A device on
-  your LAN that announces your printer's serial while the printer is off could therefore
-  receive the LAN access code. Use `auto` on a network you trust; a fixed address avoids this.
-  Certificate checking is planned.
+- Certificate check: with `auto`, the exporter checks the printer's TLS certificate during the
+  TLS handshake, before it sends the LAN access code. A certificate signed by a Bambu Lab CA
+  that the exporter knows must name the printer's serial. Any other certificate is trusted when
+  the printer accepts the access code, and its SHA-256 fingerprint is remembered for that
+  printer. Later connections must show the same certificate. The exporter ships no Bambu Lab CA
+  yet, so today every `auto` printer uses the remembered fingerprint.
+- If the certificate changes, the exporter does not connect. The `/auth` page shows
+  **Certificate changed** with the new fingerprint and a **Trust new certificate** button (see
+  [Troubleshooting](Troubleshooting)). The fingerprints are kept in `printer-certificates.json`
+  in the config directory (see [Configuration](Configuration)).
+- Remaining risk: the first certificate is trusted as it is. A device on your LAN that announces
+  your printer's serial and answers first, while the printer is off, would be trusted and could
+  receive the access code. Add the printer while it is on and on your network. A fixed IP or
+  host name is not checked (as before), and neither is Bambu Cloud.
 
 If the exporter reports a discovery problem, see
 [Troubleshooting](Troubleshooting) ("Automatic address (`auto`) does not connect").

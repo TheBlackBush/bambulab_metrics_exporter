@@ -41,7 +41,7 @@ The "Required" column below applies to env-variable setups.
 | `BAMBULAB_SECRET_KEY` | recommended | - | Encrypts `/auth` page settings and cloud credentials so they survive restarts; keep stable |
 | `BAMBULAB_CONFIG_DIR` | no | `/config/bambulab-metrics-exporter` | Config directory |
 
-Files in the config directory (mode `0600`; all are encrypted with `BAMBULAB_SECRET_KEY` except `send-code-limit.json`, which is plain JSON):
+Files in the config directory (mode `0600`; all are encrypted with `BAMBULAB_SECRET_KEY` except `send-code-limit.json` and `printer-certificates.json`, which are plain JSON):
 
 | File | Written by | Purpose |
 |------|------------|---------|
@@ -49,6 +49,7 @@ Files in the config directory (mode `0600`; all are encrypted with `BAMBULAB_SEC
 | `printers.enc.json` | `/auth` page | The printer list (up to 32, cloud and LAN) once you change it on the page; includes LAN access codes. When absent, the exporter runs the one printer from env vars. Removed by **Reset to env vars**. A file that cannot be read is kept as `printers.enc.json.bad` before it is replaced or removed |
 | `connection-overrides.enc.json` | `/auth` page | Connection settings that override env vars; removed by **Reset to env vars** |
 | `send-code-limit.json` | `/auth` page | Send-code limit state (plain JSON, no secrets); survives restarts and is cleared by a successful page login |
+| `printer-certificates.json` | connections to printers with the host `auto` | The SHA-256 fingerprint of each such printer's certificate (serials stored hashed; no secrets). Kept by **Reset to env vars**; delete it to trust each printer again on its next connection. A file that cannot be read is kept as `printer-certificates.json.bad` |
 | `credentials.enc.json.before-auth-page` | `/auth` page | The credentials that existed before the first page login; restored by **Reset to env vars** |
 
 ### Generating `BAMBULAB_SECRET_KEY`

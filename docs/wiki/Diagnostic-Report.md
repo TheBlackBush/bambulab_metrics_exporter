@@ -67,6 +67,7 @@ JSON. The exporter removes or replaces:
 | Spool tag ids (RFID), chip ids | Replaced with zeros |
 | Email addresses anywhere in text | Replaced with `operator@example.invalid` |
 | LAN announcements (`ssdp`) | Only Bambu Lab packets are kept. Serials keep their first 3 characters, the advertised address becomes `192.0.2.1`, the printer name and any field not known to be safe become `[redacted]` |
+| Printer certificate (`certificate`) | Serials in the common name and issuer keep their first 3 characters; fingerprints keep only their first 8 hex digits |
 
 Everything else stays, because it is what makes the report useful: temperatures, fan speeds, AMS
 and spool details (type, color, remaining), HMS error codes, firmware versions, module list, and
@@ -117,6 +118,7 @@ Each printer entry:
 | `settings` | Polling interval, request timeout, `BAMBULAB_REQUEST_PUSHALL`, the configured model hint and `host_auto` (true when the host is `auto`; no address or credentials) |
 | `model`, `model_source` | The detected model (`null` when not recognized), and where it came from: `printer_data`, or `serial_or_setting` (serial prefix or configured model, when no data has arrived) |
 | `capabilities` | The hardware features the exporter assumes for the model (only with printer data) |
+| `certificate` | For a printer with the host `auto`: the latest certificate check (`result`: `ca`, `pinned`, `first_use`, `changed`, `ca_failed`, `cn_mismatch` or `unreadable`), the certificate's common name and issuer, whether the common name is the serial, the validity dates, and the first 8 hex digits of its SHA-256 fingerprint and of the remembered one. `null` for other printers or before the first connection |
 | `empty_metrics` | Metrics with no value for this printer: not reported by the printer, or not readable yet. `null` when no data has arrived at all |
 | `modules` | Firmware modules (`get_version`): names, product names, hardware and software versions |
 | `payload` | The printer's latest state as the exporter holds it, sanitized |
