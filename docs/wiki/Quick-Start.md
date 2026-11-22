@@ -46,7 +46,9 @@ printer is connected.
 
 Open `http://<docker-host>:9109/auth` (also linked from the status page) and choose:
 
-- **Local (LAN):** printer IP, serial number and LAN access code.
+- **Local (LAN):** printer IP, serial number and LAN access code. Typing `auto` as the IP finds
+  the printer from its LAN announcements (Docker needs host networking; see
+  [Installation](Installation#automatic-address-auto)).
 - **Bambu Cloud:** account email, **Send code**, then the emailed code and **Log in**. The
   page then lists the account's printers to choose from; no serial is typed.
 

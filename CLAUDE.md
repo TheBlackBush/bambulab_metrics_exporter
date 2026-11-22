@@ -153,6 +153,9 @@ Important boundaries:
   The report route also runs `ssdp.capture` (`ssdp.py`): it listens up to 8 s on UDP 2021 for
   printer announcements (receive only, one capture at a time) and `diagnostics` sanitizes the
   packets into the `ssdp` section; header values outside an allowlist are redacted.
+- `src/bambulab_metrics_exporter/discovery.py`: shared, lazily started UDP 2021 listener for
+  `BAMBULAB_HOST=auto`; keeps fresh announcing addresses per watched serial, two addresses mean
+  a conflict (no connect). Consumed by `ExporterRuntime`; packets are never logged.
 - `src/bambulab_metrics_exporter/cloud_auth.py`: Bambu Cloud HTTP/OTP CLI, token refresh,
   device discovery, bounded HTTP retry/backoff, and credential output. Never expose
   response bodies, emails, tokens, codes, or device IDs carelessly.
@@ -373,7 +376,7 @@ secrets.
 | `APP_NAME` | optional; `bambulab-metrics-exporter` | Internal application name string; currently little runtime use | no | `bambulab-metrics-exporter` |
 | `LOG_LEVEL` | optional; `INFO` | Python log level such as `DEBUG`, `INFO`, `WARNING`, `ERROR` | no | `INFO` |
 | `BAMBULAB_TRANSPORT` | optional; `local_mqtt` | Exactly `local_mqtt` or `cloud_mqtt` | no | `local_mqtt` |
-| `BAMBULAB_HOST` | local required; empty | LAN printer IPv4/IPv6 host or DNS name | operational | `192.0.2.25` |
+| `BAMBULAB_HOST` | local required; empty | LAN printer IPv4/IPv6 host or DNS name, or `auto` (opt-in LAN discovery by announcement, see `discovery.py`) | operational | `192.0.2.25` |
 | `BAMBULAB_PORT` | optional; `8883` | LAN MQTT TLS port integer | no | `8883` |
 | `BAMBULAB_SERIAL` | required; empty | Device ID used in MQTT topics; use a synthetic value in tests | operational | `FAKE00TEST000001` |
 | `BAMBULAB_ACCESS_CODE` | local required; empty | LAN MQTT password/access code | **secret** | `fake-access-code` |

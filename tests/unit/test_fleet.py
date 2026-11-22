@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import threading
 import time
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 from prometheus_client import CollectorRegistry, Gauge, generate_latest
 
+from bambulab_metrics_exporter import discovery as dsc
 from bambulab_metrics_exporter.config import Settings
 from bambulab_metrics_exporter.fleet import MergedCollector, PrinterFleet
 from bambulab_metrics_exporter.metrics import ExporterMetrics
@@ -405,3 +407,59 @@ def test_stop_warns_about_a_retiring_thread_that_outlives_its_join(
     fleet._retiring = [_StuckThread()]
     fleet.stop()
     assert "still stopping" in caplog.text
+
+
+class _Discovery:
+    def __init__(self) -> None:
+        self.stopped = False
+        self.calls: list[str] = []
+
+    def lookup(self, serial: str) -> dsc.Lookup:
+        self.calls.append(serial)
+        return dsc.Lookup(dsc.FOUND, "192.168.1.50")
+
+    def wait_for(self, serial: str, timeout: float, cancel: threading.Event) -> dsc.Lookup:
+        return self.lookup(serial)
+
+    def stop(self) -> None:
+        self.stopped = True
+
+
+def test_fleet_shares_one_discovery_and_stops_it() -> None:
+    shared = _Discovery()
+    store = PrinterStore()
+    store.save([replace(A, host="auto"), replace(B, host="auto")])
+    fleet = PrinterFleet(
+        store, settings_factory=_base, validate=lambda s: None, client_factory=_Client,
+        discovery=shared,
+    )
+    fleet.start()
+    try:
+        _running(fleet)
+        assert sorted(shared.calls) == [A.serial, B.serial]
+        assert all(runtime._discovery is shared for runtime in fleet._snapshot())
+    finally:
+        fleet.stop()
+    assert shared.stopped
+
+
+def test_saving_the_list_keeps_auto_for_the_env_printer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("BAMBULAB_TRANSPORT", "local_mqtt")
+    monkeypatch.setenv("BAMBULAB_HOST", "auto")
+    monkeypatch.setenv("BAMBULAB_SERIAL", "FAKE00TEST000001")
+    monkeypatch.setenv("BAMBULAB_ACCESS_CODE", "fake-access-code")
+    validated: list[str] = []
+    fleet = PrinterFleet(
+        PrinterStore(), settings_factory=_base,
+        validate=lambda s: validated.append(s.bambulab_host), client_factory=_Client,
+        discovery=_Discovery(),
+    )
+    fleet.start()
+    try:
+        _running(fleet)
+        assert validated == ["192.168.1.50"]
+        assert fleet.configs()[0].host == "auto"
+    finally:
+        fleet.stop()

@@ -26,7 +26,7 @@ from bambulab_metrics_exporter.cloud_auth import (
     login_with_code,
     send_code,
 )
-from bambulab_metrics_exporter.config import Settings
+from bambulab_metrics_exporter.config import HOST_AUTO, Settings, is_auto_host
 from bambulab_metrics_exporter.fleet import ENV_RUNTIME_ID
 from bambulab_metrics_exporter.overrides import (
     DEFAULT_CONFIG_DIR,
@@ -96,8 +96,10 @@ def persist_note(persisted: bool) -> str:
 
 def configure_local(host: str, serial: str, access_code: str, port: str = "") -> ActionResult:
     host, serial, access_code, port = host.strip(), serial.strip().upper(), access_code.strip(), port.strip()
+    if is_auto_host(host):
+        host = HOST_AUTO
     if not _HOST_RE.match(host):
-        raise AuthInputError("Enter the printer IP address or host name.")
+        raise AuthInputError("Enter the printer IP address, host name, or auto.")
     if not _SERIAL_RE.match(serial):
         raise AuthInputError("The serial number must be 8 to 32 letters or digits.")
     if not _ACCESS_CODE_RE.match(access_code):
@@ -550,8 +552,10 @@ def add_local_printer(
     """Add a LAN printer, or update the LAN printer with the same serial."""
     host, serial = host.strip(), serial.strip().upper()
     access_code, port, name = access_code.strip(), port.strip(), name.strip()
+    if is_auto_host(host):
+        host = HOST_AUTO
     if not _HOST_RE.match(host):
-        raise AuthInputError("Enter the printer IP address or host name.")
+        raise AuthInputError("Enter the printer IP address, host name, or auto.")
     if not _SERIAL_RE.match(serial):
         raise AuthInputError("The serial number must be 8 to 32 letters or digits.")
     if not _ACCESS_CODE_RE.match(access_code):

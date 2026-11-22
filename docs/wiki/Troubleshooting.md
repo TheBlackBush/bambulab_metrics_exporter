@@ -54,6 +54,23 @@ The exporter never exits on connection problems: the web server stays up and the
   reconnects without a restart
 - To avoid it next time, use a host name for the printer if your router or local DNS gives it
   one, or a DHCP reservation. See [Docker networking](Installation#docker-networking)
+- Or set the host to `auto`: after the printer has been offline for 2 minutes, the exporter
+  connects to its new announced address. See
+  [Automatic address](Installation#automatic-address-auto)
+
+**Automatic address (`auto`) does not connect**
+- "No LAN announcement from the printer. Automatic discovery needs the exporter on the printer's
+  network (Docker: network_mode: host), or set the printer's IP address." Use host networking
+  (see [Docker networking](Installation#docker-networking)) or enter a fixed IP. The
+  **LAN announcements** section of the [diagnostic report](Diagnostic-Report#lan-announcements)
+  shows whether announcements reach the exporter
+- "More than one device announces this printer's serial on the LAN, so the exporter does not
+  connect. Set the printer's IP address if this keeps happening." Another device announces the
+  same serial (or the printer's address just changed and the old one is still fresh; it clears
+  within about 90 seconds). Set a fixed IP if it persists
+- "LAN discovery could not listen on UDP port 2021 (...)." Something else holds the port, for
+  example another exporter instance or Bambu Studio on the same host. Stop it, or set a fixed IP
+- While waiting, the status reads "Waiting for the printer's LAN announcement"
 
 **`/auth` or `/diagnostics` returns 403 `host_not_allowed`**
 - The page only accepts IP addresses and local-network host names (DNS-rebinding protection)

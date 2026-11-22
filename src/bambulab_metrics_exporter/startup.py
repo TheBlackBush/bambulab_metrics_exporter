@@ -14,7 +14,7 @@ from bambulab_metrics_exporter.cloud_auth import (
     refresh_access_token,
     send_code,
 )
-from bambulab_metrics_exporter.config import Settings
+from bambulab_metrics_exporter.config import Settings, is_auto_host
 from bambulab_metrics_exporter.credentials_store import save_encrypted_credentials
 from bambulab_metrics_exporter.env_sync import sync_env_file
 from bambulab_metrics_exporter.overrides import overridden_keys
@@ -86,6 +86,8 @@ def _outage(stage: str) -> RuntimeError:
 
 
 def _validate_local(settings: Settings) -> None:
+    if is_auto_host(settings.bambulab_host):
+        raise RuntimeError("The printer address has not been found on the LAN yet.")
     missing = [
         key
         for key, val in {

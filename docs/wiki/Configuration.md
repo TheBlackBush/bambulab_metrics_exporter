@@ -13,7 +13,7 @@ The "Required" column below applies to env-variable setups.
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `BAMBULAB_TRANSPORT` | no | `local_mqtt` | Transport: `local_mqtt` or `cloud_mqtt` |
-| `BAMBULAB_HOST` | env setup, LAN | - | Printer IP or hostname |
+| `BAMBULAB_HOST` | env setup, LAN | - | Printer IP or hostname, or `auto` to find the printer from its LAN announcements (see [Docker networking](Installation#automatic-address-auto)) |
 | `BAMBULAB_PORT` | no | `8883` | Printer MQTT TLS port |
 | `BAMBULAB_SERIAL` | env setup | - | Printer serial / device ID |
 | `BAMBULAB_ACCESS_CODE` | env setup, LAN | - | Printer LAN access code |

@@ -3,6 +3,13 @@ import os
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+HOST_AUTO = "auto"
+
+
+def is_auto_host(host: str) -> bool:
+    """`BAMBULAB_HOST=auto`: find the printer from its LAN announcements (opt-in)."""
+    return host.strip().lower() == HOST_AUTO
+
 
 class Settings(BaseSettings):
     # Environment variables are the primary source.
@@ -43,6 +50,11 @@ class Settings(BaseSettings):
     bambulab_printer_name: str = ""
     bambulab_printer_model: str = ""
     # Site and location removed
+
+    @field_validator("bambulab_host")
+    @classmethod
+    def normalize_auto_host(cls, value: str) -> str:
+        return HOST_AUTO if is_auto_host(value) else value
 
     @field_validator("polling_interval_seconds")
     @classmethod

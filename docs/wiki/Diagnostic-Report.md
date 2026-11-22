@@ -114,7 +114,7 @@ Each printer entry:
 | `transport` | `local_mqtt` or `cloud_mqtt` |
 | `state`, `message` | Connection state, as on the status page |
 | `ready`, `connected`, `last_success_age_seconds` | Whether data arrived, and how long ago the last update was |
-| `settings` | Polling interval, request timeout, `BAMBULAB_REQUEST_PUSHALL` and the configured model hint (no credentials) |
+| `settings` | Polling interval, request timeout, `BAMBULAB_REQUEST_PUSHALL`, the configured model hint and `host_auto` (true when the host is `auto`; no address or credentials) |
 | `model`, `model_source` | The detected model (`null` when not recognized), and where it came from: `printer_data`, or `serial_or_setting` (serial prefix or configured model, when no data has arrived) |
 | `capabilities` | The hardware features the exporter assumes for the model (only with printer data) |
 | `empty_metrics` | Metrics with no value for this printer: not reported by the printer, or not readable yet. `null` when no data has arrived at all |
@@ -128,8 +128,9 @@ listener does).
 ## LAN announcements
 
 Bambu Lab printers announce themselves on the local network (SSDP, UDP port 2021). The `ssdp`
-section shows whether those announcements reach the exporter, which helps future automatic
-printer discovery. It does not change how the exporter connects today.
+section shows whether those announcements reach the exporter, which `BAMBULAB_HOST=auto` needs
+to find the printer (see [Installation](Installation#automatic-address-auto)). The report itself
+does not change how the exporter connects.
 
 | Field | Content |
 |---|---|
@@ -140,7 +141,8 @@ printer discovery. It does not change how the exporter connects today.
 
 `none` is expected when the exporter runs in Docker on the default bridge network: announcements
 do not reach the container there (see [Docker networking](Installation#docker-networking)). LAN
-and cloud connections work the same either way.
+connections with a fixed IP or host name, and cloud connections, work the same either way; only
+`BAMBULAB_HOST=auto` needs the announcements.
 
 ## For fixtures
 
