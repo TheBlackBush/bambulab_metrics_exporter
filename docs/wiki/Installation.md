@@ -114,13 +114,36 @@ services:
 or `docker run --network host ...`. With host networking, `ports:` is ignored: the exporter
 listens on port 9109 of the host directly (change it with `LISTEN_PORT`).
 
-**Printer IP keeps changing (DHCP)?** No host networking is needed for that:
+**Printer IP keeps changing (DHCP)?** Either of these works without host networking:
 
 - Use a host name instead of an IP (`BAMBULAB_HOST`, or the IP field on the `/auth` page), if
   your router or local DNS gives the printer a stable name.
 - Or enter the new IP on the `/auth` page with the same serial and access code: the exporter
   updates that printer and reconnects without a restart.
 - Bambu Cloud mode does not depend on the printer's IP at all.
+- Or let the exporter follow the printer: set the host to `auto` (next section).
+
+### Automatic address (`auto`)
+
+Set `BAMBULAB_HOST=auto` (or type `auto` as the IP on the `/auth` LAN form) and the exporter
+finds the printer from the announcements it broadcasts on the LAN (UDP port 2021), matched by
+serial number. It is opt-in: an empty host still means "set it up", and a fixed IP or host name
+works as before.
+
+- In Docker it needs `network_mode: host` (see above). On the default bridge network the
+  announcements never reach the container; a fixed IP keeps working there.
+- The exporter connects only to the address that sent the announcement, and only if it is a
+  private or link-local IPv4 address (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16,
+  169.254.0.0/16). If two devices announce the same serial, it does not connect and says so.
+- After the printer has been offline for 2 minutes, the exporter connects to a new announced
+  address if there is one.
+- Security trade-off: the exporter does not check the printer's certificate yet. A device on
+  your LAN that announces your printer's serial while the printer is off could therefore
+  receive the LAN access code. Use `auto` on a network you trust; a fixed address avoids this.
+  Certificate checking is planned.
+
+If the exporter reports a discovery problem, see
+[Troubleshooting](Troubleshooting) ("Automatic address (`auto`) does not connect").
 
 ---
 

@@ -114,7 +114,7 @@ Each printer entry:
 | `transport` | `local_mqtt` or `cloud_mqtt` |
 | `state`, `message` | Connection state, as on the status page |
 | `ready`, `connected`, `last_success_age_seconds` | Whether data arrived, and how long ago the last update was |
-| `settings` | Polling interval, request timeout, `BAMBULAB_REQUEST_PUSHALL` and the configured model hint (no credentials) |
+| `settings` | Polling interval, request timeout, `BAMBULAB_REQUEST_PUSHALL`, the configured model hint and `host_auto` (true when the host is `auto`; no address or credentials) |
 | `model`, `model_source` | The detected model (`null` when not recognized), and where it came from: `printer_data`, or `serial_or_setting` (serial prefix or configured model, when no data has arrived) |
 | `capabilities` | The hardware features the exporter assumes for the model (only with printer data) |
 | `empty_metrics` | Metrics with no value for this printer: not reported by the printer, or not readable yet. `null` when no data has arrived at all |

@@ -5,6 +5,9 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added
+- `BAMBULAB_HOST=auto` (or `auto` in the `/auth` LAN form): opt-in discovery of a LAN printer from
+  its announcements (UDP 2021), so a DHCP change no longer needs a manual update. In Docker it
+  needs `network_mode: host`. Diagnostic report: `settings.host_auto` (#107).
 - Diagnostic report: an `ssdp` section with the printer announcements heard on the LAN (UDP
   2021) while the report runs, sanitized like the rest of the report. **Run diagnostics** now
   takes up to 8 seconds, and the summary shows a **LAN announcements** line. The exporter only

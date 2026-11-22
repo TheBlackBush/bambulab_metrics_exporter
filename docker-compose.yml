@@ -22,7 +22,7 @@ services:
       # Optional: configure with env vars instead of the /auth page (page settings win)
       # BAMBULAB_TRANSPORT: ${BAMBULAB_TRANSPORT:-local_mqtt} # local_mqtt or cloud_mqtt
       # BAMBULAB_SERIAL: ${BAMBULAB_SERIAL:-} # printer serial
-      # BAMBULAB_HOST: ${BAMBULAB_HOST:-} # local printer IP/hostname
+      # BAMBULAB_HOST: ${BAMBULAB_HOST:-} # local printer IP/hostname, or "auto" (needs network_mode: host)
       # BAMBULAB_ACCESS_CODE: ${BAMBULAB_ACCESS_CODE:-} # local LAN access code
       # BAMBULAB_PORT: ${BAMBULAB_PORT:-8883} # local MQTT port
       # BAMBULAB_USERNAME: ${BAMBULAB_USERNAME:-bblp} # local MQTT username
