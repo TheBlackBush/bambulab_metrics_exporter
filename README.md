@@ -16,6 +16,7 @@
 [![GHCR Pulls](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fghcr-badge.elias.eu.org%2Fapi%2FTheBlackBush%2Fbambulab_metrics_exporter%2Fbambulab_metrics_exporter&query=downloadCount&label=ghcr%20pulls&style=for-the-badge&logo=docker&logoColor=white)](https://github.com/TheBlackBush/bambulab_metrics_exporter/pkgs/container/bambulab_metrics_exporter)
 [![Docker Hub Pulls](https://img.shields.io/docker/pulls/blackbush/bambulab_metrics_exporter?style=for-the-badge&logo=docker&logoColor=white&label=docker%20hub%20pulls)](https://hub.docker.com/r/blackbush/bambulab_metrics_exporter)
 [![Grafana Dashboard Downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgrafana.com%2Fapi%2Fdashboards%2F25033&query=%24.downloads&label=grafana%20downloads&style=for-the-badge&logo=grafana&logoColor=white)](https://grafana.com/grafana/dashboards/25033-bambulab-metrics)
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/TheBlackBush?style=for-the-badge&logo=githubsponsors&logoColor=white&label=sponsor&color=EA4AAA)](https://github.com/sponsors/TheBlackBush)
 [![Ko-fi](https://img.shields.io/badge/support_me_on_ko--fi-F16061?style=for-the-badge&logo=kofi&logoColor=f5f5f5)](https://ko-fi.com/M4M11W3R7J)
 
 > A Prometheus exporter for **Bambu Lab** 3D printers.
