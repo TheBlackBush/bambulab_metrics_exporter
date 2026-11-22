@@ -1,6 +1,7 @@
 """Shared test fixtures."""
 from __future__ import annotations
 
+import errno
 import os
 import socket
 from collections.abc import Iterator
@@ -54,3 +55,15 @@ def _no_network(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(socket.socket, "connect", guarded_connect)
     monkeypatch.setattr(socket, "getaddrinfo", guarded_getaddrinfo)
+
+
+@pytest.fixture(autouse=True)
+def _no_udp_listen(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The diagnostic report listens on UDP 2021 for printer announcements. Tests never open
+    that port (they would wait for real LAN traffic); listener tests pass a fake socket."""
+    from bambulab_metrics_exporter import ssdp
+
+    def blocked(port: int) -> None:
+        raise OSError(errno.EACCES, f"UDP listen blocked in tests: port {port}")
+
+    monkeypatch.setattr(ssdp, "_open_socket", blocked)
