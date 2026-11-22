@@ -659,3 +659,12 @@ def test_local_missing_values_point_to_the_auth_page() -> None:
     with pytest.raises(RuntimeError) as failed:
         _validate_local(settings)
     assert "/auth" in str(failed.value)
+
+
+def test_validate_local_refuses_an_unresolved_auto_host() -> None:
+    settings = Settings(
+        bambulab_transport="local_mqtt", bambulab_host="auto",
+        bambulab_serial="FAKE00TEST000001", bambulab_access_code="fake-access-code",
+    )
+    with pytest.raises(RuntimeError, match="not been found on the LAN"):
+        _validate_local(settings)

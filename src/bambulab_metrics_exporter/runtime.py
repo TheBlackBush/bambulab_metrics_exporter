@@ -19,8 +19,9 @@ from bambulab_metrics_exporter.client.base import BambuClient
 from bambulab_metrics_exporter.client.factory import build_client
 from bambulab_metrics_exporter.cloud_auth import get_bind_devices
 from bambulab_metrics_exporter.collector import PollingCollector
-from bambulab_metrics_exporter.config import Settings
+from bambulab_metrics_exporter.config import Settings, is_auto_host
 from bambulab_metrics_exporter.diagnostics import PrinterDiagnostics, detect_model
+from bambulab_metrics_exporter.discovery import CONFLICT, UNAVAILABLE, LanDiscovery
 from bambulab_metrics_exporter.env_sync import sync_env_file
 from bambulab_metrics_exporter.metrics import ExporterMetrics
 from bambulab_metrics_exporter.overrides import overridden_keys
@@ -47,6 +48,19 @@ RETRY_SECONDS = 60.0
 # rejection, and it should clear by itself once the broker is back.
 AUTH_RETRY_SECONDS = 300.0
 STORE_POLL_SECONDS = 5.0
+DISCOVERY_WAIT_SECONDS = 30.0
+REDISCOVER_AFTER_SECONDS = 120.0
+ADDRESS_CHECK_SECONDS = 15.0
+MSG_WAITING_ANNOUNCEMENT = "Waiting for the printer's LAN announcement"
+MSG_NO_ANNOUNCEMENT = (
+    "No LAN announcement from the printer. Automatic discovery needs the exporter on the "
+    "printer's network (Docker: network_mode: host), or set the printer's IP address."
+)
+MSG_CONFLICT = (
+    "More than one device announces this printer's serial on the LAN, so the exporter "
+    "does not connect. Set the printer's IP address if this keeps happening."
+)
+MSG_UNAVAILABLE = "LAN discovery could not listen on UDP port 2021 ({error})."
 
 
 def printer_label(settings: Settings) -> str:
@@ -119,6 +133,10 @@ class ExporterRuntime:
         store_poll_seconds: float = STORE_POLL_SECONDS,
         auth_retry_seconds: float = AUTH_RETRY_SECONDS,
         sync_env: bool = True,
+        discovery: LanDiscovery | None = None,
+        discovery_wait_seconds: float = DISCOVERY_WAIT_SECONDS,
+        rediscover_after_seconds: float = REDISCOVER_AFTER_SECONDS,
+        address_check_seconds: float = ADDRESS_CHECK_SECONDS,
     ) -> None:
         self._settings_factory = settings_factory
         self._validate = validate
@@ -128,6 +146,11 @@ class ExporterRuntime:
         self._store_poll_seconds = store_poll_seconds
         self._auth_retry_seconds = auth_retry_seconds
         self._sync_env = sync_env
+        # The listener only opens on the first lookup, so the default costs nothing.
+        self._discovery = discovery or LanDiscovery()
+        self._discovery_wait_seconds = discovery_wait_seconds
+        self._rediscover_after_seconds = rediscover_after_seconds
+        self._address_check_seconds = address_check_seconds
 
         self._lock = threading.Lock()
         self._wake = threading.Event()
@@ -292,6 +315,56 @@ class ExporterRuntime:
                 self._wait(self._retry_seconds)
         self._stop_collector()
 
+    def _resolve(self, settings: Settings) -> Settings | None:
+        """A copy of `settings` with the announced address. `settings` keeps `auto`, so the
+        page, the saved list and .env never store a discovered address."""
+        self._set_state(STATE_CONNECTING, MSG_WAITING_ANNOUNCEMENT)
+        found = self._discovery.wait_for(
+            str(settings.bambulab_serial), self._discovery_wait_seconds, self._stop
+        )
+        if self._stop.is_set():
+            return None
+        if found.address is None:
+            if found.reason == CONFLICT:
+                message = MSG_CONFLICT
+            elif found.reason == UNAVAILABLE:
+                message = MSG_UNAVAILABLE.format(error=found.error or "OSError")
+            else:
+                message = MSG_NO_ANNOUNCEMENT
+            self._set_state(STATE_ERROR, message)
+            logger.error(
+                "Printer %s: %s Retrying in %.0fs", self._masked(), message, self._retry_seconds
+            )
+            self._wait(self._retry_seconds)
+            return None
+        return settings.model_copy(update={"bambulab_host": found.address})
+
+    def _watch_address(self, collector: PollingCollector, address: str) -> None:
+        """Paho keeps reconnecting to the address it has. Once the printer has been
+        unreachable for rediscover_after_seconds and announces another address, return so
+        the next run connects there. Returns early on reconfigure() or stop()."""
+        serial = str(self.settings.bambulab_serial)
+        down_since: float | None = None
+        while not self._stop.is_set():
+            if self._wait(self._address_check_seconds):
+                return
+            snapshot = collector.last_snapshot
+            # No snapshot yet: the first fetch is still running, so nothing is known.
+            if snapshot is None or snapshot.connected:
+                down_since = None
+                continue
+            now = time.monotonic()
+            if down_since is None:
+                down_since = now
+            if now - down_since < self._rediscover_after_seconds:
+                continue
+            found = self._discovery.lookup(serial)
+            if found.address is not None and found.address != address:
+                logger.warning(
+                    "Printer %s announced a new LAN address; reconnecting", self._masked()
+                )
+                return
+
     def _run_once(self) -> None:
         self._stop_collector()
         try:
@@ -315,10 +388,16 @@ class ExporterRuntime:
         self._set_state(STATE_CONNECTING)
         self._discover(settings)
         self._ensure_metrics(settings)
+        connect = settings
+        if settings.bambulab_transport == "local_mqtt" and is_auto_host(settings.bambulab_host):
+            resolved = self._resolve(settings)
+            if resolved is None:
+                return
+            connect = resolved
         store = credentials_path(settings)
         store_before = _store_fingerprint(store)
         try:
-            self._validate(settings)
+            self._validate(connect)
         except ReauthRequiredError as exc:
             if self._stop.is_set():
                 return
@@ -363,9 +442,9 @@ class ExporterRuntime:
         if self._stop.is_set():
             return
         collector = PollingCollector(
-            client=self._client_factory(settings),
+            client=self._client_factory(connect),
             metrics=self.metrics,
-            settings=settings,
+            settings=connect,
             on_auth_rejected=self._on_auth_rejected,
         )
         try:
@@ -380,4 +459,7 @@ class ExporterRuntime:
         self._store_retry_used = False
         self._set_state(STATE_RUNNING)
         logger.info("Exporter connected (%s)", settings.bambulab_transport)
-        self._wait(None)  # until reconfigure() or stop()
+        if connect is settings:
+            self._wait(None)  # until reconfigure() or stop()
+        else:
+            self._watch_address(collector, connect.bambulab_host)

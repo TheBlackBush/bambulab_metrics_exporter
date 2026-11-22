@@ -17,6 +17,7 @@ from bambulab_metrics_exporter.client.base import BambuClient
 from bambulab_metrics_exporter.client.factory import build_client
 from bambulab_metrics_exporter.config import Settings
 from bambulab_metrics_exporter.diagnostics import PrinterDiagnostics
+from bambulab_metrics_exporter.discovery import LanDiscovery
 from bambulab_metrics_exporter.metrics import ExporterMetrics
 from bambulab_metrics_exporter.overrides import lock as overrides_lock
 from bambulab_metrics_exporter.printers import (
@@ -102,8 +103,10 @@ class PrinterFleet:
         settings_factory: Callable[[], Settings] = Settings,
         validate: Callable[[Settings], None] = startup_validate,
         client_factory: Callable[[Settings], BambuClient] = build_client,
+        discovery: LanDiscovery | None = None,
     ) -> None:
         self._store = store
+        self._discovery = discovery or LanDiscovery()
         self._settings_factory = settings_factory
         self._validate_fn = validate
         self._client_factory = client_factory
@@ -147,6 +150,7 @@ class PrinterFleet:
             settings_factory=self._settings_factory,
             validate=self._validate,
             client_factory=self._client_factory,
+            discovery=self._discovery,
         )
 
     def _add(self, config: PrinterConfig) -> ExporterRuntime:
@@ -156,6 +160,7 @@ class PrinterFleet:
             client_factory=self._client_factory,
             discover=lambda _settings: None,  # name and model are saved with the printer
             sync_env=False,
+            discovery=self._discovery,
         )
         self._runtimes[config.printer_id] = runtime
         self._configs[config.printer_id] = config
@@ -225,6 +230,8 @@ class PrinterFleet:
                 )
         for runtime in runtimes:
             _stop_runtime(runtime)
+        # Last, so no runtime does a lookup after the listener stopped.
+        self._discovery.stop()
 
     def reconfigure(self) -> None:
         for runtime in self._snapshot():
