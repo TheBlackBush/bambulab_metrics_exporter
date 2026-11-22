@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import errno
+import logging
 import threading
 import time
 
@@ -243,6 +244,7 @@ def test_default_opener_is_the_guarded_ssdp_socket(made) -> None:
 
 
 def test_nothing_from_packets_is_logged(made, caplog: pytest.LogCaptureFixture) -> None:
+    caplog.set_level(logging.DEBUG)
     sock = FakeSocket()
     discovery = _discovery(made, Opener(sock))
     discovery.lookup(SERIAL)

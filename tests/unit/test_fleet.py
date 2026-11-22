@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import threading
 import time
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 from prometheus_client import CollectorRegistry, Gauge, generate_latest
 
+from bambulab_metrics_exporter import discovery as dsc
 from bambulab_metrics_exporter.config import Settings
 from bambulab_metrics_exporter.fleet import MergedCollector, PrinterFleet
 from bambulab_metrics_exporter.metrics import ExporterMetrics
@@ -405,11 +407,6 @@ def test_stop_warns_about_a_retiring_thread_that_outlives_its_join(
     fleet._retiring = [_StuckThread()]
     fleet.stop()
     assert "still stopping" in caplog.text
-
-
-from dataclasses import replace  # noqa: E402
-
-from bambulab_metrics_exporter import discovery as dsc  # noqa: E402
 
 
 class _Discovery:

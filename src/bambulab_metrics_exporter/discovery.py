@@ -74,8 +74,10 @@ class LanDiscovery:
         """Like lookup, but waits up to `timeout` while the answer is `waiting`."""
         wanted = serial.strip().upper()
         deadline = time.monotonic() + timeout
-        result = self.lookup(wanted)
         with self._cond:
+            self._watched.add(wanted)
+            self._ensure_listening()
+            result = self._current(wanted)
             while result.reason == WAITING and not cancel.is_set():
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:

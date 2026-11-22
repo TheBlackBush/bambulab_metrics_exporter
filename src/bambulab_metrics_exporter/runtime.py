@@ -147,6 +147,8 @@ class ExporterRuntime:
         self._auth_retry_seconds = auth_retry_seconds
         self._sync_env = sync_env
         # The listener only opens on the first lookup, so the default costs nothing.
+        # The fleet passes one shared listener and stops it; a runtime built alone owns one
+        # that only opens its socket on an `auto` lookup.
         self._discovery = discovery or LanDiscovery()
         self._discovery_wait_seconds = discovery_wait_seconds
         self._rediscover_after_seconds = rediscover_after_seconds

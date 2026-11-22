@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from bambulab_metrics_exporter import discovery as dsc
 from bambulab_metrics_exporter import runtime as rt
 from bambulab_metrics_exporter.config import Settings
 from bambulab_metrics_exporter.models import PrinterSnapshot
@@ -744,9 +745,6 @@ def test_stop_warns_when_the_runtime_thread_outlives_its_join(caplog) -> None:
     runtime._thread.is_alive.return_value = True
     runtime.stop()
     assert "FAK*************" in caplog.text and "still running" in caplog.text
-
-
-from bambulab_metrics_exporter import discovery as dsc  # noqa: E402
 
 
 class _Discovery:
