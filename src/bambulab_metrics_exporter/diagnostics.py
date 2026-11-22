@@ -316,8 +316,9 @@ _SSDP_KEEP = frozenset({
 _SSDP_START_RE = re.compile(
     r"^(?:NOTIFY \* HTTP/1\.[01]|M-SEARCH \* HTTP/1\.[01]|HTTP/1\.[01] 200 OK)$", re.I
 )
-# Serial-like tokens in USN: 8 or more letters and digits, at least one digit.
-_SERIAL_TOKEN_RE = re.compile(r"(?=[A-Za-z0-9]*\d)[A-Za-z0-9]{8,}")
+# Serial-like tokens: 8 or more uppercase letters and digits, at least one digit. Bambu
+# serials are uppercase; lowercase words such as `3dprinter` in NT and USN urns are kept.
+_SERIAL_TOKEN_RE = re.compile(r"(?=[A-Z0-9]*\d)[A-Z0-9]{8,}")
 _MAX_SSDP_DEVICES = 32
 
 
@@ -332,16 +333,20 @@ def _group_address(value: str) -> bool:
     return address.is_multicast or str(address) == "255.255.255.255"
 
 
+def _fake_serial_tokens(value: str) -> str:
+    return _SERIAL_TOKEN_RE.sub(lambda m: _fake_serial(m.group(0)), value)
+
+
 def _ssdp_value(name: str, value: str, serials: list[str], scrub: list[str]) -> str:
     key = name.lower()
     if key == "usn":
-        return _SERIAL_TOKEN_RE.sub(lambda m: _fake_serial(m.group(0)), value)
+        return _fake_serial_tokens(value)
     if key == "location":
         return "192.0.2.1" if value else ""
     if key == "host":
         return value if _group_address(value) else _REDACTED
     if key in _SSDP_KEEP:
-        return scrub_text(value, serials, scrub)
+        return _fake_serial_tokens(scrub_text(value, serials, scrub))
     return _REDACTED
 
 

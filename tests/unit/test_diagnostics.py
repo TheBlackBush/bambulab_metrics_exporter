@@ -598,3 +598,19 @@ def test_report_ssdp_device_list_is_bounded() -> None:
     section = build_report([], now=0.0, announcements=_capture(*packets))["ssdp"]
     assert len(section["devices"]) == 32
     json.dumps(section, allow_nan=False)
+
+
+def test_report_ssdp_fakes_unmonitored_serials_in_kept_headers() -> None:
+    packet = ssdp.Packet(1.0, "192.168.1.77", "NOTIFY * HTTP/1.1", (
+        ("Server", f"UPnP/1.0 {NEIGHBOR}"), ("NT", "urn:bambulab-com:device:3dprinter:1"),
+        ("USN", f"uuid:{SERIAL}::urn:bambulab-com:device:3dprinter:1"),
+        ("DevModel.bbl", f"C12 {NEIGHBOR}"), ("DevVersion.bbl", "01.08.00.00"),
+    ))
+    section = build_report([_item(None)], now=0.0, announcements=_capture(packet))["ssdp"]
+    assert NEIGHBOR not in json.dumps(section) and SERIAL not in json.dumps(section)
+    headers = section["devices"][0]["headers"]
+    assert headers["Server"].startswith("UPnP/1.0 ")
+    assert headers["DevModel.bbl"].startswith("C12 ")
+    assert headers["NT"] == "urn:bambulab-com:device:3dprinter:1"
+    assert "3dprinter" in headers["USN"] and headers["USN"].startswith("uuid:01P")
+    assert headers["DevVersion.bbl"] == "01.08.00.00"
