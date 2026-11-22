@@ -300,9 +300,10 @@ configuration and reachable printer/cloud services and may update `.env`.
   10 seconds; the collector stop event is set, its thread is joined for up to `REQUEST_TIMEOUT_SECONDS` + 2 s (at least 5 s),
   and MQTT disconnects.
 - Tests: `tests/conftest.py` restores `os.environ` and the override/legacy-login state after
-  every test, and blocks all outbound sockets and DNS, and replaces `ssdp._open_socket` so no test listens on UDP 2021: any test that would reach a printer,
-  broker or Bambu Cloud fails with "network access blocked in tests". Stub `startup._probe`
-  (not `_probe_connection`) in cloud validation tests.
+  every test, blocks all outbound sockets and DNS (any test that would reach a printer,
+  broker or Bambu Cloud fails with "network access blocked in tests"), and replaces
+  `ssdp._open_socket` so no test listens on UDP 2021. Stub `startup._probe` (not
+  `_probe_connection`) in cloud validation tests.
 
 # Development Environment
 

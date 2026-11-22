@@ -122,7 +122,7 @@ Each printer entry:
 | `payload` | The printer's latest state as the exporter holds it, sanitized |
 
 The report is read-only: building it sends nothing to the printer or to Bambu Cloud. It only
-listens on the LAN for up to 8 seconds.
+listens on the LAN for up to 8 seconds (the system joins the SSDP multicast group, as any listener does).
 
 ## LAN announcements
 

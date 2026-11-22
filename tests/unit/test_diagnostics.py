@@ -577,6 +577,21 @@ def test_report_ssdp_odd_packets() -> None:
     assert SERIAL not in json.dumps(section)
 
 
+def test_report_ssdp_scrubs_usn_and_header_names() -> None:
+    dirty = ssdp.Packet(1.0, "192.168.1.50", "NOTIFY * HTTP/1.1", (
+        ("USN", "uuid:10.0.0.5 me@home.lan aa:bb:cc:dd:ee:ff"), ("01PNEIGHBOR12345", "x"),
+    ))
+    clean = ssdp.Packet(2.0, "192.168.1.51", "NOTIFY * HTTP/1.1", (("USN", f"uuid:{SERIAL}"),))
+    section = build_report(
+        [_item(None)], now=0.0, announcements=_capture(dirty, clean)
+    )["ssdp"]
+    text = json.dumps(section)
+    for raw in ("10.0.0.5", "me@home.lan", "aa:bb:cc:dd:ee:ff", "01PNEIGHBOR12345"):
+        assert raw not in text
+    assert any(k.startswith("01P") for k in section["devices"][0]["headers"])
+    assert section["devices"][1]["printer_index"] == 1
+
+
 @pytest.mark.parametrize(("capture", "status", "error"), [
     (ssdp.Capture("none", 8.0, 8.0, (), 0), "none", None),
     (ssdp.Capture("unavailable", 8.0, 0.0, (), 0, "EADDRINUSE"), "unavailable", "EADDRINUSE"),

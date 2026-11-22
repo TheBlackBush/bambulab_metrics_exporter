@@ -340,7 +340,7 @@ def _fake_serial_tokens(value: str) -> str:
 def _ssdp_value(name: str, value: str, serials: list[str], scrub: list[str]) -> str:
     key = name.lower()
     if key == "usn":
-        return _fake_serial_tokens(value)
+        return _fake_serial_tokens(scrub_text(value, serials, scrub))
     if key == "location":
         return "192.0.2.1" if value else ""
     if key == "host":
@@ -395,7 +395,7 @@ def _ssdp_report(
             "source_matches_location": _source_matches_location(latest),
             "start_line": start if _SSDP_START_RE.match(start) else _REDACTED,
             "headers": {
-                scrub_text(name, serials, scrub): _ssdp_value(name, value, serials, scrub)
+                _fake_serial_tokens(scrub_text(name, serials, scrub)): _ssdp_value(name, value, serials, scrub)
                 for name, value in latest.headers
             },
         })
