@@ -161,6 +161,7 @@ class ExporterRuntime:
 
         self.state = STATE_STARTING
         self.message = ""
+        self._address = ""
         try:
             self.settings = settings_factory()
         except Exception as exc:  # noqa: BLE001 - invalid env must not stop the web server
@@ -192,6 +193,12 @@ class ExporterRuntime:
             settings, collector = self.settings, self.collector
         snapshot = collector.last_snapshot if collector is not None else None
         return detect_model(settings, snapshot)[0]
+
+    def lan_address(self) -> str:
+        """The announced address an `auto` printer uses now. Empty for a fixed host, a cloud
+        printer, or while the printer has not been found."""
+        with self._lock:
+            return self._address
 
     def diagnostics_inputs(self) -> list[PrinterDiagnostics]:
         """Raw inputs for the diagnostic report (sanitized by the report builder)."""
@@ -246,6 +253,10 @@ class ExporterRuntime:
         with self._lock:
             self.state = state
             self.message = message
+
+    def _set_address(self, address: str) -> None:
+        with self._lock:
+            self._address = address
 
     def _stop_collector(self) -> None:
         with self._lock:
@@ -339,6 +350,7 @@ class ExporterRuntime:
             )
             self._wait(self._retry_seconds)
             return None
+        self._set_address(found.address)
         return settings.model_copy(update={"bambulab_host": found.address})
 
     def _watch_address(self, collector: PollingCollector, address: str) -> None:
@@ -369,6 +381,7 @@ class ExporterRuntime:
 
     def _run_once(self) -> None:
         self._stop_collector()
+        self._set_address("")
         try:
             settings = self._load_settings()
         except Exception as exc:  # noqa: BLE001 - invalid env must not kill the server
