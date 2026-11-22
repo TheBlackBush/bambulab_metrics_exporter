@@ -103,7 +103,9 @@ Important boundaries:
   and chamber fans, extruders, hotend rack, laser/cutter). Gate model-specific metrics with
   `PrinterSnapshot.capabilities` instead of checking model names; unknown models are
   permissive. Keep it in sync with the wiki "Supported models" table.
-- `certificates.py`: certificate check for `auto` LAN printers (`CertificateCheck`, `PinStore`, `CheckedContext`); tests use `tests/unit/certgen.py` (generated CA and leaves, loopback TLS server).
+- `certificates.py`: certificate check for `auto` LAN printers (`CertificateCheck`, `PinStore`,
+  `CheckedContext`); tests use `tests/unit/certgen.py` (generated CA and leaves, loopback TLS
+  server).
 - `auth_actions.py` and `overrides.py`: backend for the `/auth` page. Overrides are stored
   encrypted (`connection-overrides.enc.json`) and take precedence over env vars;
   `overrides.set_env` records original values so reset can restore them.
@@ -131,12 +133,12 @@ Important boundaries:
   `/ready`, plus `/auth` (HTML), `/auth/status` (JSON) and form posts `/auth/local`,
   `/auth/cloud/send-code`, `/auth/cloud/login`, `/auth/reset`,
   `/auth/scan` when built with a runtime.
-  `POST /auth/printers/trust-certificate` (fleet only) pins the changed certificate a printer row
-  shows (`printer_id`, `fingerprint`), only if it is the one the latest check rejected.
   `POST /auth/scan` (JSON only, Host guard and same-origin check) runs `lan_scan.PrinterScanner`:
   one `ssdp.capture` window, one scan at a time, 10 s between scans; it returns masked serials,
   addresses, known model names and pick ids (5 minutes). The LAN form posts `pick` instead of the
   serial; the server fills in the serial, and `auto` for an empty host.
+  `POST /auth/printers/trust-certificate` (fleet only) pins the changed certificate a printer row
+  shows (`printer_id`, `fingerprint`), only if it is the one the latest check rejected.
   `/health` is process liveness; `/ready` becomes ready after a nonempty payload (sticky).
   `/auth` is unauthenticated by maintainer decision; keep its protections: escaped output, no
   stored secrets rendered, same-origin check, Host allowlist (`_host_allowed`, DNS rebinding,
@@ -279,7 +281,16 @@ configuration and reachable printer/cloud services and may update `.env`.
 - Local MQTT authenticates with `BAMBULAB_USERNAME` (default `bblp`) and the LAN access code.
   Cloud MQTT reuses the same implementation with the cloud host/port, username
   `u_<cloud-user-id>`, and access token as password.
-- Both transports use TLS with OpenSSL verification off (`CERT_NONE`, insecure hostname) for fixed hosts and the cloud: documented compatibility behavior and a security limitation, not proof that the channel authenticates the broker. A LAN printer with the host `auto` is checked by `certificates.py` inside the handshake: `CheckedContext` sets `sslsocket_class`, and paho's own `do_handshake()` call runs the check before CONNECT, also on paho's reconnects. A packaged Bambu CA (`certs/*.pem`, empty until captured from real printers) plus a common name equal to the serial, else a SHA-256 pin per serial (`printer-certificates.json`, plain JSON, set on CONNACK 0). A failed check never falls back to an unchecked connection. The check rides on `Settings.with_certificate_check()` (a private attribute, never from env). TLS is capped at 1.2 (`client/local_mqtt._tls_context`): P2S firmware 01.02.00.00 never answers a TLS 1.3 ClientHello.
+- Both transports use TLS with OpenSSL verification off (`CERT_NONE`, insecure hostname) for fixed
+  hosts and the cloud: documented compatibility behavior and a security limitation, not proof that
+  the channel authenticates the broker. A LAN printer with the host `auto` is checked by
+  `certificates.py` inside the handshake: `CheckedContext` sets `sslsocket_class`, and paho's own
+  `do_handshake()` call runs the check before CONNECT, also on paho's reconnects. A packaged Bambu
+  CA (`certs/*.pem`, empty until captured from real printers) plus a common name equal to the
+  serial, else a SHA-256 pin per serial (`printer-certificates.json`, plain JSON, set on CONNACK
+  0). A failed check never falls back to an unchecked connection. The check rides on
+  `Settings.with_certificate_check()` (a private attribute, never from env). TLS is capped at 1.2
+  (`client/local_mqtt._tls_context`): P2S firmware 01.02.00.00 never answers a TLS 1.3 ClientHello.
 - The client subscribes at QoS 1 to `device/<serial>/report` after a successful connection.
   Paho's network loop owns callbacks and may handle underlying reconnects, but this code
   configures no explicit retry/backoff policy. `RECONNECT_INTERVAL_SECONDS` was removed
@@ -822,7 +833,8 @@ Evidence at the time this manual was created:
 
 Important technical debt and high-risk areas:
 
-- MQTT certificate verification is disabled for fixed hosts and the cloud (`auto` LAN printers are checked).
+- MQTT certificate verification is disabled for fixed hosts and the cloud (`auto` LAN printers are
+  checked).
 - MQTT has no explicit reconnect/backoff configuration. Cumulative state survives disconnect,
   readiness is sticky, and health is unconditional.
 - Malformed reports (bad UTF-8, invalid or non-object JSON) are skipped with a warning, and
