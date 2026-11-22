@@ -2645,3 +2645,22 @@ def test_printer_row_for_a_fixed_host_is_unchanged(monkeypatch) -> None:
     ]
     card = _status_card(client.get("/auth").text)
     assert f"{auth_actions.mask_serial(S3)}, LAN</span>" in card and "auto (" not in card
+
+
+def test_lan_form_has_a_hidden_scan_panel_and_keeps_manual_entry() -> None:
+    page = _client()[0].get("/auth").text
+    assert '<div class="scan" id="scan-panel" hidden>' in page
+    assert '<button type="button" class="tonal" id="scan-button">' in page
+    assert '<input type="hidden" name="pick" id="local-pick" value="">' in page
+    assert 'name="host" id="local-host" required' in page
+    assert 'name="serial" id="local-serial" required' in page
+    assert "Keep finding it if the address changes" in page
+    assert "about 8 seconds" in page and "{{SCAN_SECONDS}}" not in page
+
+
+def test_page_script_scans_with_json_and_renders_text_only() -> None:
+    script = _script(_client()[0].get("/auth").text)
+    assert '"/auth/scan"' in script and '"Accept": "application/json"' in script
+    assert "innerHTML" not in script and "insertAdjacentHTML" not in script
+    assert 'scanPanel.removeAttribute("hidden")' in script
+    assert 'form.id === "local-form"' in script and "clearPick()" in script

@@ -160,6 +160,12 @@
   .device-row { display: flex; align-items: center; gap: 0.6rem; }
   .small { padding: 0.25rem 0.6rem; font-size: 0.8rem; }
 
+  [hidden] { display: none !important; }
+  #scan-results:empty { display: none; }
+  .device-row .step { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .picked { display: flex; flex-direction: column; gap: 0.35rem; padding: 0.7rem;
+    border: 1px solid var(--border); border-radius: 8px; }
+  label.toggle { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; }
   .links { display: flex; justify-content: space-between; font-size: 0.82rem; }
   .links a { color: var(--green); text-decoration: none; }
 </style>
@@ -194,13 +200,29 @@
   </div>
 
   <div class="card panel panel-local">
-    <form method="post" action="{{LOCAL_ACTION}}">
+    <div class="scan" id="scan-panel" hidden>
+      <div class="row-form">
+        <span class="step">Printers on this network announce themselves. Listening takes about {{SCAN_SECONDS}} seconds and sends nothing to the printers.</span>
+        <button type="button" class="tonal" id="scan-button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <span id="scan-label">Find printers on my network</span>
+        </button>
+      </div>
+      <div id="scan-results" class="device-list" role="status" aria-live="polite"></div>
+    </div>
+    <form method="post" action="{{LOCAL_ACTION}}" id="local-form">
+      <input type="hidden" name="pick" id="local-pick" value="">
+      <div class="picked" id="picked" hidden>
+        <span class="step" id="picked-text"></span>
+        <label class="toggle"><input type="checkbox" id="keep-finding" checked> Keep finding it if the address changes</label>
+        <span class="hint">On: the exporter follows the printer's announcements (<code>auto</code>). Off: it keeps the address found now.</span>
+      </div>
       <label class="field">Printer IP address or host name
-        <input type="text" name="host" required autocomplete="off" placeholder="192.168.1.50">
+        <input type="text" name="host" id="local-host" required autocomplete="off" placeholder="192.168.1.50">
         <span class="hint">Or <code>auto</code> to find the printer from its LAN announcements (in Docker this needs <code>network_mode: host</code>).</span>
       </label>
       <label class="field">Serial number
-        <input type="text" name="serial" required autocomplete="off" spellcheck="false">
+        <input type="text" name="serial" id="local-serial" required autocomplete="off" spellcheck="false">
       </label>
       <label class="field">LAN access code
         <input type="password" name="access_code" required autocomplete="off">
@@ -433,6 +455,7 @@
       showNotice(!!data.ok, String(data.message), data.note ? String(data.note) : "");
       if (data.ok && !isSend) { clearSecrets(form); }
       if (data.ok && url.indexOf("/auth/printers/add-local") !== -1) { form.reset(); }
+      if (data.ok && form.id === "local-form") { clearPick(); }
       // After these the server's list is the truth: a kept picker could belong to another login.
       if (data.ok && /\/auth\/(printers\/select|cloud\/login|reset)/.test(url)) {
         clearPickerEdits();
@@ -449,6 +472,115 @@
       form.busy = false;
     });
   });
+
+  // Printer scan: the server listens for LAN announcements and answers masked serials with a
+  // short-lived pick id; the full serial never reaches the page. Text only, never markup.
+  var scanPanel = document.getElementById("scan-panel");
+  var scanButton = document.getElementById("scan-button");
+  var scanLabel = document.getElementById("scan-label");
+  var scanResults = document.getElementById("scan-results");
+  var pickInput = document.getElementById("local-pick");
+  var picked = document.getElementById("picked");
+  var pickedText = document.getElementById("picked-text");
+  var keepFinding = document.getElementById("keep-finding");
+  var hostInput = document.getElementById("local-host");
+  var serialInput = document.getElementById("local-serial");
+  var pickedAddress = "";
+
+  function textSpan(className, text) {
+    var span = document.createElement("span");
+    span.className = className;
+    span.textContent = text;
+    return span;
+  }
+
+  function printerText(printer) {
+    return String(printer.model || "Unknown model") + ", " + String(printer.serial) +
+      (printer.address ? ", " + String(printer.address) : "");
+  }
+
+  function applyHost() {
+    if (!hostInput || !pickInput || !pickInput.value) { return; }
+    hostInput.value = keepFinding && keepFinding.checked ? "auto" : pickedAddress;
+  }
+
+  function clearPick() {
+    if (!pickInput) { return; }
+    pickInput.value = "";
+    pickedAddress = "";
+    if (picked) { picked.setAttribute("hidden", ""); }
+    if (serialInput) { serialInput.required = true; serialInput.placeholder = ""; }
+  }
+
+  function choose(printer) {
+    if (!pickInput || !serialInput || !picked || !pickedText) { return; }
+    pickInput.value = String(printer.pick);
+    pickedAddress = String(printer.address);
+    serialInput.value = "";
+    serialInput.required = false;
+    serialInput.placeholder = String(printer.serial);
+    pickedText.textContent = "Selected: " + printerText(printer) +
+      ". Enter its LAN access code below.";
+    picked.removeAttribute("hidden");
+    if (keepFinding) { keepFinding.checked = true; }
+    applyHost();
+    var code = document.querySelector('#local-form input[name="access_code"]');
+    if (code) { code.focus(); }
+  }
+
+  function showScan(data) {
+    if (!scanResults) { return; }
+    while (scanResults.firstChild) { scanResults.removeChild(scanResults.firstChild); }
+    scanResults.appendChild(textSpan("hint", String(data.message || "")));
+    var printers = Array.isArray(data.printers) ? data.printers : [];
+    printers.forEach(function (printer) {
+      var row = document.createElement("div");
+      row.className = "device-row";
+      var text = textSpan("step", printerText(printer));
+      if (printer.monitored) { text.appendChild(textSpan("hint", " Already monitored")); }
+      row.appendChild(text);
+      if (printer.pick) {
+        var use = document.createElement("button");
+        use.type = "button";
+        use.className = "tonal small";
+        use.textContent = "Use";
+        use.addEventListener("click", function () { choose(printer); });
+        row.appendChild(use);
+      } else {
+        text.appendChild(textSpan("hint printer-message",
+          "More than one device announces this serial. Enter the IP address below."));
+      }
+      scanResults.appendChild(row);
+    });
+  }
+
+  if (scanPanel && scanButton && scanLabel) {
+    scanPanel.removeAttribute("hidden");
+    scanButton.addEventListener("click", function () {
+      if (scanButton.hasAttribute("disabled")) { return; }
+      scanButton.setAttribute("disabled", "");
+      scanLabel.textContent = "Listening...";
+      fetch("/auth/scan", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {"Accept": "application/json"}
+      }).then(function (response) {
+        if (!response.ok) { throw new Error("status"); }
+        return response.json();
+      }).then(showScan).catch(function () {
+        showScan({message: "Could not scan. Try again, or enter the address below."});
+      }).then(function () {
+        scanButton.removeAttribute("disabled");
+        scanLabel.textContent = "Find printers on my network";
+      });
+    });
+  }
+  if (keepFinding) { keepFinding.addEventListener("change", applyHost); }
+  if (serialInput) {
+    serialInput.addEventListener("input", function () {
+      if (serialInput.value) { clearPick(); }
+    });
+  }
 
   if (button && button.hasAttribute("data-wait")) {
     startCountdown(parseInt(button.getAttribute("data-wait"), 10));
