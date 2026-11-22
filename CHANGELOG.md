@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added
+- `/auth` LAN form: **Find printers on my network** listens about 8 seconds for printer
+  announcements (UDP 2021, receive only) and lists the printers found (model, masked serial, IP
+  address, already monitored). Picking one fills in the form; only the LAN access code is typed.
+  The host is `auto` by default (**Keep finding it if the address changes**); turn that off to
+  keep the address found. The browser never gets a full serial, only a short-lived pick id. When
+  nothing is heard, the page says why (in Docker: `network_mode: host`), and manual entry stays
+  available (#107).
+- `/auth`: a printer with the host `auto` shows the address it found, for example `LAN, auto
+  (found at 192.168.1.50)`, or `not found yet`. `/auth/status` printer entries gain `host_mode`
+  and `address`.
 - `BAMBULAB_HOST=auto` (or `auto` in the `/auth` LAN form): opt-in discovery of a LAN printer from
   its announcements (UDP 2021), so a DHCP change no longer needs a manual update. In Docker it
   needs `network_mode: host`. Diagnostic report: `settings.host_auto` (#107).

@@ -72,6 +72,18 @@ The exporter never exits on connection problems: the web server stays up and the
   example another exporter instance or Bambu Studio on the same host. Stop it, or set a fixed IP
 - While waiting, the status reads "Waiting for the printer's LAN announcement"
 
+**Find printers on my network finds nothing**
+- No announcement arrived within 8 seconds. In Docker on a bridge network the announcements never
+  reach the container: use `network_mode: host` (see
+  [Docker networking](Installation#docker-networking)). Also check that the printer is on and on
+  the same network as the exporter. You can always type the printer IP instead
+- "Could not listen on UDP port 2021 (...)". Another program holds the port. Stop it, or type the
+  printer IP
+- "Another scan or a diagnostic report is listening right now". Wait a few seconds and try again
+- "That scan result has expired". A pick lasts 5 minutes. Scan again
+- A printer in the list has no **Use** button: more than one device announced its serial. Type
+  the printer IP
+
 **`/auth` or `/diagnostics` returns 403 `host_not_allowed`**
 - The page only accepts IP addresses and local-network host names (DNS-rebinding protection)
 - Add the name you use (for example a reverse-proxy host) to `AUTH_ALLOWED_HOSTS`

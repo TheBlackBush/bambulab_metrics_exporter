@@ -131,8 +131,14 @@ finds the printer from the announcements it broadcasts on the LAN (UDP port 2021
 serial number. It is opt-in: an empty host still means "set it up", and a fixed IP or host name
 works as before.
 
+On the `/auth` page, **Find printers on my network** does this for you: pick the printer and the
+host is saved as `auto` (or, with **Keep finding it if the address changes** off, as the address
+found). The printer list shows the address in use, for example `LAN, auto (found at
+192.168.1.50)`, or `auto (not found yet)` with the reason below it.
+
 - In Docker it needs `network_mode: host` (see above). On the default bridge network the
-  announcements never reach the container; a fixed IP keeps working there.
+  announcements never reach the container; a fixed IP keeps working there. The scan on `/auth`
+  then finds nothing and says so.
 - The exporter connects only to the address that sent the announcement, and only if it is a
   private or link-local IPv4 address (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16,
   169.254.0.0/16). If two devices announce the same serial, it does not connect and says so.
