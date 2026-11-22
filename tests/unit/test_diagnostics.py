@@ -614,3 +614,31 @@ def test_report_ssdp_fakes_unmonitored_serials_in_kept_headers() -> None:
     assert headers["NT"] == "urn:bambulab-com:device:3dprinter:1"
     assert "3dprinter" in headers["USN"] and headers["USN"].startswith("uuid:01P")
     assert headers["DevVersion.bbl"] == "01.08.00.00"
+
+
+def test_report_route_listens_for_announcements(monkeypatch: pytest.MonkeyPatch) -> None:
+    wanted: list[set[str]] = []
+
+    def fake_capture(serials: Any, **_: Any) -> ssdp.Capture:
+        wanted.append(set(serials))
+        return ssdp.Capture("received", 8.0, 5.0, (_announcement(SERIAL, 1.0),), 0)
+
+    monkeypatch.setattr(ssdp, "capture", fake_capture)
+    body = TestClient(build_app(runtime=_Runtime(_item(None)))).get("/diagnostics/report")
+    assert wanted == [{SERIAL}]
+    assert body.json()["ssdp"]["devices"][0]["printer_index"] == 1
+    assert SERIAL not in body.text and NAME not in body.text
+
+
+def test_report_route_still_answers_when_udp_is_blocked() -> None:
+    response = TestClient(build_app(runtime=_Runtime(_item(None)))).get("/diagnostics/report")
+    assert response.status_code == 200
+    assert response.json()["ssdp"]["status"] == "unavailable"
+    assert response.json()["ssdp"]["error"] == "EACCES"
+
+
+def test_diagnostics_page_shows_lan_announcements() -> None:
+    page = TestClient(build_app(runtime=_Runtime(_item(None)))).get("/diagnostics").text
+    for snippet in ("announcementLine(report.ssdp)", '"LAN announcements"',
+                    "up to 8 s for printer announcements", "renderAnnouncements(box)"):
+        assert snippet in page

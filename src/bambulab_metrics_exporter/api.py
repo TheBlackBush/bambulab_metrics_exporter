@@ -21,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from starlette.concurrency import run_in_threadpool
 
-from bambulab_metrics_exporter import __version__
+from bambulab_metrics_exporter import __version__, ssdp
 from bambulab_metrics_exporter.auth_actions import (
     ActionResult,
     AttemptLimiter,
@@ -774,6 +774,7 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
             .replace("{{VERSION}}", __version__)
             .replace("{{ISSUE_URL}}", _DIAGNOSTICS_ISSUE)
             .replace("{{WIKI_URL}}", _DIAGNOSTICS_WIKI)
+            .replace("{{SSDP_SECONDS}}", f"{ssdp.LISTEN_SECONDS:g}")
         )
         return HTMLResponse(content=page, headers={"Cache-Control": "no-store"})
 
@@ -784,7 +785,10 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
         inputs: Callable[[], list[PrinterDiagnostics]] | None = getattr(
             runtime, "diagnostics_inputs", None
         )
-        report = build_report(inputs() if inputs is not None else [])
+        items = inputs() if inputs is not None else []
+        # Listens on UDP for printer announcements (receive only, bounded wait).
+        announcements = ssdp.capture(str(item.settings.bambulab_serial or "") for item in items)
+        report = build_report(items, announcements=announcements)
         body = json.dumps(report, indent=1, allow_nan=False) + "\n"
         headers = {"Cache-Control": "no-store"}
         if download:
