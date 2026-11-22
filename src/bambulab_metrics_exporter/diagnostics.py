@@ -32,6 +32,7 @@ from bambulab_metrics_exporter import __version__, ssdp
 from bambulab_metrics_exporter.config import is_auto_host
 
 if TYPE_CHECKING:
+    from bambulab_metrics_exporter.certificates import CertificateFacts
     from bambulab_metrics_exporter.config import Settings
     from bambulab_metrics_exporter.metrics import ExporterMetrics
     from bambulab_metrics_exporter.models import PrinterSnapshot
@@ -427,6 +428,8 @@ class PrinterDiagnostics:
     ready: bool
     snapshot: PrinterSnapshot | None
     metrics: ExporterMetrics
+    # The latest certificate check of an `auto` printer (None: not checked).
+    certificate: CertificateFacts | None = None
 
 
 def detect_model(
@@ -447,6 +450,27 @@ def detect_model(
         connected=False, raw={}, configured_serial=serial or None, configured_model=hint or None
     )
     return offline.printer_type, "serial_or_setting"
+
+
+def _certificate_report(
+    facts: CertificateFacts | None, serial: str, serials: list[str], scrub: list[str]
+) -> dict[str, Any] | None:
+    """The latest certificate check of an `auto` printer. Common name and issuer go through
+    the serial sanitizer. Only the first 8 hex digits of a fingerprint stay: the full value
+    identifies the device as well as its serial does."""
+    if facts is None:
+        return None
+    return {
+        "result": facts.result,
+        "subject_cn": _fake_serial_tokens(scrub_text(facts.subject_cn, serials, scrub)),
+        "cn_matches_serial": bool(serial)
+        and facts.subject_cn.strip().upper() == serial.strip().upper(),
+        "issuer": _fake_serial_tokens(scrub_text(facts.issuer, serials, scrub)),
+        "not_before": facts.not_before or None,
+        "not_after": facts.not_after or None,
+        "fingerprint_prefix": facts.fingerprint[:8] or None,
+        "pinned_prefix": facts.pinned[:8] or None,
+    }
 
 
 def _empty_metric_families(metrics: ExporterMetrics) -> list[str]:
@@ -486,6 +510,7 @@ def _printer_report(
             "host_auto": is_auto_host(str(settings.bambulab_host or "")),
             "configured_model": settings.bambulab_printer_model or None,
         },
+        "certificate": _certificate_report(item.certificate, serial, serials, scrub),
     }
     model, source = detect_model(settings, snapshot)
     report["model"] = model
