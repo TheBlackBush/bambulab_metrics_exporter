@@ -2,7 +2,8 @@
 
 Printers announce themselves on the LAN with SSDP-style NOTIFY packets. The diagnostic
 report listens for a few seconds to show whether those packets reach the exporter and what
-they carry, so LAN discovery can be built from real packets. Listening sends nothing to printers or other devices (the system joins the multicast group, as any listener does).
+they carry, so LAN discovery can be built from real packets. Listening sends nothing to
+printers or other devices (the system joins the multicast group, as any listener does).
 
 This module only receives and parses. Packets hold serials, addresses and printer names:
 `diagnostics.py` sanitizes them before anything leaves the process, and they are never

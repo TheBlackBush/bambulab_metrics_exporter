@@ -8,7 +8,8 @@ All notable changes to this project are documented in this file.
 - Diagnostic report: an `ssdp` section with the printer announcements heard on the LAN (UDP
   2021) while the report runs, sanitized like the rest of the report. **Run diagnostics** now
   takes up to 8 seconds, and the summary shows a **LAN announcements** line. The exporter only
-  listens; it sends nothing to printers or other devices (the system joins the SSDP multicast group, as any listener does). First step towards automatic printer discovery (#107).
+  listens; it sends nothing to printers or other devices (the system joins the SSDP multicast
+  group, as any listener does). First step towards automatic printer discovery (#107).
 
 ### Fixed
 - Grafana: the Timelapse Storage Free bar had no maximum, so it was always full. It is now a

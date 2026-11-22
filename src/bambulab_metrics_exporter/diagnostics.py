@@ -395,7 +395,9 @@ def _ssdp_report(
             "source_matches_location": _source_matches_location(latest),
             "start_line": start if _SSDP_START_RE.match(start) else _REDACTED,
             "headers": {
-                _fake_serial_tokens(scrub_text(name, serials, scrub)): _ssdp_value(name, value, serials, scrub)
+                _fake_serial_tokens(scrub_text(name, serials, scrub)): _ssdp_value(
+                    name, value, serials, scrub
+                )
                 for name, value in latest.headers
             },
         })

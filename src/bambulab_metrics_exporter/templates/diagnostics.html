@@ -406,7 +406,8 @@
   el("run").addEventListener("click", function () {
     var button = el("run");
     button.disabled = true;
-    status("Running diagnostics (listens up to {{SSDP_SECONDS}} s for printer announcements)...", "wait");
+    status("Running diagnostics (listens up to {{SSDP_SECONDS}} s for printer announcements)...",
+      "wait");
     fetch("/diagnostics/report", { credentials: "same-origin", cache: "no-store" })
       .then(function (response) {
         if (!response.ok) { throw new Error("HTTP " + response.status); }
