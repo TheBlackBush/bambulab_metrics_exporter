@@ -13,6 +13,7 @@ from typing import Any
 import pytest
 
 from bambulab_metrics_exporter import ssdp
+from bambulab_metrics_exporter.ssdp import Packet, announced_address, announces_serial
 
 REAL_OPEN_SOCKET = ssdp._open_socket  # conftest replaces it in every test
 SERIAL = "030FAKE00000001"
@@ -210,3 +211,65 @@ def test_open_socket_binds_a_udp_port() -> None:
         assert sock.type == socket.SOCK_DGRAM
     finally:
         sock.close()
+
+
+def _parsed(source: str, **headers: str) -> Packet:
+    items = tuple((name.replace("_", "."), value) for name, value in headers.items())
+    return Packet(0.0, source, "NOTIFY * HTTP/1.1", items)
+
+
+@pytest.mark.parametrize(
+    "source", ["192.168.1.50", "10.1.2.3", "172.16.0.9", "172.31.255.1", "169.254.10.20"]
+)
+def test_announced_address_accepts_private_and_link_local(source: str) -> None:
+    assert announced_address(_parsed(source, Location=source)) == source
+
+
+def test_announced_address_without_location_uses_source() -> None:
+    assert announced_address(_parsed("192.168.1.50")) == "192.168.1.50"
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "192.0.2.10",
+        "8.8.8.8",
+        "127.0.0.1",
+        "0.0.0.0",
+        "255.255.255.255",
+        "224.0.0.1",
+        "172.32.0.1",
+        "fe80::1",
+        "",
+        "not-an-ip",
+    ],
+)
+def test_announced_address_rejects_other_sources(source: str) -> None:
+    assert announced_address(_parsed(source)) is None
+
+
+def test_announced_address_rejects_location_mismatch() -> None:
+    assert announced_address(_parsed("192.168.1.50", Location="192.168.1.51")) is None
+
+
+def test_announced_address_rejects_location_without_address() -> None:
+    assert announced_address(_parsed("192.168.1.50", Location="printer")) is None
+
+
+def test_announced_address_reads_address_inside_location_url() -> None:
+    packet = _parsed("192.168.1.50", Location="http://192.168.1.50:80/desc.xml")
+    assert announced_address(packet) == "192.168.1.50"
+
+
+def test_announces_serial_matches_whole_token_without_case() -> None:
+    assert announces_serial(_parsed("192.168.1.50", USN="fake00test000001"), "FAKE00TEST000001")
+    assert announces_serial(
+        _parsed("192.168.1.50", USN="uuid:FAKE00TEST000001::urn:x"), "FAKE00TEST000001"
+    )
+
+
+def test_announces_serial_rejects_partial_and_empty() -> None:
+    partial = _parsed("192.168.1.50", USN="FAKE00TEST0000012")
+    assert not announces_serial(partial, "FAKE00TEST000001")
+    assert not announces_serial(_parsed("192.168.1.50", USN="FAKE00TEST000001"), "")
+    assert not announces_serial(_parsed("192.168.1.50"), "FAKE00TEST000001")

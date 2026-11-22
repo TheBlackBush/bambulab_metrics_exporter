@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import contextlib
 import errno
+import ipaddress
 import re
 import socket
 import threading
@@ -100,6 +101,40 @@ def parse(data: bytes, source: str, received_at: float) -> Packet | None:
     if not headers:
         return None
     return Packet(received_at, source, lines[0].strip()[:MAX_VALUE], tuple(headers))
+
+
+_LAN_NETWORKS = tuple(
+    ipaddress.IPv4Network(network)
+    for network in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16")
+)
+_IPV4_RE = re.compile(r"(?<![\d.])(\d{1,3}(?:\.\d{1,3}){3})(?![\d.])")
+_TOKEN_RE = re.compile(r"[A-Za-z0-9]+")
+
+
+def announced_address(packet: Packet) -> str | None:
+    """The address to connect to: the sender, when it is a private or link-local IPv4
+    address and `Location` (when present) names the same address. None otherwise, so a
+    packet can never point the exporter at another host than the one that sent it."""
+    try:
+        source = ipaddress.IPv4Address(packet.source)
+    except ValueError:
+        return None
+    if not any(source in network for network in _LAN_NETWORKS):
+        return None
+    location = packet.header("Location")
+    if location:
+        match = _IPV4_RE.search(location)
+        if match is None or match.group(1) != str(source):
+            return None
+    return str(source)
+
+
+def announces_serial(packet: Packet, serial: str) -> bool:
+    """`USN` carries the serial as a whole token (any case)."""
+    wanted = serial.strip().upper()
+    if not wanted:
+        return False
+    return any(token.upper() == wanted for token in _TOKEN_RE.findall(packet.header("USN")))
 
 
 def _errno_name(exc: OSError) -> str:

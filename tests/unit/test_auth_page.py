@@ -125,6 +125,17 @@ def test_configure_local_validates_and_persists(monkeypatch) -> None:
     assert "fake-access-code" not in result.message + result.note
 
 
+def test_configure_local_stores_auto_lowercase() -> None:
+    result = auth_actions.configure_local(" AUTO ", "FAKE00TEST000001", "fake-access-code")
+    assert result.ok
+    assert os.environ["BAMBULAB_HOST"] == "auto"
+
+
+def test_add_local_printer_stores_auto_lowercase() -> None:
+    configs = add_local_printer([], "Auto", "FAKE00TEST000001", "fake-access-code")
+    assert configs[0].host == "auto"
+
+
 def test_configure_local_without_secret_is_session_only() -> None:
     result = auth_actions.configure_local("192.0.2.25", "FAKE00TEST000001", "fake-access-code")
     assert result.ok and "until the next restart" in result.note
