@@ -126,7 +126,8 @@ Important boundaries:
   shutdown tests.
 - `src/bambulab_metrics_exporter/api.py`: FastAPI landing page and `/metrics`, `/health`,
   `/ready`, plus `/auth` (HTML), `/auth/status` (JSON) and form posts `/auth/local`,
-  `/auth/cloud/send-code`, `/auth/cloud/login`, `/auth/reset`, `/auth/scan` when built with a runtime.
+  `/auth/cloud/send-code`, `/auth/cloud/login`, `/auth/reset`,
+  `/auth/scan` when built with a runtime.
   `POST /auth/scan` (JSON only, Host guard and same-origin check) runs `lan_scan.PrinterScanner`:
   one `ssdp.capture` window, one scan at a time, 10 s between scans; it returns masked serials,
   addresses, known model names and pick ids (5 minutes). The LAN form posts `pick` instead of the

@@ -211,7 +211,7 @@
       <div id="scan-results" class="device-list" role="status" aria-live="polite"></div>
     </div>
     <form method="post" action="{{LOCAL_ACTION}}" id="local-form">
-      <input type="hidden" name="pick" id="local-pick" value="">
+      <input type="hidden" name="pick" id="local-pick" value="" autocomplete="off">
       <div class="picked" id="picked" hidden>
         <span class="step" id="picked-text"></span>
         <label class="toggle"><input type="checkbox" id="keep-finding" checked> Keep finding it if the address changes</label>
@@ -530,8 +530,16 @@
 
   function showScan(data) {
     if (!scanResults) { return; }
-    while (scanResults.firstChild) { scanResults.removeChild(scanResults.firstChild); }
-    scanResults.appendChild(textSpan("hint", String(data.message || "")));
+    var keepRows = data.status === "cooldown" || data.status === "busy";
+    var kept = scanResults.querySelector(".scan-note");
+    if (kept) { scanResults.removeChild(kept); }
+    if (!keepRows) {
+      while (scanResults.firstChild) { scanResults.removeChild(scanResults.firstChild); }
+    }
+    var note = textSpan("hint scan-note", String(data.message || ""));
+    if (keepRows) { scanResults.insertBefore(note, scanResults.firstChild); }
+    else { scanResults.appendChild(note); }
+    if (keepRows) { return; }
     var printers = Array.isArray(data.printers) ? data.printers : [];
     printers.forEach(function (printer) {
       var row = document.createElement("div");

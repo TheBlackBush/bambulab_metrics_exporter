@@ -2520,6 +2520,14 @@ def test_scan_that_hears_nothing_explains_host_networking(monkeypatch) -> None:
     assert "network_mode: host" in body["message"] and "enter its IP address" in body["message"]
 
 
+def test_scan_with_only_unpickable_printers_asks_for_the_address(monkeypatch) -> None:
+    _announce(monkeypatch, _announcement(), _announcement(source="192.168.1.60"))
+    body = _scan(_client()[0])
+    assert body["status"] == "received" and all(not p["pick"] for p in body["printers"])
+    assert "Pick your printer" not in body["message"]
+    assert "more than one address" in body["message"] and "IP address" in body["message"]
+
+
 def test_scan_with_only_unusable_packets_is_empty(monkeypatch) -> None:
     _announce(monkeypatch, _announcement(source="203.0.113.5"))
     body = _scan(_client()[0])
@@ -2651,7 +2659,7 @@ def test_lan_form_has_a_hidden_scan_panel_and_keeps_manual_entry() -> None:
     page = _client()[0].get("/auth").text
     assert '<div class="scan" id="scan-panel" hidden>' in page
     assert '<button type="button" class="tonal" id="scan-button">' in page
-    assert '<input type="hidden" name="pick" id="local-pick" value="">' in page
+    assert '<input type="hidden" name="pick" id="local-pick" value="" autocomplete="off">' in page
     assert 'name="host" id="local-host" required' in page
     assert 'name="serial" id="local-serial" required' in page
     assert "Keep finding it if the address changes" in page
@@ -2664,3 +2672,10 @@ def test_page_script_scans_with_json_and_renders_text_only() -> None:
     assert "innerHTML" not in script and "insertAdjacentHTML" not in script
     assert 'scanPanel.removeAttribute("hidden")' in script
     assert 'form.id === "local-form"' in script and "clearPick()" in script
+
+
+def test_page_script_keeps_rows_on_cooldown_and_busy() -> None:
+    script = _script(_client()[0].get("/auth").text)
+    assert 'data.status === "cooldown" || data.status === "busy"' in script
+    assert "innerHTML" not in script and "insertAdjacentHTML" not in script
+    assert script.count("setTimeout") == 2  # countdown and poll only

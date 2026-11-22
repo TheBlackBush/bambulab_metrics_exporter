@@ -133,7 +133,7 @@ works as before.
 
 On the `/auth` page, **Find printers on my network** does this for you: pick the printer and the
 host is saved as `auto` (or, with **Keep finding it if the address changes** off, as the address
-found). The printer list shows the address in use, for example `LAN, auto (found at
+found). The printer list shows the address it found, for example `LAN, auto (found at
 192.168.1.50)`, or `auto (not found yet)` with the reason below it.
 
 - In Docker it needs `network_mode: host` (see above). On the default bridge network the

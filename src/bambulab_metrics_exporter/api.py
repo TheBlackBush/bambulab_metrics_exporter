@@ -354,6 +354,10 @@ def _where(printer: dict[str, str]) -> str:
 
 _SCAN_MESSAGES = {
     "received": "Pick your printer, then enter its LAN access code.",
+    "ambiguous": (
+        "The printer was heard from more than one address, so it cannot be picked. "
+        "Enter its IP address below."
+    ),
     "none": (
         "No printer announced itself in {seconds} seconds. Printers announce on UDP port "
         "2021; in Docker the exporter hears them only with network_mode: host. Check that "
@@ -377,7 +381,10 @@ def _scan_body(result: lan_scan.ScanResult, monitored: set[str]) -> dict[str, ob
     status = result.status
     if status == "received" and not result.printers:
         status = "none"  # Bambu packets arrived, but none named a usable printer.
-    message = _SCAN_MESSAGES.get(status, _SCAN_MESSAGES["none"]).format(
+    key = status
+    if status == "received" and not any(pick_id for pick_id, _ in result.printers):
+        key = "ambiguous"  # Heard, but none can be picked: the status stays "received".
+    message = _SCAN_MESSAGES.get(key, _SCAN_MESSAGES["none"]).format(
         seconds=f"{ssdp.LISTEN_SECONDS:g}",
         error=result.error or "OSError",
         wait=result.wait_seconds,
@@ -638,7 +645,8 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
         elif is_auto_host(current.bambulab_host):
             lan_address = getattr(runtime, "lan_address", None)
             address = lan_address() if lan_address is not None else ""
-            where = f"Local, auto (found at {address})" if address else "Local, auto (not found yet)"
+            found = f"found at {address}"
+            where = f"Local, auto ({found})" if address else "Local, auto (not found yet)"
         else:
             where = f"Local, {current.bambulab_host or 'no host set'}"
         printer = mask_serial(current.bambulab_serial) or "no printer set"
