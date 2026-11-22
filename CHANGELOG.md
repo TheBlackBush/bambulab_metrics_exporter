@@ -24,6 +24,9 @@ All notable changes to this project are documented in this file.
   listens; it sends nothing to printers or other devices (the system joins the SSDP multicast
   group, as any listener does). First step towards automatic printer discovery (#107).
 
+### Security
+- `BAMBULAB_HOST=auto`: the exporter now checks the printer's TLS certificate inside the handshake, before the LAN access code is sent. A certificate issued by a known Bambu Lab CA must name the printer's serial; any other certificate is trusted on first use and remembered per printer (`printer-certificates.json` in the config directory). A changed certificate stops the connection: the printer shows `error` with the reason, and `/auth` shows **Certificate changed** with the new fingerprint and **Trust new certificate**. Fixed hosts and Bambu Cloud are unchanged. `/auth/status` printer entries gain `certificate` and `certificate_fingerprint`; the diagnostic report gains `printers[].certificate` (#107).
+
 ### Fixed
 - Grafana: the Timelapse Storage Free bar had no maximum, so it was always full. It is now a
   **Timelapse Storage** table, one row per storage: the share used as a bar (green, orange from

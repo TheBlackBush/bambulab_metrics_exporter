@@ -72,6 +72,23 @@ The exporter never exits on connection problems: the web server stays up and the
   example another exporter instance or Bambu Studio on the same host. Stop it, or set a fixed IP
 - While waiting, the status reads "Waiting for the printer's LAN announcement"
 
+**Certificate changed (`auto` address)**
+- It means the device at the announced address shows another certificate than the one the
+  exporter remembered for this printer. The exporter did not send the access code and the
+  printer is not connected. The `/auth` page shows the new SHA-256 fingerprint
+- Press **Trust new certificate** after a firmware update or when you replaced the printer.
+  Compare the fingerprint first, on the same network:
+  `openssl s_client -tls1_2 -connect <printer-ip>:8883 </dev/null 2>/dev/null | openssl x509 -noout -fingerprint -sha256`
+- Do not press it if nothing changed. Find which device has that address, or set a fixed IP
+- "Certificate not signed by Bambu Lab", "Certificate for another printer" and "No readable
+  certificate" have no trust button: another device answers for the printer. Set a fixed IP and check your network
+- If `printer-certificates.json` cannot be read, or has an entry that is not a fingerprint, it is kept as `printer-certificates.json.bad`
+  and every `auto` printer shows **Certificate changed** until you press **Trust new
+  certificate**. That writes a new file
+- Deleting `printer-certificates.json` in the config directory and restarting the exporter
+  makes every `auto` printer trusted again on its next connection. Deleting it while the
+  exporter runs has no effect
+
 **Find printers on my network finds nothing**
 - No announcement arrived within 8 seconds. In Docker on a bridge network the announcements never
   reach the container: use `network_mode: host` (see

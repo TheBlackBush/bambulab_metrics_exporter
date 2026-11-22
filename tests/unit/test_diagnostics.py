@@ -677,3 +677,41 @@ def test_diagnostics_page_shows_lan_announcements() -> None:
     for snippet in ("announcementLine(report.ssdp)", '"LAN announcements"',
                     "up to 8 s for printer announcements", "renderAnnouncements(box)"):
         assert snippet in page
+
+
+def test_report_has_no_certificate_without_a_check() -> None:
+    assert build_report([_item(None)])["printers"][0]["certificate"] is None
+
+
+def test_report_certificate_facts_are_sanitized() -> None:
+    from bambulab_metrics_exporter.certificates import CertificateFacts
+
+    facts = CertificateFacts(
+        result="changed", fingerprint="ab12cd34" + "0" * 56, subject_cn=SERIAL,
+        issuer=f"CN=Fake Device CA for {SERIAL},O=Fake Org", not_before="2026-01-01T00:00:00Z",
+        not_after="2036-01-01T00:00:00Z", pinned="ef56ab78" + "1" * 56,
+    )
+    item = replace(_item(None, bambulab_host="auto"), certificate=facts)
+    report = build_report([item])
+    cert = report["printers"][0]["certificate"]
+    assert cert == {
+        "result": "changed",
+        "subject_cn": "01PFIXTURE00000",
+        "cn_matches_serial": True,
+        "issuer": "CN=Fake Device CA for 01PFIXTURE00000,O=Fake Org",
+        "not_before": "2026-01-01T00:00:00Z",
+        "not_after": "2036-01-01T00:00:00Z",
+        "fingerprint_prefix": "ab12cd34",
+        "pinned_prefix": "ef56ab78",
+    }
+    text = json.dumps(report)
+    assert SERIAL not in text and facts.fingerprint not in text and facts.pinned not in text
+
+
+def test_report_certificate_with_another_common_name() -> None:
+    from bambulab_metrics_exporter.certificates import CertificateFacts
+
+    item = replace(_item(None), certificate=CertificateFacts("first_use", "c" * 64, "printer"))
+    cert = build_report([item])["printers"][0]["certificate"]
+    assert cert["cn_matches_serial"] is False and cert["subject_cn"] == "printer"
+    assert cert["pinned_prefix"] is None and cert["not_after"] is None

@@ -13,6 +13,7 @@ from collections.abc import Callable, Iterator
 from prometheus_client import CollectorRegistry
 from prometheus_client.metrics_core import Metric
 
+from bambulab_metrics_exporter.certificates import CHANGED, PinStore
 from bambulab_metrics_exporter.client.base import BambuClient
 from bambulab_metrics_exporter.client.factory import build_client
 from bambulab_metrics_exporter.config import Settings, is_auto_host
@@ -111,6 +112,8 @@ class PrinterFleet:
         self._settings_factory = settings_factory
         self._validate_fn = validate
         self._client_factory = client_factory
+        # One pin file for every printer found with `auto`.
+        self._pins = PinStore()
         self._lock = threading.RLock()
         self._cloud_lock = threading.Lock()
         self._runtimes: dict[str, ExporterRuntime] = {}
@@ -152,6 +155,7 @@ class PrinterFleet:
             validate=self._validate,
             client_factory=self._client_factory,
             discovery=self._discovery,
+            pins=self._pins,
         )
 
     def _add(self, config: PrinterConfig) -> ExporterRuntime:
@@ -162,6 +166,7 @@ class PrinterFleet:
             discover=lambda _settings: None,  # name and model are saved with the printer
             sync_env=False,
             discovery=self._discovery,
+            pins=self._pins,
         )
         self._runtimes[config.printer_id] = runtime
         self._configs[config.printer_id] = config
@@ -309,6 +314,12 @@ class PrinterFleet:
             host_mode = ""
             if transport == TRANSPORT_LOCAL:
                 host_mode = "auto" if is_auto_host(host) else "fixed"
+            certificate = runtime.certificate()
+            fingerprint = (
+                certificate.fingerprint
+                if certificate is not None and certificate.result == CHANGED
+                else ""
+            )
             out.append({
                 "id": printer_id,
                 "name": config.label if config else (
@@ -325,8 +336,18 @@ class PrinterFleet:
                 # LAN printers: "auto" or "fixed"; the announced address an auto printer uses.
                 "host_mode": host_mode,
                 "address": runtime.lan_address(),
+                # `auto` LAN printers: the latest certificate check, and while a changed
+                # certificate waits to be trusted, its fingerprint (not a secret).
+                "certificate": certificate.result if certificate is not None else "",
+                "certificate_fingerprint": fingerprint,
             })
         return out
+
+    def trust_certificate(self, printer_id: str, fingerprint: str) -> bool:
+        """Trust the changed certificate of one printer (the /auth page button)."""
+        with self._lock:
+            runtime = self._runtimes.get(printer_id)
+        return runtime is not None and runtime.trust_certificate(fingerprint)
 
     def _retire(self, runtime: ExporterRuntime) -> None:
         """Stop in the background: a stop can take seconds and this runs during a request."""

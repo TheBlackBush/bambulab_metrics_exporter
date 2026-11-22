@@ -481,3 +481,35 @@ def test_printers_status_shows_the_address_an_auto_printer_uses() -> None:
         assert (rows["Cloud One"]["host_mode"], rows["Cloud One"]["address"]) == ("", "")
     finally:
         fleet.stop()
+
+
+def test_printers_status_shows_a_changed_certificate() -> None:
+    from bambulab_metrics_exporter.certificates import CertificateFacts
+
+    store = PrinterStore()
+    store.save([replace(A, host="auto"), B])
+    fleet = PrinterFleet(store, settings_factory=_base, validate=lambda s: None,
+                         client_factory=_Client, discovery=_Discovery())
+    alpha = fleet._runtimes[A.printer_id]
+    alpha.certificate = lambda: CertificateFacts("changed", "f" * 64, pinned="0" * 64)
+    trusted: list[str] = []
+    alpha.trust_certificate = lambda fp: trusted.append(fp) or True
+    rows = {row["name"]: row for row in fleet.printers_status()}
+    assert (rows["Alpha"]["certificate"], rows["Alpha"]["certificate_fingerprint"]) == (
+        "changed", "f" * 64
+    )
+    assert (rows["Beta"]["certificate"], rows["Beta"]["certificate_fingerprint"]) == ("", "")
+    alpha.certificate = lambda: CertificateFacts("pinned", "f" * 64)
+    assert fleet.printers_status()[0]["certificate_fingerprint"] == ""
+    assert fleet.trust_certificate(A.printer_id, "f" * 64) is True
+    assert fleet.trust_certificate("unknown", "f" * 64) is False
+    assert trusted == ["f" * 64]
+
+
+def test_fleet_runtimes_share_one_pin_store() -> None:
+    store = PrinterStore()
+    store.save([A, B])
+    fleet = PrinterFleet(store, settings_factory=_base, validate=lambda s: None,
+                         client_factory=_Client, discovery=_Discovery())
+    stores = {id(runtime._pins) for runtime in fleet._runtimes.values()}
+    assert stores == {id(fleet._pins)}

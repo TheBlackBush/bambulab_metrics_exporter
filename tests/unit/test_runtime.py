@@ -9,7 +9,9 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from certgen import make_leaf
 
+from bambulab_metrics_exporter import certificates as certs
 from bambulab_metrics_exporter import discovery as dsc
 from bambulab_metrics_exporter import runtime as rt
 from bambulab_metrics_exporter.config import Settings
@@ -938,5 +940,142 @@ def test_fixed_host_reports_no_discovered_address() -> None:
     try:
         _wait_until(lambda: runtime.status()["state"] == rt.STATE_RUNNING)
         assert runtime.lan_address() == ""
+    finally:
+        runtime.stop()
+
+
+# -- certificate check for auto hosts ------------------------------------------------------
+
+CERT_SERIAL = "FAKE00TEST000001"
+
+
+def _probe_with(leaves: dict):
+    """A validate stand-in that does what the probe's handshake and CONNACK do."""
+
+    def validate(settings: Settings) -> None:
+        check = settings.certificate_check
+        assert check is not None
+        check.verify(leaves["now"].der)
+        check.connected()
+
+    return validate
+
+
+def _cert_runtime(tmp_path: Path, leaves: dict, **kw) -> tuple[rt.ExporterRuntime, list]:
+    seen: list[Settings] = []
+
+    def client_factory(s: Settings) -> _Client:
+        seen.append(s)
+        return _Client()
+
+    runtime = rt.ExporterRuntime(
+        settings_factory=lambda: _local(bambulab_host="auto"),
+        validate=_probe_with(leaves),
+        client_factory=client_factory,
+        discover=lambda s: None,
+        discovery=_Discovery(dsc.Lookup(dsc.FOUND, "192.168.1.50")),
+        retry_seconds=kw.get("retry_seconds", 60.0),
+        address_check_seconds=0.02,
+        pins=certs.PinStore(tmp_path / certs.PINS_FILE),
+    )
+    return runtime, seen
+
+
+def test_auto_host_connects_with_a_certificate_check(tmp_path: Path) -> None:
+    leaves = {"now": make_leaf(CERT_SERIAL)}
+    runtime, seen = _cert_runtime(tmp_path, leaves)
+    runtime.start()
+    try:
+        _wait_until(lambda: runtime.status()["state"] == rt.STATE_RUNNING)
+        assert seen[0].certificate_check is not None
+        assert runtime.settings.certificate_check is None  # the saved settings never carry it
+        facts = runtime.certificate()
+        assert facts is not None and facts.result == certs.FIRST_USE
+    finally:
+        runtime.stop()
+
+
+def test_fixed_host_has_no_certificate_check() -> None:
+    seen: list[Settings] = []
+    runtime = rt.ExporterRuntime(
+        settings_factory=lambda: _local(), validate=lambda s: None,
+        client_factory=lambda s: seen.append(s) or _Client(), discover=lambda s: None,
+    )
+    runtime.start()
+    try:
+        _wait_until(lambda: runtime.status()["state"] == rt.STATE_RUNNING)
+        assert seen[0].certificate_check is None and runtime.certificate() is None
+        assert runtime.trust_certificate("0" * 64) is False
+    finally:
+        runtime.stop()
+
+
+def test_changed_certificate_is_an_error_until_trusted(tmp_path: Path) -> None:
+    old, new = make_leaf(CERT_SERIAL), make_leaf(CERT_SERIAL)
+    certs.PinStore(tmp_path / certs.PINS_FILE).set(
+        CERT_SERIAL, certs.describe(old.der)[1].fingerprint
+    )
+    leaves = {"now": new}
+    runtime, seen = _cert_runtime(tmp_path, leaves)
+    runtime.start()
+    try:
+        _wait_until(lambda: runtime.status()["state"] == rt.STATE_ERROR)
+        assert runtime.status()["message"].startswith("Certificate changed")
+        assert seen == []  # no collector, so nothing ever sent the access code
+        facts = runtime.certificate()
+        assert facts is not None and facts.result == certs.CHANGED
+        assert runtime.trust_certificate("0" * 64) is False
+        assert runtime.trust_certificate(facts.fingerprint) is True
+        _wait_until(lambda: runtime.status()["state"] == rt.STATE_RUNNING)
+        assert runtime.certificate().result == certs.PINNED
+    finally:
+        runtime.stop()
+
+
+def test_damaged_pins_file_is_a_changed_certificate_until_trusted(tmp_path: Path) -> None:
+    (tmp_path / certs.PINS_FILE).write_text(
+        '{"format": 1, "pins": {"abc": "not-a-fingerprint"}}'
+    )
+    leaf = make_leaf(CERT_SERIAL)
+    runtime, seen = _cert_runtime(tmp_path, {"now": leaf})
+    runtime.start()
+    try:
+        _wait_until(lambda: runtime.status()["state"] == rt.STATE_ERROR)
+        assert runtime.status()["message"].startswith("Certificate changed")
+        assert seen == []
+        facts = runtime.certificate()
+        assert facts is not None and facts.result == certs.CHANGED
+        assert facts.fingerprint == certs.describe(leaf.der)[1].fingerprint
+        assert runtime.trust_certificate(facts.fingerprint) is True
+        _wait_until(lambda: runtime.status()["state"] == rt.STATE_RUNNING)
+        assert runtime.certificate().result == certs.PINNED
+    finally:
+        runtime.stop()
+
+
+def test_rejected_certificate_on_reconnect_ends_the_run(tmp_path: Path) -> None:
+    first, other = make_leaf(CERT_SERIAL), make_leaf(CERT_SERIAL)
+    leaves = {"now": first}
+    runtime, seen = _cert_runtime(tmp_path, leaves)
+    runtime.start()
+    try:
+        _wait_until(lambda: runtime.status()["state"] == rt.STATE_RUNNING)
+        leaves["now"] = other
+        with pytest.raises(certs.CertificateRejected):
+            seen[0].certificate_check.verify(other.der)  # what paho's reconnect runs
+        _wait_until(lambda: runtime.status()["state"] == rt.STATE_ERROR)
+        assert runtime.status()["message"].startswith("Certificate changed")
+        assert len(seen) == 1
+    finally:
+        runtime.stop()
+
+
+def test_diagnostics_inputs_carry_the_certificate(tmp_path: Path) -> None:
+    runtime, _ = _cert_runtime(tmp_path, {"now": make_leaf(CERT_SERIAL)})
+    runtime.start()
+    try:
+        _wait_until(lambda: runtime.status()["state"] == rt.STATE_RUNNING)
+        [item] = runtime.diagnostics_inputs()
+        assert item.certificate is not None and item.certificate.result == certs.FIRST_USE
     finally:
         runtime.stop()
