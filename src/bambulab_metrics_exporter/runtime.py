@@ -394,7 +394,9 @@ class ExporterRuntime:
     def _watch_address(self, collector: PollingCollector, address: str) -> None:
         """Paho keeps reconnecting to the address it has. Once the printer has been
         unreachable for rediscover_after_seconds and announces another address, return so
-        the next run connects there. Also returns when paho's reconnect met a rejected certificate, so the state and the /auth page say so. Returns early on reconfigure() or stop()."""
+        the next run connects there. Also returns when paho's reconnect met a rejected
+        certificate, so the state and the /auth page say so. Returns early on reconfigure() or
+        stop()."""
         serial = str(self.settings.bambulab_serial)
         down_since: float | None = None
         while not self._stop.is_set():

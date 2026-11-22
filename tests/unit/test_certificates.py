@@ -1,6 +1,7 @@
 """Printer certificate check for `auto` hosts: CA check, pins, and the in-handshake hook."""
 from __future__ import annotations
 
+import hashlib
 import json
 import ssl
 from pathlib import Path
@@ -216,10 +217,60 @@ def test_with_unreadable_pins_a_ca_verified_leaf_still_passes(tmp_path: Path) ->
     assert check.verify(make_leaf(SERIAL, ca).der).result == certs.CA_VERIFIED
 
 
-def test_pin_entries_that_are_not_fingerprints_are_dropped(tmp_path: Path) -> None:
+def test_pin_entries_that_are_not_fingerprints_damage_the_store(tmp_path: Path, caplog) -> None:
     path = tmp_path / certs.PINS_FILE
-    path.write_text(json.dumps({"format": 1, "pins": {"k": "not-a-fingerprint"}}))
-    assert PinStore(path).get(SERIAL) is None
+    leaf = make_leaf(SERIAL)
+    good = describe(leaf.der)[1].fingerprint
+    other_key = PinStore._key(OTHER)
+    original = json.dumps(
+        {"format": 1, "pins": {PinStore._key(SERIAL): good, other_key: "not-a-fingerprint"}}
+    )
+    path.write_text(original)
+    pins = PinStore(path)
+    assert pins.damaged
+    assert pins.get(OTHER) is None
+    assert pins.get(SERIAL) == good  # valid pins keep working
+    assert (tmp_path / certs.UNREADABLE_PINS_FILE).read_text() == original
+    assert "could not be read" in caplog.text and "not-a-fingerprint" not in caplog.text
+    # the printer whose entry was dropped does not get first use
+    with pytest.raises(CertificateRejected) as caught:
+        CertificateCheck(OTHER, pins, anchors=()).verify(make_leaf(OTHER).der)
+    assert caught.value.facts.result == certs.CHANGED
+    # the pinned printer still passes
+    assert CertificateCheck(SERIAL, pins, anchors=()).verify(leaf.der).result == certs.PINNED
+
+
+def test_an_unexpected_parser_error_is_unreadable_and_recorded(
+    tmp_path: Path, monkeypatch
+) -> None:
+    check, _ = _check(tmp_path)
+    leaf = make_leaf(SERIAL)
+
+    def boom(der: bytes):
+        raise RuntimeError("parser exploded")
+
+    monkeypatch.setattr(certs.x509, "load_der_x509_certificate", boom)
+    with pytest.raises(CertificateRejected) as caught:
+        check.verify(leaf.der)
+    assert caught.value.facts.result == certs.UNREADABLE
+    assert caught.value.facts.fingerprint == hashlib.sha256(leaf.der).hexdigest()
+    assert check.last == caught.value.facts
+    check.connected()
+
+
+def test_an_unexpected_judging_error_is_unreadable_and_recorded(
+    tmp_path: Path, monkeypatch
+) -> None:
+    check, _ = _check(tmp_path)
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("judge exploded")
+
+    monkeypatch.setattr(check, "_judge", boom)
+    with pytest.raises(CertificateRejected) as caught:
+        check.verify(make_leaf(SERIAL).der)
+    assert caught.value.facts.result == certs.UNREADABLE and caught.value.facts.fingerprint
+    assert check.last == caught.value.facts
 
 
 def test_pins_that_cannot_be_saved_last_for_the_session(tmp_path: Path, caplog) -> None:
@@ -311,5 +362,36 @@ def test_local_client_with_a_check_refuses_before_connect(tmp_path: Path) -> Non
         with pytest.raises(CertificateRejected):
             client.connect()
         client.disconnect()
+        assert server.finished.wait(5)
+    assert server.received == b""
+
+
+def test_a_context_without_a_check_refuses_the_handshake() -> None:
+    context = certs.CheckedContext(ssl.PROTOCOL_TLS_CLIENT)
+    context.sslsocket_class = certs._CheckedSocket
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    with TlsServer(make_leaf(SERIAL)) as server:
+        client = _paho(context)
+        with pytest.raises(CertificateRejected) as caught:
+            client.connect("127.0.0.1", server.port, keepalive=5)
+        assert server.finished.wait(5)
+    assert caught.value.facts.result == certs.UNREADABLE
+    assert server.received == b""
+
+
+def test_an_unexpected_error_in_the_check_refuses_before_connect(
+    tmp_path: Path, monkeypatch
+) -> None:
+    check, _ = _check(tmp_path)
+
+    def boom(der: bytes | None):
+        raise RuntimeError("check exploded")
+
+    monkeypatch.setattr(check, "verify", boom)
+    with TlsServer(make_leaf(SERIAL)) as server:
+        client = _paho(_context(check))
+        with pytest.raises(CertificateRejected):
+            client.connect("127.0.0.1", server.port, keepalive=5)
         assert server.finished.wait(5)
     assert server.received == b""

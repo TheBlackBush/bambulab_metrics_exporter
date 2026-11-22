@@ -157,7 +157,7 @@ def describe(der: bytes | None) -> tuple[x509.Certificate | None, CertificateFac
             not_before=_utc(cert.not_valid_before_utc),
             not_after=_utc(cert.not_valid_after_utc),
         )
-    except ValueError:
+    except Exception:  # noqa: BLE001 - fail closed: whatever the parser throws is UNREADABLE
         return None, CertificateFacts(UNREADABLE, fingerprint)
     return cert, facts
 
@@ -223,6 +223,10 @@ class PinStore:
                 if isinstance(key, str) and isinstance(value, str)
                 and _FINGERPRINT_RE.fullmatch(value)
             }
+            if len(pins) != len(items):
+                # Valid pins keep working, but a dropped entry may have been a printer's pin:
+                # unpinned certificates must not get first use.
+                raise ValueError("entries that are not fingerprints")
         except FileNotFoundError:
             pass
         except (OSError, ValueError) as exc:
@@ -298,7 +302,10 @@ class CertificateCheck:
         """Judge the leaf. Raises CertificateRejected when it must not get the access code."""
         cert, facts = describe(der)
         if cert is not None:
-            facts = self._judge(cert, facts)
+            try:
+                facts = self._judge(cert, facts)
+            except Exception:  # noqa: BLE001 - fail closed on anything unexpected
+                facts = CertificateFacts(UNREADABLE, facts.fingerprint)
         with self._lock:
             self._last = facts
             self._pending = facts.fingerprint if facts.result in (CA_VERIFIED, FIRST_USE) else ""
@@ -348,12 +355,17 @@ class _CheckedSocket(ssl.SSLSocket):
         super().do_handshake(block)
         context = self.context
         if not isinstance(context, CheckedContext) or context.certificate_check is None:
-            return
+            # No check means no verdict: never let the handshake through.
+            self.close()
+            raise CertificateRejected(CertificateFacts(UNREADABLE))
         try:
             context.certificate_check.verify(self.getpeercert(binary_form=True))
         except CertificateRejected:
             self.close()
             raise
+        except Exception:  # noqa: BLE001 - fail closed on anything unexpected
+            self.close()
+            raise CertificateRejected(CertificateFacts(UNREADABLE)) from None
 
 
 class CheckedContext(ssl.SSLContext):

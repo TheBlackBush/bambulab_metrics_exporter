@@ -2714,7 +2714,7 @@ def test_trust_button_only_for_a_changed_certificate(monkeypatch) -> None:
     client, runtime = _fleet_client(monkeypatch, devices=[])
     runtime.list = [LAN3]
     rows = runtime.printers_status
-    for result in ("", "pinned", "first_use", "ca", "ca_failed"):
+    for result in ("", "pinned", "first_use", "ca", "ca_failed", "cn_mismatch"):
         runtime.printers_status = lambda result=result: [
             {**row, "certificate": result, "certificate_fingerprint": ""} for row in rows()
         ]
@@ -2726,6 +2726,7 @@ def test_hostile_fingerprint_text_is_escaped(monkeypatch) -> None:
     _changed_row(client, runtime, fingerprint='"><script>x</script>')
     page = client.get("/auth").text
     assert "<script>x</script>" not in page
+    assert "&quot;" in page and 'value=""><' not in page
 
 
 def test_trust_certificate_post_pins_and_answers_json(monkeypatch) -> None:
