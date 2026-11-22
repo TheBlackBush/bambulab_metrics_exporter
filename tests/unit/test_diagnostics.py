@@ -9,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from bambulab_metrics_exporter import diagnostics as diag
+from bambulab_metrics_exporter import ssdp
 from bambulab_metrics_exporter.api import build_app
 from bambulab_metrics_exporter.collector import PollingCollector
 from bambulab_metrics_exporter.config import Settings
@@ -519,3 +520,81 @@ def test_pydantic_input_values_and_env_secrets_are_removed(monkeypatch: pytest.M
     )
     message = build_report([item])["printers"][0]["message"]
     assert "fake-typo-secret" not in message and "fake-env-code-31" not in message
+
+
+# -- LAN announcements (SSDP) ----------------------------------------------------------
+
+NEIGHBOR = "03W00FAKE000009"
+
+
+def _announcement(serial: str, at: float, source: str = "192.168.1.50") -> ssdp.Packet:
+    return ssdp.Packet(at, source, "NOTIFY * HTTP/1.1", (
+        ("HOST", "239.255.255.250:1990"), ("Server", "UPnP/1.0"), ("Location", source),
+        ("NT", "urn:bambulab-com:device:3dprinter:1"), ("USN", serial),
+        ("DevModel.bbl", "C12"), ("DevName.bbl", NAME), ("DevVersion.bbl", "01.08.00.00"),
+        ("DevSignal.bbl", "-52"), ("DevSecret.bbl", "fake-mystery-value"),
+    ))
+
+
+def _capture(*packets: ssdp.Packet) -> ssdp.Capture:
+    return ssdp.Capture("received", 8.0, 5.0, packets, 1)
+
+
+def test_report_ssdp_section_is_sanitized() -> None:
+    capture = _capture(_announcement(SERIAL, 1.0), _announcement(SERIAL, 6.0),
+                       _announcement(NEIGHBOR, 2.0, source="192.168.1.77"))
+    section = build_report([_item(None)], now=0.0, announcements=capture)["ssdp"]
+    text = json.dumps(section)
+    for value in (SERIAL, NEIGHBOR, NAME, "192.168.1.50", "192.168.1.77", "fake-mystery-value"):
+        assert value not in text
+    assert section["status"] == "received" and section["port"] == 2021
+    assert section["bambu_packets"] == 3 and section["other_packets"] == 1
+    assert section["error"] is None
+    mine, neighbor = section["devices"]
+    assert mine["printer_index"] == 1 and mine["packets"] == 2
+    assert mine["interval_seconds"] == 5.0 and mine["source_matches_location"] is True
+    assert mine["start_line"] == "NOTIFY * HTTP/1.1"
+    headers = mine["headers"]
+    assert headers["USN"].startswith("01P") and headers["Location"] == "192.0.2.1"
+    assert headers["HOST"] == "239.255.255.250:1990"
+    assert headers["DevModel.bbl"] == "C12" and headers["DevVersion.bbl"] == "01.08.00.00"
+    assert headers["DevName.bbl"] == "[redacted]" and headers["DevSecret.bbl"] == "[redacted]"
+    assert neighbor["printer_index"] is None and neighbor["interval_seconds"] is None
+    assert neighbor["headers"]["USN"].startswith("03W")
+
+
+def test_report_ssdp_odd_packets() -> None:
+    odd = ssdp.Packet(1.0, "192.168.1.50", f"HELLO {SERIAL}", (
+        ("HOST", "192.168.1.1:2021"), ("Location", "http://192.168.1.60/desc.xml"),
+        ("DevModel.bbl", f"x {SERIAL}"),
+    ))
+    section = build_report([_item(None)], now=0.0, announcements=_capture(odd))["ssdp"]
+    device = section["devices"][0]
+    assert device["start_line"] == "[redacted]"
+    assert device["headers"]["HOST"] == "[redacted]"
+    assert device["source_matches_location"] is False
+    assert device["printer_index"] is None  # no USN
+    assert SERIAL not in json.dumps(section)
+
+
+@pytest.mark.parametrize(("capture", "status", "error"), [
+    (ssdp.Capture("none", 8.0, 8.0, (), 0), "none", None),
+    (ssdp.Capture("unavailable", 8.0, 0.0, (), 0, "EADDRINUSE"), "unavailable", "EADDRINUSE"),
+    (ssdp.Capture("busy", 8.0, 0.0, (), 0), "busy", None),
+])
+def test_report_ssdp_without_packets(capture: ssdp.Capture, status: str,
+                                     error: str | None) -> None:
+    section = build_report([], now=0.0, announcements=capture)["ssdp"]
+    assert section["status"] == status and section["error"] == error
+    assert section["devices"] == []
+
+
+def test_report_without_a_capture_has_no_ssdp_section() -> None:
+    assert build_report([], now=0.0)["ssdp"] is None
+
+
+def test_report_ssdp_device_list_is_bounded() -> None:
+    packets = [_announcement(f"01PFAKE{i:08d}", float(i)) for i in range(40)]
+    section = build_report([], now=0.0, announcements=_capture(*packets))["ssdp"]
+    assert len(section["devices"]) == 32
+    json.dumps(section, allow_nan=False)

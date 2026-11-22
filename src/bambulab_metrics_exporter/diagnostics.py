@@ -11,11 +11,13 @@ The same sanitizer turns captured payloads into test fixtures
 from __future__ import annotations
 
 import ipaddress
+import itertools
 import logging
 import math
 import os
 import platform
 import re
+import statistics
 import sys
 import threading
 import time
@@ -26,7 +28,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from bambulab_metrics_exporter import __version__
+from bambulab_metrics_exporter import __version__, ssdp
 
 if TYPE_CHECKING:
     from bambulab_metrics_exporter.config import Settings
@@ -303,6 +305,107 @@ def recent_log_lines() -> list[str]:
     return _LOG_HANDLER.lines()
 
 
+# -- LAN announcements (SSDP) ------------------------------------------------------------
+
+# Header values kept (still scrubbed). Any other header keeps only its name: the format is
+# not documented, so an unknown field could carry an identifier.
+_SSDP_KEEP = frozenset({
+    "server", "nt", "cache-control", "devmodel.bbl", "devconnect.bbl", "devbind.bbl",
+    "devseclink.bbl", "devsignal.bbl", "devversion.bbl", "devcap.bbl",
+})
+_SSDP_START_RE = re.compile(
+    r"^(?:NOTIFY \* HTTP/1\.[01]|M-SEARCH \* HTTP/1\.[01]|HTTP/1\.[01] 200 OK)$", re.I
+)
+# Serial-like tokens in USN: 8 or more letters and digits, at least one digit.
+_SERIAL_TOKEN_RE = re.compile(r"(?=[A-Za-z0-9]*\d)[A-Za-z0-9]{8,}")
+_MAX_SSDP_DEVICES = 32
+
+
+def _group_address(value: str) -> bool:
+    """HOST names where the packet was sent. A multicast or broadcast address says how the
+    printer announces; a unicast one is a LAN address, so it is not kept."""
+    host = value.rsplit(":", 1)[0] if value.count(":") == 1 else value
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return address.is_multicast or str(address) == "255.255.255.255"
+
+
+def _ssdp_value(name: str, value: str, serials: list[str], scrub: list[str]) -> str:
+    key = name.lower()
+    if key == "usn":
+        return _SERIAL_TOKEN_RE.sub(lambda m: _fake_serial(m.group(0)), value)
+    if key == "location":
+        return "192.0.2.1" if value else ""
+    if key == "host":
+        return value if _group_address(value) else _REDACTED
+    if key in _SSDP_KEEP:
+        return scrub_text(value, serials, scrub)
+    return _REDACTED
+
+
+def _printer_index(usn: str, printers: list[PrinterDiagnostics]) -> int | None:
+    for index, item in enumerate(printers, start=1):
+        serial = str(item.settings.bambulab_serial or "").upper()
+        if serial and serial in usn:
+            return index
+    return None
+
+
+def _median_gap(packets: list[ssdp.Packet]) -> float | None:
+    times = sorted(packet.received_at for packet in packets)
+    gaps = [later - earlier for earlier, later in itertools.pairwise(times)]
+    return round(statistics.median(gaps), 1) if gaps else None
+
+
+def _source_matches_location(packet: ssdp.Packet) -> bool | None:
+    """Whether the sender is the address the packet advertises. False points at a relay or
+    NAT between printer and exporter, or a packet sent on another device's behalf."""
+    found = _IPV4_RE.search(packet.header("Location"))
+    if found is None or not packet.source:
+        return None
+    return found.group(0) == packet.source
+
+
+def _ssdp_report(
+    capture: ssdp.Capture | None,
+    printers: list[PrinterDiagnostics],
+    serials: list[str],
+    scrub: list[str],
+) -> dict[str, Any] | None:
+    if capture is None:
+        return None
+    by_device: dict[str, list[ssdp.Packet]] = {}
+    for packet in capture.packets:
+        by_device.setdefault(packet.header("USN").upper(), []).append(packet)
+    devices: list[dict[str, Any]] = []
+    for usn, packets in list(by_device.items())[:_MAX_SSDP_DEVICES]:
+        latest = packets[-1]
+        start = latest.start_line
+        devices.append({
+            "printer_index": _printer_index(usn, printers),
+            "packets": len(packets),
+            "interval_seconds": _median_gap(packets),
+            "source_matches_location": _source_matches_location(latest),
+            "start_line": start if _SSDP_START_RE.match(start) else _REDACTED,
+            "headers": {
+                scrub_text(name, serials, scrub): _ssdp_value(name, value, serials, scrub)
+                for name, value in latest.headers
+            },
+        })
+    return {
+        "status": capture.status,
+        "port": ssdp.PORT,
+        "listen_seconds": capture.listen_seconds,
+        "waited_seconds": capture.waited_seconds,
+        "bambu_packets": len(capture.packets),
+        "other_packets": capture.ignored,
+        "error": capture.error or None,
+        "devices": devices,
+    }
+
+
 # -- report ---------------------------------------------------------------------------
 
 
@@ -393,11 +496,14 @@ def _printer_report(
 
 
 def build_report(
-    printers: list[PrinterDiagnostics], now: float | None = None
+    printers: list[PrinterDiagnostics],
+    now: float | None = None,
+    announcements: ssdp.Capture | None = None,
 ) -> dict[str, Any]:
     """The full report. Every free-text value is scrubbed of the configured serials,
     hosts and printer names, on top of the payload sanitizer. Credentials are scrubbed
-    too, although nothing in the report should ever contain them."""
+    too, although nothing in the report should ever contain them. `announcements` is the raw
+    LAN capture (`ssdp.capture`); it is sanitized here."""
     now = time.time() if now is None else now
     scrub: list[str] = []
     serials: list[str] = []
@@ -429,5 +535,6 @@ def build_report(
             _printer_report(i + 1, item, now, serials, scrub)
             for i, item in enumerate(printers)
         ],
+        "ssdp": _ssdp_report(announcements, printers, serials, scrub),
         "logs": [scrub_text(line, serials, scrub) for line in recent_log_lines()],
     }
