@@ -96,14 +96,15 @@ A ready-to-import Unraid template is included: `unraid-bambulab-metrics-exporter
 
 ## Docker networking
 
-The default bridge network is all the exporter needs: it connects out to the printer (LAN) or
-to Bambu Cloud, and Docker handles that without extra settings.
+The default bridge network is enough unless you use `BAMBULAB_HOST=auto`: the exporter connects
+out to the printer (LAN) or to Bambu Cloud, and Docker handles that without extra settings.
 
 One limit: on a bridge network the container does not receive the announcements printers
 broadcast on the LAN (SSDP, UDP port 2021). Publishing the port (`-p 2021:2021/udp`) does not
-change that, because Docker only forwards traffic addressed to the host itself. Today this only
-affects the `ssdp` section of the [diagnostic report](Diagnostic-Report#lan-announcements),
-which then shows `none`. To let the container see the announcements, use host networking:
+change that, because Docker only forwards traffic addressed to the host itself. This affects
+`BAMBULAB_HOST=auto` (see [Automatic address](#automatic-address-auto) below) and the `ssdp`
+section of the [diagnostic report](Diagnostic-Report#lan-announcements), which then shows
+`none`. To let the container see the announcements, use host networking:
 
 ```yaml
 services:

@@ -128,8 +128,9 @@ listener does).
 ## LAN announcements
 
 Bambu Lab printers announce themselves on the local network (SSDP, UDP port 2021). The `ssdp`
-section shows whether those announcements reach the exporter, which helps future automatic
-printer discovery. It does not change how the exporter connects today.
+section shows whether those announcements reach the exporter, which `BAMBULAB_HOST=auto` needs
+to find the printer (see [Installation](Installation#automatic-address-auto)). The report itself
+does not change how the exporter connects.
 
 | Field | Content |
 |---|---|
@@ -140,7 +141,8 @@ printer discovery. It does not change how the exporter connects today.
 
 `none` is expected when the exporter runs in Docker on the default bridge network: announcements
 do not reach the container there (see [Docker networking](Installation#docker-networking)). LAN
-and cloud connections work the same either way.
+connections with a fixed IP or host name, and cloud connections, work the same either way; only
+`BAMBULAB_HOST=auto` needs the announcements.
 
 ## For fixtures
 
