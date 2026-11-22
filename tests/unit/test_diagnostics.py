@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import replace
 from typing import Any
 
 import pytest
@@ -214,6 +215,18 @@ def test_detect_model_without_printer_data(serial: str, hint: str, model: str | 
 
 
 # -- log buffer ---------------------------------------------------------------------
+
+
+def test_auto_host_is_not_scrubbed_from_text(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("BAMBULAB_HOST", "auto")
+    diag.install_log_handler()
+    logging.getLogger("bambulab_metrics_exporter.test").warning("Waiting for auto log line")
+    item = replace(_item(None, bambulab_host="auto"), message="Waiting for auto discovery")
+    report = build_report([item])
+    assert report["printers"][0]["message"] == "Waiting for auto discovery"
+    assert any("Waiting for auto log line" in line for line in report["logs"])
+    fixed = build_report([_item(None)])["printers"][0]["message"]
+    assert HOST not in fixed and "[redacted]" in fixed
 
 
 def test_recent_log_handler_keeps_the_last_lines_and_exception_names() -> None:
