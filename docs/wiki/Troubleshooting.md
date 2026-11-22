@@ -49,6 +49,12 @@ The exporter never exits on connection problems: the web server stays up and the
 - Check port 8883: `nc -zv <printer_ip> 8883`
 - TLS cert verification is intentionally disabled
 
+**The printer got a new IP address (DHCP)**
+- Enter the new IP on the `/auth` page with the same serial and access code; the exporter
+  reconnects without a restart
+- To avoid it next time, use a host name for the printer if your router or local DNS gives it
+  one, or a DHCP reservation. See [Docker networking](Installation#docker-networking)
+
 **`/auth` or `/diagnostics` returns 403 `host_not_allowed`**
 - The page only accepts IP addresses and local-network host names (DNS-rebinding protection)
 - Add the name you use (for example a reverse-proxy host) to `AUTH_ALLOWED_HOSTS`

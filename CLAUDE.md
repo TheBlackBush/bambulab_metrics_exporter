@@ -150,6 +150,9 @@ Important boundaries:
   `diagnostics.detect_model` names the model without printer data (serial prefix or configured
   model); `ExporterRuntime.detected_model()` feeds the `model` field of
   `PrinterFleet.printers_status()`, and an empty value shows **Unsupported printer** on `/auth`.
+  The report route also runs `ssdp.capture` (`ssdp.py`): it listens up to 8 s on UDP 2021 for
+  printer announcements (receive only, one capture at a time) and `diagnostics` sanitizes the
+  packets into the `ssdp` section; header values outside an allowlist are redacted.
 - `src/bambulab_metrics_exporter/cloud_auth.py`: Bambu Cloud HTTP/OTP CLI, token refresh,
   device discovery, bounded HTTP retry/backoff, and credential output. Never expose
   response bodies, emails, tokens, codes, or device IDs carelessly.
@@ -297,7 +300,7 @@ configuration and reachable printer/cloud services and may update `.env`.
   10 seconds; the collector stop event is set, its thread is joined for up to `REQUEST_TIMEOUT_SECONDS` + 2 s (at least 5 s),
   and MQTT disconnects.
 - Tests: `tests/conftest.py` restores `os.environ` and the override/legacy-login state after
-  every test, and blocks all outbound sockets and DNS: any test that would reach a printer,
+  every test, and blocks all outbound sockets and DNS, and replaces `ssdp._open_socket` so no test listens on UDP 2021: any test that would reach a printer,
   broker or Bambu Cloud fails with "network access blocked in tests". Stub `startup._probe`
   (not `_probe_connection`) in cloud validation tests.
 

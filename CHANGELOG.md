@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Diagnostic report: an `ssdp` section with the printer announcements heard on the LAN (UDP
+  2021) while the report runs, sanitized like the rest of the report. **Run diagnostics** now
+  takes up to 8 seconds, and the summary shows a **LAN announcements** line. The exporter only
+  listens; it sends nothing. First step towards automatic printer discovery (#107).
+
 ### Fixed
 - Grafana: the Timelapse Storage Free bar had no maximum, so it was always full. It is now a
   **Timelapse Storage** table, one row per storage: the share used as a bar (green, orange from
@@ -15,6 +21,9 @@ All notable changes to this project are documented in this file.
 - README: easier to scan, with a supported printers table by series (and which models are tested
   on real hardware), a "How it works" table comparing LAN and Bambu Cloud setup, features grouped
   by topic, a Grafana dashboard overview and a help section.
+- Wiki: a **Docker networking** section in Installation (bridge networking is enough; host
+  networking only to receive LAN announcements; what to do when the printer's IP changes), and a
+  Troubleshooting entry for a printer that got a new IP address.
 
 ## [0.4.0] - 2026-11-11
 

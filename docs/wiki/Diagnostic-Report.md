@@ -27,6 +27,9 @@ firmware, metrics without a value) and the full report. Then:
 | **Download** | Saves it as `bambulab-exporter-diagnostics-<date>-<time>.json` |
 | **Create GitHub issue** | Opens the GitHub issue form with a title that tells reports apart (for example `[H2D] Connection error: firmware 01.04.20.00, LAN, exporter 0.4.0` or `[Unsupported printer ZZZ] Model not recognized: Cloud, exporter 0.4.0`), a summary table (model, state, error message, firmware, connection) and the exporter version, model, firmware and connection mode filled in. A small report (for example from a printer that is not connected) is filled into the **Diagnostic report** box too. A full report is too long for a link, so it is copied and downloaded instead: paste it into the box (Ctrl+V) or drag the file there |
 
+Running takes up to 8 seconds: the exporter listens for printer announcements on the LAN (see
+[LAN announcements](#lan-announcements)).
+
 One report covers every printer the exporter monitors. Copy works on plain `http://` addresses
 too. If the report is too large to paste (several printers, over GitHub's comment size) or the
 browser blocks the clipboard, Copy says so: use Download. GitHub does not let a page attach a
@@ -63,6 +66,7 @@ JSON. The exporter removes or replaces:
 | Rejected settings values in error messages | Replaced with `[redacted]` |
 | Spool tag ids (RFID), chip ids | Replaced with zeros |
 | Email addresses anywhere in text | Replaced with `operator@example.invalid` |
+| LAN announcements (`ssdp`) | Only Bambu Lab packets are kept. Serials keep their first 3 characters, the advertised address becomes `192.0.2.1`, the printer name and any field not known to be safe become `[redacted]` |
 
 Everything else stays, because it is what makes the report useful: temperatures, fan speeds, AMS
 and spool details (type, color, remaining), HMS error codes, firmware versions, module list, and
@@ -99,6 +103,7 @@ attempts. That is usually enough to find a connection problem, so send it the sa
 |---|---|
 | `exporter` | Exporter version, Python version, platform, and whether it runs in Docker |
 | `printers[]` | One entry per printer (see below) |
+| `ssdp` | Printer announcements heard on the LAN while the report ran (see below) |
 | `logs` | The last 200 exporter log lines at the configured `LOG_LEVEL` (info and above by default; long lines cut at 1000 characters), with the same values removed |
 
 Each printer entry:
@@ -116,7 +121,25 @@ Each printer entry:
 | `modules` | Firmware modules (`get_version`): names, product names, hardware and software versions |
 | `payload` | The printer's latest state as the exporter holds it, sanitized |
 
-The report is read-only: building it sends nothing to the printer or to Bambu Cloud.
+The report is read-only: building it sends nothing to the printer or to Bambu Cloud. It only
+listens on the LAN for up to 8 seconds.
+
+## LAN announcements
+
+Bambu Lab printers announce themselves on the local network (SSDP, UDP port 2021). The `ssdp`
+section shows whether those announcements reach the exporter, which helps future automatic
+printer discovery. It does not change how the exporter connects today.
+
+| Field | Content |
+|---|---|
+| `status` | `received`, `none` (nothing heard), `unavailable` (the port could not be opened, see `error`) or `busy` (another report was listening) |
+| `listen_seconds`, `waited_seconds` | The listening limit, and how long it listened. It stops early once every configured printer was heard twice |
+| `bambu_packets`, `other_packets` | Bambu Lab packets heard, and other packets on the port (counted, not kept) |
+| `devices[]` | One entry per announcing printer: `printer_index` (the matching entry in `printers[]`, or `null` for a printer this exporter does not monitor), number of `packets`, `interval_seconds` between them, `source_matches_location`, and the sanitized `headers` of the latest packet |
+
+`none` is expected when the exporter runs in Docker on the default bridge network: announcements
+do not reach the container there (see [Docker networking](Installation#docker-networking)). LAN
+and cloud connections work the same either way.
 
 ## For fixtures
 
