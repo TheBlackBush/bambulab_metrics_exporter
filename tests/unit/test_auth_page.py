@@ -2679,3 +2679,110 @@ def test_page_script_keeps_rows_on_cooldown_and_busy() -> None:
     assert 'data.status === "cooldown" || data.status === "busy"' in script
     assert "innerHTML" not in script and "insertAdjacentHTML" not in script
     assert script.count("setTimeout") == 2  # countdown and poll only
+
+
+# ---------------------------------------------------------------------------
+# certificate changed (auto LAN printers)
+# ---------------------------------------------------------------------------
+
+NEW_PRINT = "ab" * 32
+
+
+def _changed_row(client: TestClient, runtime, fingerprint: str = NEW_PRINT) -> None:
+    runtime.list = [
+        PrinterConfig(serial=S3, transport="local_mqtt", host="auto", access_code=ACCESS_CODE)
+    ]
+    rows = runtime.printers_status
+    runtime.printers_status = lambda: [
+        {**row, "certificate": "changed", "certificate_fingerprint": fingerprint}
+        for row in rows()
+    ]
+
+
+def test_changed_certificate_row_shows_the_fingerprint_and_a_trust_button(monkeypatch) -> None:
+    client, runtime = _fleet_client(monkeypatch, devices=[])
+    _changed_row(client, runtime)
+    card = _status_card(client.get("/auth").text)
+    assert "Certificate changed" in card
+    assert "AB:AB:AB" in card
+    assert 'formaction="/auth/printers/trust-certificate"' in card
+    assert f'name="fingerprint" value="{NEW_PRINT}"' in card
+    assert f'name="printer_id" value="{printer_id_for(S3)}"' in card
+
+
+def test_trust_button_only_for_a_changed_certificate(monkeypatch) -> None:
+    client, runtime = _fleet_client(monkeypatch, devices=[])
+    runtime.list = [LAN3]
+    rows = runtime.printers_status
+    for result in ("", "pinned", "first_use", "ca", "ca_failed"):
+        runtime.printers_status = lambda result=result: [
+            {**row, "certificate": result, "certificate_fingerprint": ""} for row in rows()
+        ]
+        assert "trust-certificate" not in client.get("/auth").text
+
+
+def test_hostile_fingerprint_text_is_escaped(monkeypatch) -> None:
+    client, runtime = _fleet_client(monkeypatch, devices=[])
+    _changed_row(client, runtime, fingerprint='"><script>x</script>')
+    page = client.get("/auth").text
+    assert "<script>x</script>" not in page
+
+
+def test_trust_certificate_post_pins_and_answers_json(monkeypatch) -> None:
+    client, runtime = _fleet_client(monkeypatch, devices=[])
+    calls: list[tuple[str, str]] = []
+    runtime.trust_certificate = lambda pid, fp: calls.append((pid, fp)) or True
+    response = client.post(
+        "/auth/printers/trust-certificate",
+        data={"printer_id": printer_id_for(S3), "fingerprint": NEW_PRINT},
+        headers=_JSON,
+    )
+    body = response.json()
+    assert body["ok"] is True and "trusted" in body["message"]
+    assert calls == [(printer_id_for(S3), NEW_PRINT)]
+    assert runtime.reconfigured == 0 and runtime.updates == []
+
+
+def test_trust_certificate_that_is_no_longer_shown_is_refused(monkeypatch) -> None:
+    client, runtime = _fleet_client(monkeypatch, devices=[])
+    runtime.trust_certificate = lambda pid, fp: False
+    body = client.post(
+        "/auth/printers/trust-certificate",
+        data={"printer_id": printer_id_for(S3), "fingerprint": NEW_PRINT},
+        headers=_JSON,
+    ).json()
+    assert body["ok"] is False and "Reload the page" in body["message"]
+
+
+def test_trust_certificate_without_javascript_redirects(monkeypatch) -> None:
+    client, runtime = _fleet_client(monkeypatch, devices=[])
+    runtime.trust_certificate = lambda pid, fp: True
+    response = client.post(
+        "/auth/printers/trust-certificate",
+        data={"printer_id": printer_id_for(S3), "fingerprint": NEW_PRINT},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303 and response.headers["location"] == "/auth"
+
+
+def test_trust_certificate_keeps_the_guards(monkeypatch) -> None:
+    client, runtime = _fleet_client(monkeypatch, devices=[])
+    calls: list[str] = []
+    runtime.trust_certificate = lambda pid, fp: calls.append(pid) or True
+    form = {"printer_id": printer_id_for(S3), "fingerprint": NEW_PRINT}
+    cross = client.post(
+        "/auth/printers/trust-certificate", data=form,
+        headers={**_JSON, "Origin": "https://evil.example.invalid"},
+    )
+    bad_host = client.post(
+        "/auth/printers/trust-certificate", data=form,
+        headers={**_JSON, "Host": "evil.example:9109", "Origin": "http://evil.example:9109"},
+    )
+    assert cross.status_code == 403 and bad_host.status_code == 403
+    assert client.get("/auth/printers/trust-certificate").status_code == 405
+    assert calls == []
+
+
+def test_trust_certificate_route_needs_a_fleet() -> None:
+    client, _ = _client()
+    assert client.post("/auth/printers/trust-certificate", data={}).status_code == 404

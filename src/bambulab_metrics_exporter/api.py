@@ -38,6 +38,7 @@ from bambulab_metrics_exporter.auth_actions import (
     remove_printer,
     select_cloud_printers,
 )
+from bambulab_metrics_exporter.certificates import CHANGED, pretty_fingerprint
 from bambulab_metrics_exporter.config import HOST_AUTO, Settings, is_auto_host
 from bambulab_metrics_exporter.diagnostics import PrinterDiagnostics, build_report
 from bambulab_metrics_exporter.metrics import ExporterMetrics
@@ -204,6 +205,8 @@ class _Fleet(_Backend, Protocol):
     def update(self, configs: list[PrinterConfig]) -> bool: ...
 
     def reset_to_env(self) -> None: ...
+
+    def trust_certificate(self, printer_id: str, fingerprint: str) -> bool: ...
 
 
 def _check_health(metrics: ExporterMetrics) -> tuple[bool, str]:
@@ -407,6 +410,24 @@ def _scan_body(result: lan_scan.ScanResult, monitored: set[str]) -> dict[str, ob
     }
 
 
+def _certificate_html(printer: dict[str, str]) -> str:
+    """For an `auto` printer whose certificate changed: the new fingerprint, to compare with
+    the printer, and a button that trusts it. It posts with the row's printer id."""
+    fingerprint = printer.get("certificate_fingerprint", "")
+    if printer.get("certificate") != CHANGED or not fingerprint:
+        return ""
+    return (
+        '<span class="cert-changed"><span class="pill bad">Certificate changed</span>'
+        '<span class="hint">New SHA-256 fingerprint: '
+        f"<code>{_page_text(pretty_fingerprint(fingerprint))}</code>. Trust it only if you "
+        "updated the printer's firmware or replaced the printer.</span>"
+        '<button type="submit" class="tonal small" '
+        'formaction="/auth/printers/trust-certificate" '
+        f'name="fingerprint" value="{_page_text(fingerprint)}">Trust new certificate</button>'
+        "</span>"
+    )
+
+
 def _printer_rows(printers: list[dict[str, str]]) -> str:
     """Monitored printers; only masked serials reach this unauthenticated page."""
     rows = []
@@ -423,7 +444,7 @@ def _printer_rows(printers: list[dict[str, str]]) -> str:
             f'<input type="hidden" name="printer_id" value="{_page_text(printer["id"])}">'
             f'<span class="step">{_page_text(printer["name"])} '
             f'<span class="hint">{_page_text(printer["serial"])}, {where}</span>{message}'
-            f"{_unsupported_html(printer)}</span>"
+            f"{_unsupported_html(printer)}{_certificate_html(printer)}</span>"
             f'<span class="pill {css}">{_page_text(label)}</span>'
             '<button type="submit" class="danger small">Remove</button></form>'
         )
@@ -981,6 +1002,18 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
             return saved(fleet.update(configs), "LAN printer saved.")
 
         return await handle(request, add, reconnect=None)
+
+    @app.post("/auth/printers/trust-certificate")
+    async def auth_printers_trust_certificate(request: Request) -> Response:
+        def trust(f: dict[str, str]) -> ActionResult:
+            if not fleet.trust_certificate(f.get("printer_id", ""), f.get("fingerprint", "")):
+                raise AuthInputError(
+                    "The printer no longer shows that certificate. Reload the page and check "
+                    "the fingerprint again."
+                )
+            return ActionResult(True, "New certificate trusted; reconnecting.", applied=True)
+
+        return await handle(request, trust, reconnect=None)
 
     @app.post("/auth/printers/remove")
     async def auth_printers_remove(request: Request) -> Response:
