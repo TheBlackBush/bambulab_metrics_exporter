@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-24
+
 ### Added
 - `/auth` LAN form: **Find printers on my network** listens about 8 seconds for printer
   announcements (UDP 2021, receive only) and lists the printers found (model, masked serial, IP
@@ -35,6 +37,8 @@ All notable changes to this project are documented in this file.
   printer feeds from it. Re-import the sample dashboard to get the fix.
 
 ### Changed
+- GitHub Sponsors: the repository has a **Sponsor** button, and the README a Sponsors
+  badge next to Ko-fi.
 - README: easier to scan, with a supported printers table by series (and which models are tested
   on real hardware), a "How it works" table comparing LAN and Bambu Cloud setup, features grouped
   by topic, a Grafana dashboard overview and a help section.
