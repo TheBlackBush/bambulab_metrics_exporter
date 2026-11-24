@@ -9,15 +9,17 @@
 
 # bambulab_metrics_exporter
 
-[![Python 3.11](https://img.shields.io/badge/python-3.11-blue?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/downloads/release/python-3110/)
-[![GitHub Release](https://img.shields.io/github/v/release/TheBlackBush/bambulab_metrics_exporter?style=for-the-badge)](https://github.com/TheBlackBush/bambulab_metrics_exporter/releases)
-[![Docker Publish](https://img.shields.io/github/actions/workflow/status/TheBlackBush/bambulab_metrics_exporter/docker-publish.yml?style=for-the-badge&label=Docker%20Publish)](https://github.com/TheBlackBush/bambulab_metrics_exporter/actions/workflows/docker-publish.yml)
-[![GHCR Package](https://img.shields.io/badge/image-bambulab__metrics__exporter-blue?style=for-the-badge&logo=github)](https://github.com/TheBlackBush/bambulab_metrics_exporter/pkgs/container/bambulab_metrics_exporter)
-[![GHCR Pulls](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fghcr-badge.elias.eu.org%2Fapi%2FTheBlackBush%2Fbambulab_metrics_exporter%2Fbambulab_metrics_exporter&query=downloadCount&label=ghcr%20pulls&style=for-the-badge&logo=docker&logoColor=white)](https://github.com/TheBlackBush/bambulab_metrics_exporter/pkgs/container/bambulab_metrics_exporter)
-[![Docker Hub Pulls](https://img.shields.io/docker/pulls/blackbush/bambulab_metrics_exporter?style=for-the-badge&logo=docker&logoColor=white&label=docker%20hub%20pulls)](https://hub.docker.com/r/blackbush/bambulab_metrics_exporter)
-[![Grafana Dashboard Downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgrafana.com%2Fapi%2Fdashboards%2F25033&query=%24.downloads&label=grafana%20downloads&style=for-the-badge&logo=grafana&logoColor=white)](https://grafana.com/grafana/dashboards/25033-bambulab-metrics)
-[![GitHub Sponsors](https://img.shields.io/github/sponsors/TheBlackBush?style=for-the-badge&logo=githubsponsors&logoColor=white&label=sponsor&color=EA4AAA)](https://github.com/sponsors/TheBlackBush)
-[![Ko-fi](https://img.shields.io/badge/support_me_on_ko--fi-F16061?style=for-the-badge&logo=kofi&logoColor=f5f5f5)](https://ko-fi.com/M4M11W3R7J)
+<p align="center">
+  <a href="https://www.python.org/downloads/release/python-3110/"><img src="https://img.shields.io/badge/python-3.11-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.11"></a>
+  <a href="https://github.com/TheBlackBush/bambulab_metrics_exporter/releases"><img src="https://img.shields.io/github/v/release/TheBlackBush/bambulab_metrics_exporter?style=for-the-badge" alt="GitHub release"></a>
+  <a href="https://github.com/TheBlackBush/bambulab_metrics_exporter/actions/workflows/docker-publish.yml"><img src="https://img.shields.io/github/actions/workflow/status/TheBlackBush/bambulab_metrics_exporter/docker-publish.yml?style=for-the-badge&label=Docker%20Publish" alt="Docker publish"></a>
+  <a href="https://github.com/TheBlackBush/bambulab_metrics_exporter/pkgs/container/bambulab_metrics_exporter"><img src="https://img.shields.io/badge/image-bambulab__metrics__exporter-blue?style=for-the-badge&logo=github" alt="GHCR package"></a>
+  <a href="https://github.com/TheBlackBush/bambulab_metrics_exporter/pkgs/container/bambulab_metrics_exporter"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fghcr-badge.elias.eu.org%2Fapi%2FTheBlackBush%2Fbambulab_metrics_exporter%2Fbambulab_metrics_exporter&query=downloadCount&label=ghcr%20pulls&style=for-the-badge&logo=docker&logoColor=white" alt="GHCR pulls"></a>
+  <a href="https://hub.docker.com/r/blackbush/bambulab_metrics_exporter"><img src="https://img.shields.io/docker/pulls/blackbush/bambulab_metrics_exporter?style=for-the-badge&logo=docker&logoColor=white&label=docker%20hub%20pulls" alt="Docker Hub pulls"></a>
+  <a href="https://grafana.com/grafana/dashboards/25033-bambulab-metrics"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgrafana.com%2Fapi%2Fdashboards%2F25033&query=%24.downloads&label=grafana%20downloads&style=for-the-badge&logo=grafana&logoColor=white" alt="Grafana dashboard downloads"></a>
+  <a href="https://github.com/sponsors/TheBlackBush"><img src="https://img.shields.io/badge/sponsor_on_github-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white" alt="Sponsor on GitHub"></a>
+  <a href="https://ko-fi.com/M4M11W3R7J"><img src="https://img.shields.io/badge/support_me_on_ko--fi-F16061?style=for-the-badge&logo=kofi&logoColor=f5f5f5" alt="Ko-fi"></a>
+</p>
 
 > A Prometheus exporter for **Bambu Lab** 3D printers.
 > It runs as a small Docker container, reads your printer's live status on your home network or
