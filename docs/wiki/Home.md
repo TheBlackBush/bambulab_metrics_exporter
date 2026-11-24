@@ -13,7 +13,9 @@ over your home network (or through Bambu Cloud), and publishes the data for Prom
 Grafana.
 
 **New here?** Start with the [Quick Start](Quick-Start): start the container with a secret key,
-then connect the printer in your browser.
+then connect the printer in your browser. On the LAN, **Find printers on my network** can fill in
+the printer for you, and the host `auto` follows it when its IP address changes (see
+[Installation](Installation#automatic-address-auto)).
 
 > **Supported printers:** X1, X1C, X1E, X2D, P1P, P1S, P2S, A1, A1 mini, A2L, H2D, H2D Pro, H2S,
 > H2C and H3C are recognized. Real-world testing so far is on an X1C, and an H2D was checked on real hardware while idle and while printing; if you own another model and

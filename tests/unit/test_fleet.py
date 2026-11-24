@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import threading
 import time
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 from prometheus_client import CollectorRegistry, Gauge, generate_latest
 
+from bambulab_metrics_exporter import discovery as dsc
 from bambulab_metrics_exporter.config import Settings
 from bambulab_metrics_exporter.fleet import MergedCollector, PrinterFleet
 from bambulab_metrics_exporter.metrics import ExporterMetrics
@@ -405,3 +407,109 @@ def test_stop_warns_about_a_retiring_thread_that_outlives_its_join(
     fleet._retiring = [_StuckThread()]
     fleet.stop()
     assert "still stopping" in caplog.text
+
+
+class _Discovery:
+    def __init__(self) -> None:
+        self.stopped = False
+        self.calls: list[str] = []
+
+    def lookup(self, serial: str) -> dsc.Lookup:
+        self.calls.append(serial)
+        return dsc.Lookup(dsc.FOUND, "192.168.1.50")
+
+    def wait_for(self, serial: str, timeout: float, cancel: threading.Event) -> dsc.Lookup:
+        return self.lookup(serial)
+
+    def stop(self) -> None:
+        self.stopped = True
+
+
+def test_fleet_shares_one_discovery_and_stops_it() -> None:
+    shared = _Discovery()
+    store = PrinterStore()
+    store.save([replace(A, host="auto"), replace(B, host="auto")])
+    fleet = PrinterFleet(
+        store, settings_factory=_base, validate=lambda s: None, client_factory=_Client,
+        discovery=shared,
+    )
+    fleet.start()
+    try:
+        _running(fleet)
+        assert sorted(shared.calls) == [A.serial, B.serial]
+        assert all(runtime._discovery is shared for runtime in fleet._snapshot())
+    finally:
+        fleet.stop()
+    assert shared.stopped
+
+
+def test_saving_the_list_keeps_auto_for_the_env_printer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("BAMBULAB_TRANSPORT", "local_mqtt")
+    monkeypatch.setenv("BAMBULAB_HOST", "auto")
+    monkeypatch.setenv("BAMBULAB_SERIAL", "FAKE00TEST000001")
+    monkeypatch.setenv("BAMBULAB_ACCESS_CODE", "fake-access-code")
+    validated: list[str] = []
+    fleet = PrinterFleet(
+        PrinterStore(), settings_factory=_base,
+        validate=lambda s: validated.append(s.bambulab_host), client_factory=_Client,
+        discovery=_Discovery(),
+    )
+    fleet.start()
+    try:
+        _running(fleet)
+        assert validated == ["192.168.1.50"]
+        assert fleet.configs()[0].host == "auto"
+    finally:
+        fleet.stop()
+
+
+def test_printers_status_shows_the_address_an_auto_printer_uses() -> None:
+    store = PrinterStore()
+    store.save([replace(A, host="auto"), B, C1])
+    fleet = PrinterFleet(
+        store, settings_factory=_base, validate=lambda s: None, client_factory=_Client,
+        discovery=_Discovery(),
+    )
+    fleet.start()
+    try:
+        _running(fleet)
+        rows = {row["name"]: row for row in fleet.printers_status()}
+        assert (rows["Alpha"]["host_mode"], rows["Alpha"]["address"]) == ("auto", "192.168.1.50")
+        assert (rows["Beta"]["host_mode"], rows["Beta"]["address"]) == ("fixed", "")
+        assert (rows["Cloud One"]["host_mode"], rows["Cloud One"]["address"]) == ("", "")
+    finally:
+        fleet.stop()
+
+
+def test_printers_status_shows_a_changed_certificate() -> None:
+    from bambulab_metrics_exporter.certificates import CertificateFacts
+
+    store = PrinterStore()
+    store.save([replace(A, host="auto"), B])
+    fleet = PrinterFleet(store, settings_factory=_base, validate=lambda s: None,
+                         client_factory=_Client, discovery=_Discovery())
+    alpha = fleet._runtimes[A.printer_id]
+    alpha.certificate = lambda: CertificateFacts("changed", "f" * 64, pinned="0" * 64)
+    trusted: list[str] = []
+    alpha.trust_certificate = lambda fp: trusted.append(fp) or True
+    rows = {row["name"]: row for row in fleet.printers_status()}
+    assert (rows["Alpha"]["certificate"], rows["Alpha"]["certificate_fingerprint"]) == (
+        "changed", "f" * 64
+    )
+    assert (rows["Beta"]["certificate"], rows["Beta"]["certificate_fingerprint"]) == ("", "")
+    alpha.certificate = lambda: CertificateFacts("pinned", "f" * 64)
+    assert fleet.printers_status()[0]["certificate_fingerprint"] == ""
+    assert fleet.trust_certificate(A.printer_id, "f" * 64) is True
+    assert fleet.trust_certificate("unknown", "f" * 64) is False
+    assert trusted == ["f" * 64]
+
+
+def test_fleet_runtimes_share_one_pin_store() -> None:
+    store = PrinterStore()
+    store.save([A, B])
+    fleet = PrinterFleet(store, settings_factory=_base, validate=lambda s: None,
+                         client_factory=_Client, discovery=_Discovery())
+    stores = {id(runtime._pins) for runtime in fleet._runtimes.values()}
+    assert stores == {id(fleet._pins)}

@@ -3,12 +3,14 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import replace
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
 from bambulab_metrics_exporter import diagnostics as diag
+from bambulab_metrics_exporter import ssdp
 from bambulab_metrics_exporter.api import build_app
 from bambulab_metrics_exporter.collector import PollingCollector
 from bambulab_metrics_exporter.config import Settings
@@ -41,6 +43,13 @@ def _settings(**kw: Any) -> Settings:
     )
     base.update(kw)
     return Settings(**base)
+
+
+def test_report_settings_say_whether_the_host_is_auto() -> None:
+    auto = build_report([_item(None, bambulab_host="auto")])["printers"][0]
+    fixed = build_report([_item(None)])["printers"][0]
+    assert auto["settings"]["host_auto"] is True
+    assert fixed["settings"]["host_auto"] is False
 
 
 def _raw() -> dict[str, Any]:
@@ -206,6 +215,18 @@ def test_detect_model_without_printer_data(serial: str, hint: str, model: str | 
 
 
 # -- log buffer ---------------------------------------------------------------------
+
+
+def test_auto_host_is_not_scrubbed_from_text(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("BAMBULAB_HOST", "auto")
+    diag.install_log_handler()
+    logging.getLogger("bambulab_metrics_exporter.test").warning("Waiting for auto log line")
+    item = replace(_item(None, bambulab_host="auto"), message="Waiting for auto discovery")
+    report = build_report([item])
+    assert report["printers"][0]["message"] == "Waiting for auto discovery"
+    assert any("Waiting for auto log line" in line for line in report["logs"])
+    fixed = build_report([_item(None)])["printers"][0]["message"]
+    assert HOST not in fixed and "[redacted]" in fixed
 
 
 def test_recent_log_handler_keeps_the_last_lines_and_exception_names() -> None:
@@ -519,3 +540,178 @@ def test_pydantic_input_values_and_env_secrets_are_removed(monkeypatch: pytest.M
     )
     message = build_report([item])["printers"][0]["message"]
     assert "fake-typo-secret" not in message and "fake-env-code-31" not in message
+
+
+# -- LAN announcements (SSDP) ----------------------------------------------------------
+
+NEIGHBOR = "03W00FAKE000009"
+
+
+def _announcement(serial: str, at: float, source: str = "192.168.1.50") -> ssdp.Packet:
+    return ssdp.Packet(at, source, "NOTIFY * HTTP/1.1", (
+        ("HOST", "239.255.255.250:1990"), ("Server", "UPnP/1.0"), ("Location", source),
+        ("NT", "urn:bambulab-com:device:3dprinter:1"), ("USN", serial),
+        ("DevModel.bbl", "C12"), ("DevName.bbl", NAME), ("DevVersion.bbl", "01.08.00.00"),
+        ("DevSignal.bbl", "-52"), ("DevSecret.bbl", "fake-mystery-value"),
+    ))
+
+
+def _capture(*packets: ssdp.Packet) -> ssdp.Capture:
+    return ssdp.Capture("received", 8.0, 5.0, packets, 1)
+
+
+def test_report_ssdp_section_is_sanitized() -> None:
+    capture = _capture(_announcement(SERIAL, 1.0), _announcement(SERIAL, 6.0),
+                       _announcement(NEIGHBOR, 2.0, source="192.168.1.77"))
+    section = build_report([_item(None)], now=0.0, announcements=capture)["ssdp"]
+    text = json.dumps(section)
+    for value in (SERIAL, NEIGHBOR, NAME, "192.168.1.50", "192.168.1.77", "fake-mystery-value"):
+        assert value not in text
+    assert section["status"] == "received" and section["port"] == 2021
+    assert section["bambu_packets"] == 3 and section["other_packets"] == 1
+    assert section["error"] is None
+    mine, neighbor = section["devices"]
+    assert mine["printer_index"] == 1 and mine["packets"] == 2
+    assert mine["interval_seconds"] == 5.0 and mine["source_matches_location"] is True
+    assert mine["start_line"] == "NOTIFY * HTTP/1.1"
+    headers = mine["headers"]
+    assert headers["USN"].startswith("01P") and headers["Location"] == "192.0.2.1"
+    assert headers["HOST"] == "239.255.255.250:1990"
+    assert headers["DevModel.bbl"] == "C12" and headers["DevVersion.bbl"] == "01.08.00.00"
+    assert headers["DevName.bbl"] == "[redacted]" and headers["DevSecret.bbl"] == "[redacted]"
+    assert neighbor["printer_index"] is None and neighbor["interval_seconds"] is None
+    assert neighbor["headers"]["USN"].startswith("03W")
+
+
+def test_report_ssdp_odd_packets() -> None:
+    odd = ssdp.Packet(1.0, "192.168.1.50", f"HELLO {SERIAL}", (
+        ("HOST", "192.168.1.1:2021"), ("Location", "http://192.168.1.60/desc.xml"),
+        ("DevModel.bbl", f"x {SERIAL}"),
+    ))
+    section = build_report([_item(None)], now=0.0, announcements=_capture(odd))["ssdp"]
+    device = section["devices"][0]
+    assert device["start_line"] == "[redacted]"
+    assert device["headers"]["HOST"] == "[redacted]"
+    assert device["source_matches_location"] is False
+    assert device["printer_index"] is None  # no USN
+    assert SERIAL not in json.dumps(section)
+
+
+def test_report_ssdp_scrubs_usn_and_header_names() -> None:
+    dirty = ssdp.Packet(1.0, "192.168.1.50", "NOTIFY * HTTP/1.1", (
+        ("USN", "uuid:10.0.0.5 me@home.lan aa:bb:cc:dd:ee:ff"), ("01PNEIGHBOR12345", "x"),
+    ))
+    clean = ssdp.Packet(2.0, "192.168.1.51", "NOTIFY * HTTP/1.1", (("USN", f"uuid:{SERIAL}"),))
+    section = build_report(
+        [_item(None)], now=0.0, announcements=_capture(dirty, clean)
+    )["ssdp"]
+    text = json.dumps(section)
+    for raw in ("10.0.0.5", "me@home.lan", "aa:bb:cc:dd:ee:ff", "01PNEIGHBOR12345"):
+        assert raw not in text
+    assert any(k.startswith("01P") for k in section["devices"][0]["headers"])
+    assert section["devices"][1]["printer_index"] == 1
+
+
+@pytest.mark.parametrize(("capture", "status", "error"), [
+    (ssdp.Capture("none", 8.0, 8.0, (), 0), "none", None),
+    (ssdp.Capture("unavailable", 8.0, 0.0, (), 0, "EADDRINUSE"), "unavailable", "EADDRINUSE"),
+    (ssdp.Capture("busy", 8.0, 0.0, (), 0), "busy", None),
+])
+def test_report_ssdp_without_packets(capture: ssdp.Capture, status: str,
+                                     error: str | None) -> None:
+    section = build_report([], now=0.0, announcements=capture)["ssdp"]
+    assert section["status"] == status and section["error"] == error
+    assert section["devices"] == []
+
+
+def test_report_without_a_capture_has_no_ssdp_section() -> None:
+    assert build_report([], now=0.0)["ssdp"] is None
+
+
+def test_report_ssdp_device_list_is_bounded() -> None:
+    packets = [_announcement(f"01PFAKE{i:08d}", float(i)) for i in range(40)]
+    section = build_report([], now=0.0, announcements=_capture(*packets))["ssdp"]
+    assert len(section["devices"]) == 32
+    json.dumps(section, allow_nan=False)
+
+
+def test_report_ssdp_fakes_unmonitored_serials_in_kept_headers() -> None:
+    packet = ssdp.Packet(1.0, "192.168.1.77", "NOTIFY * HTTP/1.1", (
+        ("Server", f"UPnP/1.0 {NEIGHBOR}"), ("NT", "urn:bambulab-com:device:3dprinter:1"),
+        ("USN", f"uuid:{SERIAL}::urn:bambulab-com:device:3dprinter:1"),
+        ("DevModel.bbl", f"C12 {NEIGHBOR}"), ("DevVersion.bbl", "01.08.00.00"),
+    ))
+    section = build_report([_item(None)], now=0.0, announcements=_capture(packet))["ssdp"]
+    assert NEIGHBOR not in json.dumps(section) and SERIAL not in json.dumps(section)
+    headers = section["devices"][0]["headers"]
+    assert headers["Server"].startswith("UPnP/1.0 ")
+    assert headers["DevModel.bbl"].startswith("C12 ")
+    assert headers["NT"] == "urn:bambulab-com:device:3dprinter:1"
+    assert "3dprinter" in headers["USN"] and headers["USN"].startswith("uuid:01P")
+    assert headers["DevVersion.bbl"] == "01.08.00.00"
+
+
+def test_report_route_listens_for_announcements(monkeypatch: pytest.MonkeyPatch) -> None:
+    wanted: list[set[str]] = []
+
+    def fake_capture(serials: Any, **_: Any) -> ssdp.Capture:
+        wanted.append(set(serials))
+        return ssdp.Capture("received", 8.0, 5.0, (_announcement(SERIAL, 1.0),), 0)
+
+    monkeypatch.setattr(ssdp, "capture", fake_capture)
+    body = TestClient(build_app(runtime=_Runtime(_item(None)))).get("/diagnostics/report")
+    assert wanted == [{SERIAL}]
+    assert body.json()["ssdp"]["devices"][0]["printer_index"] == 1
+    assert SERIAL not in body.text and NAME not in body.text
+
+
+def test_report_route_still_answers_when_udp_is_blocked() -> None:
+    response = TestClient(build_app(runtime=_Runtime(_item(None)))).get("/diagnostics/report")
+    assert response.status_code == 200
+    assert response.json()["ssdp"]["status"] == "unavailable"
+    assert response.json()["ssdp"]["error"] == "EACCES"
+
+
+def test_diagnostics_page_shows_lan_announcements() -> None:
+    page = TestClient(build_app(runtime=_Runtime(_item(None)))).get("/diagnostics").text
+    for snippet in ("announcementLine(report.ssdp)", '"LAN announcements"',
+                    "up to 8 s for printer announcements", "renderAnnouncements(box)"):
+        assert snippet in page
+
+
+def test_report_has_no_certificate_without_a_check() -> None:
+    assert build_report([_item(None)])["printers"][0]["certificate"] is None
+
+
+def test_report_certificate_facts_are_sanitized() -> None:
+    from bambulab_metrics_exporter.certificates import CertificateFacts
+
+    facts = CertificateFacts(
+        result="changed", fingerprint="ab12cd34" + "0" * 56, subject_cn=SERIAL,
+        issuer=f"CN=Fake Device CA for {SERIAL},O=Fake Org", not_before="2026-01-01T00:00:00Z",
+        not_after="2036-01-01T00:00:00Z", pinned="ef56ab78" + "1" * 56,
+    )
+    item = replace(_item(None, bambulab_host="auto"), certificate=facts)
+    report = build_report([item])
+    cert = report["printers"][0]["certificate"]
+    assert cert == {
+        "result": "changed",
+        "subject_cn": "01PFIXTURE00000",
+        "cn_matches_serial": True,
+        "issuer": "CN=Fake Device CA for 01PFIXTURE00000,O=Fake Org",
+        "not_before": "2026-01-01T00:00:00Z",
+        "not_after": "2036-01-01T00:00:00Z",
+        "fingerprint_prefix": "ab12cd34",
+        "pinned_prefix": "ef56ab78",
+    }
+    text = json.dumps(report)
+    assert SERIAL not in text and facts.fingerprint not in text and facts.pinned not in text
+
+
+def test_report_certificate_with_another_common_name() -> None:
+    from bambulab_metrics_exporter.certificates import CertificateFacts
+
+    item = replace(_item(None), certificate=CertificateFacts("first_use", "c" * 64, "printer"))
+    cert = build_report([item])["printers"][0]["certificate"]
+    assert cert["cn_matches_serial"] is False and cert["subject_cn"] == "printer"
+    assert cert["pinned_prefix"] is None and cert["not_after"] is None

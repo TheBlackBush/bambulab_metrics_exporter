@@ -21,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from starlette.concurrency import run_in_threadpool
 
-from bambulab_metrics_exporter import __version__
+from bambulab_metrics_exporter import __version__, lan_scan, ssdp
 from bambulab_metrics_exporter.auth_actions import (
     ActionResult,
     AttemptLimiter,
@@ -38,7 +38,8 @@ from bambulab_metrics_exporter.auth_actions import (
     remove_printer,
     select_cloud_printers,
 )
-from bambulab_metrics_exporter.config import Settings
+from bambulab_metrics_exporter.certificates import CHANGED, pretty_fingerprint
+from bambulab_metrics_exporter.config import HOST_AUTO, Settings, is_auto_host
 from bambulab_metrics_exporter.diagnostics import PrinterDiagnostics, build_report
 from bambulab_metrics_exporter.metrics import ExporterMetrics
 from bambulab_metrics_exporter.overrides import (
@@ -205,6 +206,8 @@ class _Fleet(_Backend, Protocol):
 
     def reset_to_env(self) -> None: ...
 
+    def trust_certificate(self, printer_id: str, fingerprint: str) -> bool: ...
+
 
 def _check_health(metrics: ExporterMetrics) -> tuple[bool, str]:
     """Return (is_healthy, status_string) based on exporter health checks.
@@ -342,12 +345,95 @@ def _unsupported_html(printer: dict[str, str]) -> str:
     )
 
 
+def _where(printer: dict[str, str]) -> str:
+    """Transport, plus for an `auto` LAN printer the address it found (or that it has not)."""
+    if printer["transport"] != TRANSPORT_LOCAL:
+        return "Cloud"
+    if printer.get("host_mode") != "auto":
+        return "LAN"
+    address = printer.get("address", "")
+    return f"LAN, auto (found at {address})" if address else "LAN, auto (not found yet)"
+
+
+_SCAN_MESSAGES = {
+    "received": "Pick your printer, then enter its LAN access code.",
+    "ambiguous": (
+        "The printer was heard from more than one address, so it cannot be picked. "
+        "Enter its IP address below."
+    ),
+    "none": (
+        "No printer announced itself in {seconds} seconds. Printers announce on UDP port "
+        "2021; in Docker the exporter hears them only with network_mode: host. Check that "
+        "the printer is on and on this network, or enter its IP address below."
+    ),
+    "unavailable": (
+        "Could not listen on UDP port 2021 ({error}). Another program may hold the port. "
+        "Enter the printer's IP address below."
+    ),
+    lan_scan.BUSY: (
+        "Another scan or a diagnostic report is listening right now. "
+        "Try again in a few seconds."
+    ),
+    lan_scan.COOLDOWN: "A scan just finished. Try again in {wait} seconds.",
+}
+
+
+def _scan_body(result: lan_scan.ScanResult, monitored: set[str]) -> dict[str, object]:
+    """JSON for the page script: fixed text, masked serials, checked IPv4 addresses, known
+    model names and pick ids. The script shows it as text only."""
+    status = result.status
+    if status == "received" and not result.printers:
+        status = "none"  # Bambu packets arrived, but none named a usable printer.
+    key = status
+    if status == "received" and not any(pick_id for pick_id, _ in result.printers):
+        key = "ambiguous"  # Heard, but none can be picked: the status stays "received".
+    message = _SCAN_MESSAGES.get(key, _SCAN_MESSAGES["none"]).format(
+        seconds=f"{ssdp.LISTEN_SECONDS:g}",
+        error=result.error or "OSError",
+        wait=result.wait_seconds,
+    )
+    return {
+        "ok": status == "received",
+        "status": status,
+        "message": message,
+        "wait_seconds": result.wait_seconds,
+        "printers": [
+            {
+                "pick": pick_id,
+                "model": found.model,
+                "serial": mask_serial(found.serial),
+                "address": found.address,
+                "monitored": found.serial in monitored,
+            }
+            for pick_id, found in result.printers
+        ],
+    }
+
+
+def _certificate_html(printer: dict[str, str]) -> str:
+    """For an `auto` printer whose certificate changed: the new fingerprint, to compare with
+    the printer, and a button that trusts it. It posts with the row's printer id."""
+    fingerprint = printer.get("certificate_fingerprint", "")
+    if printer.get("certificate") != CHANGED or not fingerprint:
+        return ""
+    return (
+        '<span class="cert-changed"><span class="pill bad">Certificate changed</span>'
+        '<span class="hint">New SHA-256 fingerprint: '
+        f"<code>{_page_text(pretty_fingerprint(fingerprint))}</code>. Trust it only if you "
+        "updated the printer's firmware or replaced the printer.</span>"
+        '<button type="submit" class="tonal small" '
+        'formaction="/auth/printers/trust-certificate" '
+        f'name="fingerprint" value="{_page_text(fingerprint)}">Trust new certificate</button>'
+        "</span>"
+    )
+
+
 def _printer_rows(printers: list[dict[str, str]]) -> str:
     """Monitored printers; only masked serials reach this unauthenticated page."""
     rows = []
     for printer in printers:
         label, css = _STATE_LABELS.get(printer["state"], (printer["state"], "wait"))
-        where = "LAN" if printer["transport"] == TRANSPORT_LOCAL else "Cloud"
+        where = _page_text(_where(printer))
         message = (
             f'<span class="hint printer-message">{_page_text(printer["message"])}</span>'
             if printer["message"]
@@ -358,7 +444,7 @@ def _printer_rows(printers: list[dict[str, str]]) -> str:
             f'<input type="hidden" name="printer_id" value="{_page_text(printer["id"])}">'
             f'<span class="step">{_page_text(printer["name"])} '
             f'<span class="hint">{_page_text(printer["serial"])}, {where}</span>{message}'
-            f"{_unsupported_html(printer)}</span>"
+            f"{_unsupported_html(printer)}{_certificate_html(printer)}</span>"
             f'<span class="pill {css}">{_page_text(label)}</span>'
             '<button type="submit" class="danger small">Remove</button></form>'
         )
@@ -545,6 +631,7 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
     devices = CloudDeviceList()
     code_sender = CodeSender()
     login_limiter = AttemptLimiter(max_attempts=5, window_seconds=60.0)
+    scanner = lan_scan.PrinterScanner()
     # Last action result per visitor (cookie), shown once. Kept server-side so the page
     # never renders text taken from the URL, and one visitor never sees another's result.
     flashes: OrderedDict[str, _Flash] = OrderedDict()
@@ -576,6 +663,11 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
         current = runtime.settings
         if current.bambulab_transport == "cloud_mqtt":
             where = "Bambu Cloud"
+        elif is_auto_host(current.bambulab_host):
+            lan_address = getattr(runtime, "lan_address", None)
+            address = lan_address() if lan_address is not None else ""
+            found = f"found at {address}"
+            where = f"Local, auto ({found})" if address else "Local, auto (not found yet)"
         else:
             where = f"Local, {current.bambulab_host or 'no host set'}"
         printer = mask_serial(current.bambulab_serial) or "no printer set"
@@ -641,6 +733,7 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
         page = (
             _AUTH_TEMPLATE
             .replace("{{VERSION}}", __version__)
+            .replace("{{SCAN_SECONDS}}", f"{ssdp.LISTEN_SECONDS:g}")
             .replace("{{STATUS_TITLE}}", title)
             .replace("{{STATUS_PILL}}", pill)
             .replace("{{CURRENT}}", current_html)
@@ -774,6 +867,7 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
             .replace("{{VERSION}}", __version__)
             .replace("{{ISSUE_URL}}", _DIAGNOSTICS_ISSUE)
             .replace("{{WIKI_URL}}", _DIAGNOSTICS_WIKI)
+            .replace("{{SSDP_SECONDS}}", f"{ssdp.LISTEN_SECONDS:g}")
         )
         return HTMLResponse(content=page, headers={"Cache-Control": "no-store"})
 
@@ -784,7 +878,10 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
         inputs: Callable[[], list[PrinterDiagnostics]] | None = getattr(
             runtime, "diagnostics_inputs", None
         )
-        report = build_report(inputs() if inputs is not None else [])
+        items = inputs() if inputs is not None else []
+        # Listens on UDP for printer announcements (receive only, bounded wait).
+        announcements = ssdp.capture(str(item.settings.bambulab_serial or "") for item in items)
+        report = build_report(items, announcements=announcements)
         body = json.dumps(report, indent=1, allow_nan=False) + "\n"
         headers = {"Cache-Control": "no-store"}
         if download:
@@ -797,10 +894,38 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
     def saved(persisted: bool, message: str) -> ActionResult:
         return ActionResult(True, message, persist_note(persisted), applied=True)
 
+    def local_target(f: dict[str, str]) -> tuple[str, str]:
+        """(host, serial) from the LAN form. A pick from the scan supplies the serial, which
+        never went to the page; an empty host then means auto."""
+        host, serial = f.get("host", ""), f.get("serial", "")
+        pick_id = f.get("pick", "").strip()
+        if not pick_id:
+            return host, serial
+        found = scanner.pick(pick_id)
+        if found is None:
+            raise AuthInputError(
+                "That scan result has expired. Find printers again, or type the serial number."
+            )
+        return host.strip() or HOST_AUTO, found.serial
+
+    @app.post("/auth/scan")
+    def auth_scan(request: Request) -> Response:
+        """Listen for printer announcements (receive only, up to ssdp.LISTEN_SECONDS) for the
+        LAN form. Masked serials and pick ids only; the page script reads the JSON."""
+        guard(request)
+        if not _same_origin(request):
+            raise HTTPException(status_code=403, detail="cross_origin_form_post")
+        result = scanner.scan()
+        if fleet:
+            monitored = {config.serial.upper() for config in fleet.configs()}
+        else:
+            monitored = {str(runtime.settings.bambulab_serial or "").upper()} - {""}
+        return JSONResponse(_scan_body(result, monitored), headers={"Cache-Control": "no-store"})
+
     @app.post("/auth/local")
     async def auth_local(request: Request) -> Response:
         def connect(f: dict[str, str]) -> ActionResult:
-            host, serial = f.get("host", ""), f.get("serial", "")
+            host, serial = local_target(f)
             code, port = f.get("access_code", ""), f.get("port", "")
             if fleet and fleet.saved:
                 # A saved list decides what runs, so the env printer would change nothing.
@@ -869,13 +994,26 @@ def _add_auth_routes(app: FastAPI, runtime: _Backend) -> None:
     @app.post("/auth/printers/add-local")
     async def auth_printers_add_local(request: Request) -> Response:
         def add(f: dict[str, str]) -> ActionResult:
+            host, serial = local_target(f)
             configs = add_local_printer(
-                fleet.configs(), f.get("host", ""), f.get("serial", ""),
+                fleet.configs(), host, serial,
                 f.get("access_code", ""), f.get("port", ""), f.get("name", ""),
             )
             return saved(fleet.update(configs), "LAN printer saved.")
 
         return await handle(request, add, reconnect=None)
+
+    @app.post("/auth/printers/trust-certificate")
+    async def auth_printers_trust_certificate(request: Request) -> Response:
+        def trust(f: dict[str, str]) -> ActionResult:
+            if not fleet.trust_certificate(f.get("printer_id", ""), f.get("fingerprint", "")):
+                raise AuthInputError(
+                    "The printer no longer shows that certificate. Reload the page and check "
+                    "the fingerprint again."
+                )
+            return ActionResult(True, "New certificate trusted; reconnecting.", applied=True)
+
+        return await handle(request, trust, reconnect=None)
 
     @app.post("/auth/printers/remove")
     async def auth_printers_remove(request: Request) -> Response:

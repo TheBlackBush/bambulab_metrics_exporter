@@ -16,6 +16,7 @@
 [![GHCR Pulls](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fghcr-badge.elias.eu.org%2Fapi%2FTheBlackBush%2Fbambulab_metrics_exporter%2Fbambulab_metrics_exporter&query=downloadCount&label=ghcr%20pulls&style=for-the-badge&logo=docker&logoColor=white)](https://github.com/TheBlackBush/bambulab_metrics_exporter/pkgs/container/bambulab_metrics_exporter)
 [![Docker Hub Pulls](https://img.shields.io/docker/pulls/blackbush/bambulab_metrics_exporter?style=for-the-badge&logo=docker&logoColor=white&label=docker%20hub%20pulls)](https://hub.docker.com/r/blackbush/bambulab_metrics_exporter)
 [![Grafana Dashboard Downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgrafana.com%2Fapi%2Fdashboards%2F25033&query=%24.downloads&label=grafana%20downloads&style=for-the-badge&logo=grafana&logoColor=white)](https://grafana.com/grafana/dashboards/25033-bambulab-metrics)
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/TheBlackBush?style=for-the-badge&logo=githubsponsors&logoColor=white&label=sponsor&color=EA4AAA)](https://github.com/sponsors/TheBlackBush)
 [![Ko-fi](https://img.shields.io/badge/support_me_on_ko--fi-F16061?style=for-the-badge&logo=kofi&logoColor=f5f5f5)](https://ko-fi.com/M4M11W3R7J)
 
 > A Prometheus exporter for **Bambu Lab** 3D printers.
@@ -114,6 +115,10 @@ hotend rack on the H2C and H3C.
 ### Built for homelabs
 - **Easy setup:** connect printers in the browser; settings are stored encrypted and survive
   restarts.
+- **Finds printers on the LAN:** **Find printers on my network** on the connection page lists
+  the printers announcing on your network, and the host `auto` follows a printer when its IP
+  changes, with its certificate checked before the access code is sent (Docker needs
+  `network_mode: host`).
 - **Model aware:** detects the model and skips hardware it does not have.
 - **Diagnostics:** a built-in page builds a sanitized report and opens a prefilled GitHub issue.
 - **Read-only:** never sends control commands to the printer.

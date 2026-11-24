@@ -659,3 +659,25 @@ def test_local_missing_values_point_to_the_auth_page() -> None:
     with pytest.raises(RuntimeError) as failed:
         _validate_local(settings)
     assert "/auth" in str(failed.value)
+
+
+def test_validate_local_refuses_an_unresolved_auto_host() -> None:
+    settings = Settings(
+        bambulab_transport="local_mqtt", bambulab_host="auto",
+        bambulab_serial="FAKE00TEST000001", bambulab_access_code="fake-access-code",
+    )
+    with pytest.raises(RuntimeError, match="not been found on the LAN"):
+        _validate_local(settings)
+
+
+def test_probe_passes_a_certificate_rejection_on(monkeypatch: pytest.MonkeyPatch) -> None:
+    from bambulab_metrics_exporter.certificates import CertificateFacts, CertificateRejected
+
+    class _Rejected(_ClientOK):
+        def connect(self) -> None:
+            raise CertificateRejected(CertificateFacts("changed", "a" * 64, pinned="b" * 64))
+
+    monkeypatch.setattr("bambulab_metrics_exporter.startup.build_client", lambda s: _Rejected())
+    settings = Settings(bambulab_host="192.0.2.25", bambulab_serial="S1", bambulab_access_code="A1")
+    with pytest.raises(CertificateRejected, match="Certificate changed"):
+        _validate_local(settings)

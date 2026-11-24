@@ -1,7 +1,17 @@
 import os
+from typing import Any
 
-from pydantic import Field, field_validator
+from pydantic import Field, PrivateAttr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from bambulab_metrics_exporter.certificates import CertificateCheck
+
+HOST_AUTO = "auto"
+
+
+def is_auto_host(host: str) -> bool:
+    """`BAMBULAB_HOST=auto`: find the printer from its LAN announcements (opt-in)."""
+    return host.strip().lower() == HOST_AUTO
 
 
 class Settings(BaseSettings):
@@ -43,6 +53,28 @@ class Settings(BaseSettings):
     bambulab_printer_name: str = ""
     bambulab_printer_model: str = ""
     # Site and location removed
+
+    # Set only by the runtime, for a LAN printer found with `auto`; never read from the
+    # environment or saved. The client checks the printer certificate with it inside the TLS
+    # handshake, before CONNECT carries the access code (see certificates.py).
+    _certificate_check: CertificateCheck | None = PrivateAttr(default=None)
+
+    @property
+    def certificate_check(self) -> CertificateCheck | None:
+        return self._certificate_check
+
+    def with_certificate_check(
+        self, check: CertificateCheck, update: dict[str, Any]
+    ) -> "Settings":
+        """A copy to connect with: `update` applied, carrying `check`."""
+        copy = self.model_copy(update=update)
+        copy._certificate_check = check
+        return copy
+
+    @field_validator("bambulab_host")
+    @classmethod
+    def normalize_auto_host(cls, value: str) -> str:
+        return HOST_AUTO if is_auto_host(value) else value
 
     @field_validator("polling_interval_seconds")
     @classmethod

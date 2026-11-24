@@ -5,6 +5,7 @@ import os
 import threading
 from pathlib import Path
 
+from bambulab_metrics_exporter.certificates import CertificateRejected
 from bambulab_metrics_exporter.client.factory import build_client
 from bambulab_metrics_exporter.cloud_auth import (
     CloudAuthError,
@@ -14,7 +15,7 @@ from bambulab_metrics_exporter.cloud_auth import (
     refresh_access_token,
     send_code,
 )
-from bambulab_metrics_exporter.config import Settings
+from bambulab_metrics_exporter.config import Settings, is_auto_host
 from bambulab_metrics_exporter.credentials_store import save_encrypted_credentials
 from bambulab_metrics_exporter.env_sync import sync_env_file
 from bambulab_metrics_exporter.overrides import overridden_keys
@@ -64,6 +65,9 @@ def _probe(settings: Settings) -> str:
         if snapshot.connected and snapshot.raw:
             return PROBE_OK
         return PROBE_REJECTED if getattr(client, "auth_rejected", False) else PROBE_UNREACHABLE
+    except CertificateRejected:
+        # The handshake stopped before CONNECT; its message is the reason to show.
+        raise
     except Exception:
         logger.exception("Connectivity probe failed")
         return PROBE_REJECTED if getattr(client, "auth_rejected", False) else PROBE_UNREACHABLE
@@ -86,6 +90,8 @@ def _outage(stage: str) -> RuntimeError:
 
 
 def _validate_local(settings: Settings) -> None:
+    if is_auto_host(settings.bambulab_host):
+        raise RuntimeError("The printer address has not been found on the LAN yet.")
     missing = [
         key
         for key, val in {

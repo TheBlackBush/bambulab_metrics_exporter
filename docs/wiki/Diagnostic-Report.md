@@ -25,7 +25,10 @@ firmware, metrics without a value) and the full report. Then:
 |---|---|
 | **Copy** | Copies the report as a code block, ready to paste into an issue |
 | **Download** | Saves it as `bambulab-exporter-diagnostics-<date>-<time>.json` |
-| **Create GitHub issue** | Opens the GitHub issue form with a title that tells reports apart (for example `[H2D] Connection error: firmware 01.04.20.00, LAN, exporter 0.4.0` or `[Unsupported printer ZZZ] Model not recognized: Cloud, exporter 0.4.0`), a summary table (model, state, error message, firmware, connection) and the exporter version, model, firmware and connection mode filled in. A small report (for example from a printer that is not connected) is filled into the **Diagnostic report** box too. A full report is too long for a link, so it is copied and downloaded instead: paste it into the box (Ctrl+V) or drag the file there |
+| **Create GitHub issue** | Opens the GitHub issue form with a title that tells reports apart (for example `[H2D] Connection error: firmware 01.04.20.00, LAN, exporter 0.5.0` or `[Unsupported printer ZZZ] Model not recognized: Cloud, exporter 0.5.0`), a summary table (model, state, error message, firmware, connection) and the exporter version, model, firmware and connection mode filled in. A small report (for example from a printer that is not connected) is filled into the **Diagnostic report** box too. A full report is too long for a link, so it is copied and downloaded instead: paste it into the box (Ctrl+V) or drag the file there |
+
+Running takes up to 8 seconds: the exporter listens for printer announcements on the LAN (see
+[LAN announcements](#lan-announcements)).
 
 One report covers every printer the exporter monitors. Copy works on plain `http://` addresses
 too. If the report is too large to paste (several printers, over GitHub's comment size) or the
@@ -63,6 +66,8 @@ JSON. The exporter removes or replaces:
 | Rejected settings values in error messages | Replaced with `[redacted]` |
 | Spool tag ids (RFID), chip ids | Replaced with zeros |
 | Email addresses anywhere in text | Replaced with `operator@example.invalid` |
+| LAN announcements (`ssdp`) | Only Bambu Lab packets are kept. Serials keep their first 3 characters, the advertised address becomes `192.0.2.1`, the printer name and any field not known to be safe become `[redacted]` |
+| Printer certificate (`certificate`) | Serials in the common name and issuer keep their first 3 characters; fingerprints keep only their first 8 hex digits |
 
 Everything else stays, because it is what makes the report useful: temperatures, fan speeds, AMS
 and spool details (type, color, remaining), HMS error codes, firmware versions, module list, and
@@ -99,6 +104,7 @@ attempts. That is usually enough to find a connection problem, so send it the sa
 |---|---|
 | `exporter` | Exporter version, Python version, platform, and whether it runs in Docker |
 | `printers[]` | One entry per printer (see below) |
+| `ssdp` | Printer announcements heard on the LAN while the report ran (see below) |
 | `logs` | The last 200 exporter log lines at the configured `LOG_LEVEL` (info and above by default; long lines cut at 1000 characters), with the same values removed |
 
 Each printer entry:
@@ -109,14 +115,36 @@ Each printer entry:
 | `transport` | `local_mqtt` or `cloud_mqtt` |
 | `state`, `message` | Connection state, as on the status page |
 | `ready`, `connected`, `last_success_age_seconds` | Whether data arrived, and how long ago the last update was |
-| `settings` | Polling interval, request timeout, `BAMBULAB_REQUEST_PUSHALL` and the configured model hint (no credentials) |
+| `settings` | Polling interval, request timeout, `BAMBULAB_REQUEST_PUSHALL`, the configured model hint and `host_auto` (true when the host is `auto`; no address or credentials) |
 | `model`, `model_source` | The detected model (`null` when not recognized), and where it came from: `printer_data`, or `serial_or_setting` (serial prefix or configured model, when no data has arrived) |
 | `capabilities` | The hardware features the exporter assumes for the model (only with printer data) |
+| `certificate` | For a printer with the host `auto`: the latest certificate check (`result`: `ca`, `pinned`, `first_use`, `changed`, `ca_failed`, `cn_mismatch` or `unreadable`), the certificate's common name and issuer, whether the common name is the serial, the validity dates, and the first 8 hex digits of its SHA-256 fingerprint and of the remembered one. `null` for other printers or before the first connection |
 | `empty_metrics` | Metrics with no value for this printer: not reported by the printer, or not readable yet. `null` when no data has arrived at all |
 | `modules` | Firmware modules (`get_version`): names, product names, hardware and software versions |
 | `payload` | The printer's latest state as the exporter holds it, sanitized |
 
-The report is read-only: building it sends nothing to the printer or to Bambu Cloud.
+The report is read-only: building it sends nothing to the printer or to Bambu Cloud. It only
+listens on the LAN for up to 8 seconds (the system joins the SSDP multicast group, as any
+listener does).
+
+## LAN announcements
+
+Bambu Lab printers announce themselves on the local network (SSDP, UDP port 2021). The `ssdp`
+section shows whether those announcements reach the exporter, which `BAMBULAB_HOST=auto` needs
+to find the printer (see [Installation](Installation#automatic-address-auto)). The report itself
+does not change how the exporter connects.
+
+| Field | Content |
+|---|---|
+| `status` | `received`, `none` (nothing heard), `unavailable` (the port could not be opened, see `error`) or `busy` (another report was listening) |
+| `listen_seconds`, `waited_seconds` | The listening limit, and how long it listened. It stops early once every configured printer was heard twice |
+| `bambu_packets`, `other_packets` | Bambu Lab packets heard, and other packets on the port (counted, not kept) |
+| `devices[]` | One entry per announcing printer: `printer_index` (the matching entry in `printers[]`, or `null` for a printer this exporter does not monitor), number of `packets`, `interval_seconds` between them, `source_matches_location`, and the sanitized `headers` of the latest packet |
+
+`none` is expected when the exporter runs in Docker on the default bridge network: announcements
+do not reach the container there (see [Docker networking](Installation#docker-networking)). LAN
+connections with a fixed IP or host name, and cloud connections, work the same either way; only
+`BAMBULAB_HOST=auto` needs the announcements.
 
 ## For fixtures
 

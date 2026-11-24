@@ -91,7 +91,10 @@ Important boundaries:
   lifecycle (states `starting`, `connecting`, `running`, `setup_required`, `auth_required`,
   `error`). It validates, starts the collector, retries every 60 s, waits for credentials,
   and rebuilds settings/metrics/client on `reconfigure()`. The process never exits on
-  connection problems.
+  connection problems. `lan_address()` is the address an `auto` printer uses now;
+  `PrinterFleet.printers_status()` adds `host_mode` and `address`.
+  `certificate()` and `trust_certificate()`; `printers_status()` adds `certificate` and
+  `certificate_fingerprint`.
 - `fleet.py` and `printers.py`: `PrinterFleet` (runtimes per printer, merged `/metrics` collector,
   combined status and readiness, `update()`, `reset_to_env()`) and `PrinterConfig`/`PrinterStore`
   (`printers.enc.json`, `mask_serial`, `MAX_PRINTERS`). Add per-printer behavior here, not in the
@@ -100,6 +103,9 @@ Important boundaries:
   and chamber fans, extruders, hotend rack, laser/cutter). Gate model-specific metrics with
   `PrinterSnapshot.capabilities` instead of checking model names; unknown models are
   permissive. Keep it in sync with the wiki "Supported models" table.
+- `certificates.py`: certificate check for `auto` LAN printers (`CertificateCheck`, `PinStore`,
+  `CheckedContext`); tests use `tests/unit/certgen.py` (generated CA and leaves, loopback TLS
+  server).
 - `auth_actions.py` and `overrides.py`: backend for the `/auth` page. Overrides are stored
   encrypted (`connection-overrides.enc.json`) and take precedence over env vars;
   `overrides.set_env` records original values so reset can restore them.
@@ -125,7 +131,14 @@ Important boundaries:
   shutdown tests.
 - `src/bambulab_metrics_exporter/api.py`: FastAPI landing page and `/metrics`, `/health`,
   `/ready`, plus `/auth` (HTML), `/auth/status` (JSON) and form posts `/auth/local`,
-  `/auth/cloud/send-code`, `/auth/cloud/login`, `/auth/reset` when built with a runtime.
+  `/auth/cloud/send-code`, `/auth/cloud/login`, `/auth/reset`,
+  `/auth/scan` when built with a runtime.
+  `POST /auth/scan` (JSON only, Host guard and same-origin check) runs `lan_scan.PrinterScanner`:
+  one `ssdp.capture` window, one scan at a time, 10 s between scans; it returns masked serials,
+  addresses, known model names and pick ids (5 minutes). The LAN form posts `pick` instead of the
+  serial; the server fills in the serial, and `auto` for an empty host.
+  `POST /auth/printers/trust-certificate` (fleet only) pins the changed certificate a printer row
+  shows (`printer_id`, `fingerprint`), only if it is the one the latest check rejected.
   `/health` is process liveness; `/ready` becomes ready after a nonempty payload (sticky).
   `/auth` is unauthenticated by maintainer decision; keep its protections: escaped output, no
   stored secrets rendered, same-origin check, Host allowlist (`_host_allowed`, DNS rebinding,
@@ -150,6 +163,15 @@ Important boundaries:
   `diagnostics.detect_model` names the model without printer data (serial prefix or configured
   model); `ExporterRuntime.detected_model()` feeds the `model` field of
   `PrinterFleet.printers_status()`, and an empty value shows **Unsupported printer** on `/auth`.
+  The report route also runs `ssdp.capture` (`ssdp.py`): it listens up to 8 s on UDP 2021 for
+  printer announcements (receive only, one capture at a time) and `diagnostics` sanitizes the
+  packets into the `ssdp` section; header values outside an allowlist are redacted.
+- `src/bambulab_metrics_exporter/discovery.py`: shared, lazily started UDP 2021 listener for
+  `BAMBULAB_HOST=auto`; keeps fresh announcing addresses per watched serial, two addresses mean
+  a conflict (no connect). Consumed by `ExporterRuntime`; packets are never logged.
+- `src/bambulab_metrics_exporter/lan_scan.py`: the `/auth` printer scan. Turns a capture into
+  printers (serial from `USN`, trusted address via `ssdp.announced_address`, model only when
+  known); shares the capture lock with the diagnostic report (`busy`).
 - `src/bambulab_metrics_exporter/cloud_auth.py`: Bambu Cloud HTTP/OTP CLI, token refresh,
   device discovery, bounded HTTP retry/backoff, and credential output. Never expose
   response bodies, emails, tokens, codes, or device IDs carelessly.
@@ -259,10 +281,16 @@ configuration and reachable printer/cloud services and may update `.env`.
 - Local MQTT authenticates with `BAMBULAB_USERNAME` (default `bblp`) and the LAN access code.
   Cloud MQTT reuses the same implementation with the cloud host/port, username
   `u_<cloud-user-id>`, and access token as password.
-- Both transports use TLS but currently set `CERT_NONE` and insecure verification. This is
-  documented compatibility behavior and a security limitation, not proof that the channel
-  authenticates the broker. TLS is capped at 1.2 (`client/local_mqtt._tls_context`): P2S
-  firmware 01.02.00.00 never answers a TLS 1.3 ClientHello.
+- Both transports use TLS with OpenSSL verification off (`CERT_NONE`, insecure hostname) for fixed
+  hosts and the cloud: documented compatibility behavior and a security limitation, not proof that
+  the channel authenticates the broker. A LAN printer with the host `auto` is checked by
+  `certificates.py` inside the handshake: `CheckedContext` sets `sslsocket_class`, and paho's own
+  `do_handshake()` call runs the check before CONNECT, also on paho's reconnects. A packaged Bambu
+  CA (`certs/*.pem`, empty until captured from real printers) plus a common name equal to the
+  serial, else a SHA-256 pin per serial (`printer-certificates.json`, plain JSON, set on CONNACK
+  0). A failed check never falls back to an unchecked connection. The check rides on
+  `Settings.with_certificate_check()` (a private attribute, never from env). TLS is capped at 1.2
+  (`client/local_mqtt._tls_context`): P2S firmware 01.02.00.00 never answers a TLS 1.3 ClientHello.
 - The client subscribes at QoS 1 to `device/<serial>/report` after a successful connection.
   Paho's network loop owns callbacks and may handle underlying reconnects, but this code
   configures no explicit retry/backoff policy. `RECONNECT_INTERVAL_SECONDS` was removed
@@ -297,9 +325,10 @@ configuration and reachable printer/cloud services and may update `.env`.
   10 seconds; the collector stop event is set, its thread is joined for up to `REQUEST_TIMEOUT_SECONDS` + 2 s (at least 5 s),
   and MQTT disconnects.
 - Tests: `tests/conftest.py` restores `os.environ` and the override/legacy-login state after
-  every test, and blocks all outbound sockets and DNS: any test that would reach a printer,
-  broker or Bambu Cloud fails with "network access blocked in tests". Stub `startup._probe`
-  (not `_probe_connection`) in cloud validation tests.
+  every test, blocks all outbound sockets and DNS (any test that would reach a printer,
+  broker or Bambu Cloud fails with "network access blocked in tests"), and replaces
+  `ssdp._open_socket` so no test listens on UDP 2021. Stub `startup._probe` (not
+  `_probe_connection`) in cloud validation tests.
 
 # Development Environment
 
@@ -369,7 +398,7 @@ secrets.
 | `APP_NAME` | optional; `bambulab-metrics-exporter` | Internal application name string; currently little runtime use | no | `bambulab-metrics-exporter` |
 | `LOG_LEVEL` | optional; `INFO` | Python log level such as `DEBUG`, `INFO`, `WARNING`, `ERROR` | no | `INFO` |
 | `BAMBULAB_TRANSPORT` | optional; `local_mqtt` | Exactly `local_mqtt` or `cloud_mqtt` | no | `local_mqtt` |
-| `BAMBULAB_HOST` | local required; empty | LAN printer IPv4/IPv6 host or DNS name | operational | `192.0.2.25` |
+| `BAMBULAB_HOST` | local required; empty | LAN printer IPv4/IPv6 host or DNS name, or `auto` (opt-in LAN discovery by announcement, see `discovery.py`) | operational | `192.0.2.25` |
 | `BAMBULAB_PORT` | optional; `8883` | LAN MQTT TLS port integer | no | `8883` |
 | `BAMBULAB_SERIAL` | required; empty | Device ID used in MQTT topics; use a synthetic value in tests | operational | `FAKE00TEST000001` |
 | `BAMBULAB_ACCESS_CODE` | local required; empty | LAN MQTT password/access code | **secret** | `fake-access-code` |
@@ -784,7 +813,7 @@ Agents must not:
 
 Evidence at the time this manual was created:
 
-- Version `0.4.0`; Python 3.11+ package with FastAPI, Paho MQTT, Prometheus client,
+- Version `0.5.0`; Python 3.11+ package with FastAPI, Paho MQTT, Prometheus client,
   Pydantic settings, Uvicorn, cryptography/Fernet, and dotenv.
 - Local and cloud MQTT modes work through the same client architecture. Cloud supports OTP
   authentication, encrypted credential persistence, and refresh-token recovery. Model
@@ -804,7 +833,8 @@ Evidence at the time this manual was created:
 
 Important technical debt and high-risk areas:
 
-- MQTT certificate verification is disabled for both transports.
+- MQTT certificate verification is disabled for fixed hosts and the cloud (`auto` LAN printers are
+  checked).
 - MQTT has no explicit reconnect/backoff configuration. Cumulative state survives disconnect,
   readiness is sticky, and health is unconditional.
 - Malformed reports (bad UTF-8, invalid or non-object JSON) are skipped with a warning, and

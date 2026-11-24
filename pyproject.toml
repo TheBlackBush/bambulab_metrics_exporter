@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bambulab-metrics-exporter"
-version = "0.4.0"
+version = "0.5.0"
 description = "Prometheus exporter for Bambu Lab printers"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -23,7 +23,7 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.package-data]
-"bambulab_metrics_exporter" = ["templates/*.html", "static/*.png"]
+"bambulab_metrics_exporter" = ["templates/*.html", "static/*.png", "certs/*.pem"]
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}

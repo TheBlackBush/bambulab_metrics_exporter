@@ -4,6 +4,31 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-24
+
+### Added
+- `/auth` LAN form: **Find printers on my network** listens about 8 seconds for printer
+  announcements (UDP 2021, receive only) and lists the printers found (model, masked serial, IP
+  address, already monitored). Picking one fills in the form; only the LAN access code is typed.
+  The host is `auto` by default (**Keep finding it if the address changes**); turn that off to
+  keep the address found. The browser never gets a full serial, only a short-lived pick id. When
+  nothing is heard, the page says why (in Docker: `network_mode: host`), and manual entry stays
+  available (#107).
+- `/auth`: a printer with the host `auto` shows the address it found, for example `LAN, auto
+  (found at 192.168.1.50)`, or `not found yet`. `/auth/status` printer entries gain `host_mode`
+  and `address`.
+- `BAMBULAB_HOST=auto` (or `auto` in the `/auth` LAN form): opt-in discovery of a LAN printer from
+  its announcements (UDP 2021), so a DHCP change no longer needs a manual update. In Docker it
+  needs `network_mode: host`. Diagnostic report: `settings.host_auto` (#107).
+- Diagnostic report: an `ssdp` section with the printer announcements heard on the LAN (UDP
+  2021) while the report runs, sanitized like the rest of the report. **Run diagnostics** now
+  takes up to 8 seconds, and the summary shows a **LAN announcements** line. The exporter only
+  listens; it sends nothing to printers or other devices (the system joins the SSDP multicast
+  group, as any listener does). First step towards automatic printer discovery (#107).
+
+### Security
+- `BAMBULAB_HOST=auto`: the exporter now checks the printer's TLS certificate inside the handshake, before the LAN access code is sent. A certificate issued by a known Bambu Lab CA must name the printer's serial; any other certificate is trusted on first use and remembered per printer (`printer-certificates.json` in the config directory). A changed certificate stops the connection: the printer shows `error` with the reason, and `/auth` shows **Certificate changed** with the new fingerprint and **Trust new certificate**. Fixed hosts and Bambu Cloud are unchanged. `/auth/status` printer entries gain `certificate` and `certificate_fingerprint`; the diagnostic report gains `printers[].certificate` (#107).
+
 ### Fixed
 - Grafana: the Timelapse Storage Free bar had no maximum, so it was always full. It is now a
   **Timelapse Storage** table, one row per storage: the share used as a bar (green, orange from
@@ -12,9 +37,14 @@ All notable changes to this project are documented in this file.
   printer feeds from it. Re-import the sample dashboard to get the fix.
 
 ### Changed
+- GitHub Sponsors: the repository has a **Sponsor** button, and the README a Sponsors
+  badge next to Ko-fi.
 - README: easier to scan, with a supported printers table by series (and which models are tested
   on real hardware), a "How it works" table comparing LAN and Bambu Cloud setup, features grouped
   by topic, a Grafana dashboard overview and a help section.
+- Wiki: a **Docker networking** section in Installation (bridge networking is enough; host
+  networking only to receive LAN announcements; what to do when the printer's IP changes), and a
+  Troubleshooting entry for a printer that got a new IP address.
 
 ## [0.4.0] - 2026-11-11
 

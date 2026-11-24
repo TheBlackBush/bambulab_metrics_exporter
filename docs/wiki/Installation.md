@@ -94,6 +94,76 @@ A ready-to-import Unraid template is included: `unraid-bambulab-metrics-exporter
 
 ---
 
+## Docker networking
+
+The default bridge network is enough unless you use `BAMBULAB_HOST=auto`: the exporter connects
+out to the printer (LAN) or to Bambu Cloud, and Docker handles that without extra settings.
+
+One limit: on a bridge network the container does not receive the announcements printers
+broadcast on the LAN (SSDP, UDP port 2021). Publishing the port (`-p 2021:2021/udp`) does not
+change that, because Docker only forwards traffic addressed to the host itself. This affects
+`BAMBULAB_HOST=auto` (see [Automatic address](#automatic-address-auto) below) and the `ssdp`
+section of the [diagnostic report](Diagnostic-Report#lan-announcements), which then shows
+`none`. To let the container see the announcements, use host networking:
+
+```yaml
+services:
+  bambulab-metrics-exporter:
+    network_mode: host
+```
+
+or `docker run --network host ...`. With host networking, `ports:` is ignored: the exporter
+listens on port 9109 of the host directly (change it with `LISTEN_PORT`).
+
+**Printer IP keeps changing (DHCP)?** Either of these works without host networking:
+
+- Use a host name instead of an IP (`BAMBULAB_HOST`, or the IP field on the `/auth` page), if
+  your router or local DNS gives the printer a stable name.
+- Or enter the new IP on the `/auth` page with the same serial and access code: the exporter
+  updates that printer and reconnects without a restart.
+- Bambu Cloud mode does not depend on the printer's IP at all.
+- Or let the exporter follow the printer: set the host to `auto` (next section).
+
+### Automatic address (`auto`)
+
+Set `BAMBULAB_HOST=auto` (or type `auto` as the IP on the `/auth` LAN form) and the exporter
+finds the printer from the announcements it broadcasts on the LAN (UDP port 2021), matched by
+serial number. It is opt-in: an empty host still means "set it up", and a fixed IP or host name
+works as before.
+
+On the `/auth` page, **Find printers on my network** does this for you: pick the printer and the
+host is saved as `auto` (or, with **Keep finding it if the address changes** off, as the address
+found). The printer list shows the address it found, for example `LAN, auto (found at
+192.168.1.50)`, or `auto (not found yet)` with the reason below it.
+
+- In Docker it needs `network_mode: host` (see above). On the default bridge network the
+  announcements never reach the container; a fixed IP keeps working there. The scan on `/auth`
+  then finds nothing and says so.
+- The exporter connects only to the address that sent the announcement, and only if it is a
+  private or link-local IPv4 address (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16,
+  169.254.0.0/16). If two devices announce the same serial, it does not connect and says so.
+- After the printer has been offline for 2 minutes, the exporter connects to a new announced
+  address if there is one.
+- Certificate check: with `auto`, the exporter checks the printer's TLS certificate during the
+  TLS handshake, before it sends the LAN access code. A certificate signed by a Bambu Lab CA
+  that the exporter knows must name the printer's serial. Any other certificate is trusted when
+  the printer accepts the access code, and its SHA-256 fingerprint is remembered for that
+  printer. Later connections must show the same certificate. The exporter ships no Bambu Lab CA
+  yet, so today every `auto` printer uses the remembered fingerprint.
+- If the certificate changes, the exporter does not connect. The `/auth` page shows
+  **Certificate changed** with the new fingerprint and a **Trust new certificate** button (see
+  [Troubleshooting](Troubleshooting)). The fingerprints are kept in `printer-certificates.json`
+  in the config directory (see [Configuration](Configuration)).
+- Remaining risk: the first certificate is trusted as it is. A device on your LAN that announces
+  your printer's serial and answers first, while the printer is off, would be trusted and could
+  receive the access code. Add the printer while it is on and on your network. A fixed IP or
+  host name is not checked (as before), and neither is Bambu Cloud.
+
+If the exporter reports a discovery problem, see
+[Troubleshooting](Troubleshooting) ("Automatic address (`auto`) does not connect").
+
+---
+
 ## Environment-variable setup (optional)
 
 Instead of the `/auth` page, the printer can be configured with env vars. Settings saved on the

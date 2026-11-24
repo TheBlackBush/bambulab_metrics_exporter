@@ -49,6 +49,58 @@ The exporter never exits on connection problems: the web server stays up and the
 - Check port 8883: `nc -zv <printer_ip> 8883`
 - TLS cert verification is intentionally disabled
 
+**The printer got a new IP address (DHCP)**
+- Enter the new IP on the `/auth` page with the same serial and access code; the exporter
+  reconnects without a restart
+- To avoid it next time, use a host name for the printer if your router or local DNS gives it
+  one, or a DHCP reservation. See [Docker networking](Installation#docker-networking)
+- Or set the host to `auto`: after the printer has been offline for 2 minutes, the exporter
+  connects to its new announced address. See
+  [Automatic address](Installation#automatic-address-auto)
+
+**Automatic address (`auto`) does not connect**
+- "No LAN announcement from the printer. Automatic discovery needs the exporter on the printer's
+  network (Docker: network_mode: host), or set the printer's IP address." Use host networking
+  (see [Docker networking](Installation#docker-networking)) or enter a fixed IP. The
+  **LAN announcements** section of the [diagnostic report](Diagnostic-Report#lan-announcements)
+  shows whether announcements reach the exporter
+- "More than one device announces this printer's serial on the LAN, so the exporter does not
+  connect. Set the printer's IP address if this keeps happening." Another device announces the
+  same serial (or the printer's address just changed and the old one is still fresh; it clears
+  within about 90 seconds). Set a fixed IP if it persists
+- "LAN discovery could not listen on UDP port 2021 (...)." Something else holds the port, for
+  example another exporter instance or Bambu Studio on the same host. Stop it, or set a fixed IP
+- While waiting, the status reads "Waiting for the printer's LAN announcement"
+
+**Certificate changed (`auto` address)**
+- It means the device at the announced address shows another certificate than the one the
+  exporter remembered for this printer. The exporter did not send the access code and the
+  printer is not connected. The `/auth` page shows the new SHA-256 fingerprint
+- Press **Trust new certificate** after a firmware update or when you replaced the printer.
+  Compare the fingerprint first, on the same network:
+  `openssl s_client -tls1_2 -connect <printer-ip>:8883 </dev/null 2>/dev/null | openssl x509 -noout -fingerprint -sha256`
+- Do not press it if nothing changed. Find which device has that address, or set a fixed IP
+- "Certificate not signed by Bambu Lab", "Certificate for another printer" and "No readable
+  certificate" have no trust button: another device answers for the printer. Set a fixed IP and check your network
+- If `printer-certificates.json` cannot be read, or has an entry that is not a fingerprint, it is kept as `printer-certificates.json.bad`
+  and every `auto` printer shows **Certificate changed** until you press **Trust new
+  certificate**. That writes a new file
+- Deleting `printer-certificates.json` in the config directory and restarting the exporter
+  makes every `auto` printer trusted again on its next connection. Deleting it while the
+  exporter runs has no effect
+
+**Find printers on my network finds nothing**
+- No announcement arrived within 8 seconds. In Docker on a bridge network the announcements never
+  reach the container: use `network_mode: host` (see
+  [Docker networking](Installation#docker-networking)). Also check that the printer is on and on
+  the same network as the exporter. You can always type the printer IP instead
+- "Could not listen on UDP port 2021 (...)". Another program holds the port. Stop it, or type the
+  printer IP
+- "Another scan or a diagnostic report is listening right now". Wait a few seconds and try again
+- "That scan result has expired". A pick lasts 5 minutes. Scan again
+- A printer in the list has no **Use** button: more than one device announced its serial. Type
+  the printer IP
+
 **`/auth` or `/diagnostics` returns 403 `host_not_allowed`**
 - The page only accepts IP addresses and local-network host names (DNS-rebinding protection)
 - Add the name you use (for example a reverse-proxy host) to `AUTH_ALLOWED_HOSTS`
