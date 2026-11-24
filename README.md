@@ -115,6 +115,10 @@ hotend rack on the H2C and H3C.
 ### Built for homelabs
 - **Easy setup:** connect printers in the browser; settings are stored encrypted and survive
   restarts.
+- **Finds printers on the LAN:** **Find printers on my network** on the connection page lists
+  the printers announcing on your network, and the host `auto` follows a printer when its IP
+  changes, with its certificate checked before the access code is sent (Docker needs
+  `network_mode: host`).
 - **Model aware:** detects the model and skips hardware it does not have.
 - **Diagnostics:** a built-in page builds a sanitized report and opens a prefilled GitHub issue.
 - **Read-only:** never sends control commands to the printer.

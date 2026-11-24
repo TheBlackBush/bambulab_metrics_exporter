@@ -25,7 +25,7 @@ firmware, metrics without a value) and the full report. Then:
 |---|---|
 | **Copy** | Copies the report as a code block, ready to paste into an issue |
 | **Download** | Saves it as `bambulab-exporter-diagnostics-<date>-<time>.json` |
-| **Create GitHub issue** | Opens the GitHub issue form with a title that tells reports apart (for example `[H2D] Connection error: firmware 01.04.20.00, LAN, exporter 0.4.0` or `[Unsupported printer ZZZ] Model not recognized: Cloud, exporter 0.4.0`), a summary table (model, state, error message, firmware, connection) and the exporter version, model, firmware and connection mode filled in. A small report (for example from a printer that is not connected) is filled into the **Diagnostic report** box too. A full report is too long for a link, so it is copied and downloaded instead: paste it into the box (Ctrl+V) or drag the file there |
+| **Create GitHub issue** | Opens the GitHub issue form with a title that tells reports apart (for example `[H2D] Connection error: firmware 01.04.20.00, LAN, exporter 0.5.0` or `[Unsupported printer ZZZ] Model not recognized: Cloud, exporter 0.5.0`), a summary table (model, state, error message, firmware, connection) and the exporter version, model, firmware and connection mode filled in. A small report (for example from a printer that is not connected) is filled into the **Diagnostic report** box too. A full report is too long for a link, so it is copied and downloaded instead: paste it into the box (Ctrl+V) or drag the file there |
 
 Running takes up to 8 seconds: the exporter listens for printer announcements on the LAN (see
 [LAN announcements](#lan-announcements)).
